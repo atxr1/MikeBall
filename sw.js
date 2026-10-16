@@ -1,8 +1,9 @@
 // Service worker: network-first so new builds show up right away when
 // online, with a cached copy for offline play. Bump CACHE_VERSION on every
-// release.
+// release so phones drop the old copy.
 
-const CACHE_VERSION = 'mikeball-v1';
+const CACHE_VERSION = 'mikeball-v3';
+const NET_TIMEOUT_MS = 3500;
 const SHELL = [
   './',
   'index.html',
@@ -11,6 +12,9 @@ const SHELL = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',
+  'fonts/mikeball-pixel.woff',
+  'fonts/mikeball-pixel.ttf',
+  'src/ui/pixelart.js',
   'src/main.js',
   'src/core/rng.js',
   'src/core/util.js',
@@ -31,7 +35,9 @@ const SHELL = [
   'src/sim/playsim.js',
   'src/render/camera.js',
   'src/render/field.js',
-  'src/render/sprites.js',
+  'src/render/pixelsprites.js',
+  'src/render/pixelfont.js',
+  'src/render/pixeldraw.js',
   'src/render/playart.js',
   'src/ui/dom.js',
   'src/ui/emblems.js',
@@ -41,7 +47,13 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the browser's HTTP cache so a release never mixes
+  // old and new modules.
+  e.waitUntil(
+    caches.open(CACHE_VERSION)
+      .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -52,21 +64,46 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('timeout')), ms);
+    promise.then((v) => { clearTimeout(t); resolve(v); }, (err) => { clearTimeout(t); reject(err); });
+  });
+}
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   const font = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
-  if (url.origin !== location.origin && !font) return;
-  e.respondWith(
-    fetch(req)
-      .then((res) => {
-        if (res && (res.ok || res.type === 'opaque')) {
-          const copy = res.clone();
-          caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
-        }
+  const sameOrigin = url.origin === location.origin;
+  if (!sameOrigin && !font) return;
+
+  if (font) {
+    // Fonts never change: cache-first.
+    e.respondWith(
+      caches.match(req).then((hit) => hit || fetch(req).then((res) => {
+        const copy = res.clone();
+        e.waitUntil(caches.open(CACHE_VERSION).then((c) => c.put(req, copy)));
         return res;
-      })
-      .catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match('index.html'))),
+      })),
+    );
+    return;
+  }
+
+  const network = fetch(req, { cache: 'no-cache' }).then((res) => {
+    if (res && res.ok) {
+      const copy = res.clone();
+      e.waitUntil(caches.open(CACHE_VERSION).then((c) => c.put(req, copy)));
+    }
+    return res;
+  });
+  e.respondWith(
+    withTimeout(network, NET_TIMEOUT_MS).catch(() =>
+      caches.match(req, { ignoreSearch: true }).then((hit) => {
+        if (hit) return hit;
+        if (req.mode === 'navigate') return caches.match('index.html');
+        return network; // nothing cached: keep waiting on the network
+      })),
   );
 });

@@ -4,6 +4,8 @@
 import { FORMATIONS, ZONES } from '../data/playbook.js';
 import { alignOffense, alignDefense, routePoints, pathPoints } from '../sim/align.js';
 import { MID_X, FIELD_W, clamp } from '../core/util.js';
+import * as PX from './pixeldraw.js';
+import { drawText } from './pixelfont.js';
 
 export const READ_COLORS = ['#FFD23F', '#4FD1FF', '#FF8A3D', '#C77DFF', '#7CF29A'];
 const RUN_COLOR = '#ffffff';
@@ -30,157 +32,102 @@ function extend(pts, start, end, len) {
 }
 
 // ---------------------------------------------------------------- on-field
+// Drawn into the low-res pixel buffer with hard-edged lines.
 export function drawFieldArt(ctx, cam, sim, side, los) {
-  const u = cam.s;
-  const X = (x) => cam.sx(x);
-  const Y = (y) => cam.sy(los + y);
-  ctx.save();
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  const X = (x) => Math.round(cam.sx(x));
+  const Y = (y) => Math.round(cam.sy(los + y));
+  const P = (pt) => ({ x: X(pt.x), y: Y(pt.y) });
+  const shadowed = (pts, col, opts) => {
+    PX.polyline(ctx, pts.map((p) => ({ x: p.x, y: p.y + 1 })), 'rgba(0,20,0,0.45)', opts);
+    PX.polyline(ctx, pts, col, opts);
+  };
   if (side === 'O') {
-    const prog = (sim.offPlay.progression || []);
+    const prog = sim.offPlay.progression || [];
     for (const p of sim.offense) {
       const j = p.job;
+      const start = { x: p.sx, y: p.sy };
       if (j.t === 'route' || j.t === 'chkrel') {
         const idx = prog.indexOf(p.slot);
         const col = idx >= 0 ? READ_COLORS[idx % READ_COLORS.length] : '#ffffff';
-        const pts = extend(p.pts, { x: p.sx, y: p.sy }, p.routeEnd, 4);
-        strokePath(ctx, [{ x: p.sx, y: p.sy }, ...pts], X, Y, col, u * 0.22, j.t === 'chkrel' ? [u * 0.5, u * 0.35] : null);
-        if (p.routeEnd === 'continue') arrowHead(ctx, pts, X, Y, col, u);
-        else endDot(ctx, pts, X, Y, col, u);
-        if (idx >= 0 && u > 7) readBadge(ctx, X(p.sx), Y(p.sy) + u * 0.9, idx + 1, col, u);
+        const pts = [start, ...extend(p.pts, start, p.routeEnd, 4)].map(P);
+        shadowed(pts, col, { w: 2, dash: j.t === 'chkrel' ? [3, 2] : null });
+        const a = pts[pts.length - 2];
+        const b = pts[pts.length - 1];
+        if (p.routeEnd === 'continue') PX.arrowHead(ctx, a.x, a.y, b.x, b.y, col, 4);
+        else PX.disc(ctx, b.x, b.y, 2, col);
+        if (idx >= 0) readTag(ctx, X(p.sx), Y(p.sy) + 3, idx + 1, col);
       } else if (j.t === 'carry') {
-        const pts = p.pts;
-        strokePath(ctx, [{ x: p.sx, y: p.sy }, ...pts], X, Y, RUN_COLOR, u * 0.26);
-        arrowHead(ctx, pts, X, Y, RUN_COLOR, u);
+        const pts = [start, ...p.pts].map(P);
+        shadowed(pts, '#ffffff', { w: 2 });
+        const a = pts[pts.length - 2];
+        const b = pts[pts.length - 1];
+        PX.arrowHead(ctx, a.x, a.y, b.x, b.y, '#ffffff', 4);
       } else if (j.t === 'pafake') {
-        strokePath(ctx, [{ x: p.sx, y: p.sy }, ...p.pts], X, Y, RUN_COLOR, u * 0.18, [u * 0.4, u * 0.3]);
+        shadowed([start, ...p.pts].map(P), '#ffffff', { dash: [2, 2] });
       } else if (j.t === 'pull' || j.t === 'lead') {
-        const pts = p.pts;
-        strokePath(ctx, [{ x: p.sx, y: p.sy }, ...pts], X, Y, BLOCK_COLOR, u * 0.18);
-        tBar(ctx, pts, X, Y, BLOCK_COLOR, u);
-      } else if (j.t === 'passpro' || j.t === 'draw' || j.t === 'screenOL') {
-        const pts = [{ x: p.sx, y: p.sy - 1.1 }];
-        strokePath(ctx, [{ x: p.sx, y: p.sy }, ...pts], X, Y, BLOCK_COLOR, u * 0.16);
-        tBar(ctx, [{ x: p.sx, y: p.sy }, ...pts], X, Y, BLOCK_COLOR, u);
-      } else if (j.t === 'zone' || j.t === 'stalk') {
-        const dir = j.dir || 0;
-        const pts = [{ x: p.sx + dir * 0.9, y: p.sy + 1.3 }];
-        strokePath(ctx, [{ x: p.sx, y: p.sy }, ...pts], X, Y, BLOCK_COLOR, u * 0.16);
-        tBar(ctx, [{ x: p.sx, y: p.sy }, ...pts], X, Y, BLOCK_COLOR, u);
+        const pts = [start, ...p.pts].map(P);
+        shadowed(pts, BLOCK_COLOR, {});
+        PX.tBar(ctx, pts[pts.length - 2].x, pts[pts.length - 2].y, pts[pts.length - 1].x, pts[pts.length - 1].y, BLOCK_COLOR, 3);
+      } else if (j.t === 'zone' || j.t === 'stalk' || j.t === 'passpro' || j.t === 'draw' || j.t === 'screenOL') {
+        const dir = j.t === 'zone' || j.t === 'stalk' ? (j.dir || 0) : 0;
+        const fwd = j.t === 'zone' || j.t === 'stalk' ? 1.6 : -1.2;
+        const a = P(start);
+        const b = P({ x: p.sx + dir * 0.9, y: p.sy + fwd });
+        PX.line(ctx, a.x, a.y, b.x, b.y, BLOCK_COLOR);
+        PX.tBar(ctx, a.x, a.y, b.x, b.y, BLOCK_COLOR, 3);
       }
     }
   } else {
     const qb = sim.qb;
     for (const d of sim.defense) {
       const a = d.assign;
+      const start = P({ x: d.sx, y: d.sy });
       if (a.t === 'zone' && a.zone) {
         const z = a.zone;
         const col = zoneColor(z);
-        ctx.fillStyle = hexA(col, 0.12);
-        ctx.strokeStyle = hexA(col, 0.7);
-        ctx.lineWidth = Math.max(1, u * 0.1);
-        ctx.beginPath();
-        ctx.ellipse(X(z.x), Y(z.y), z.rx * u * 0.62, z.ry * u * 0.62 * 0.86, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        strokePath(ctx, [{ x: d.sx, y: d.sy }, { x: z.x, y: z.y }], X, Y, hexA(col, 0.9), u * 0.12, [u * 0.3, u * 0.25]);
+        const c = P({ x: z.x, y: z.y });
+        const rx = Math.round(z.rx * cam.s * 0.62);
+        const ry = Math.round(z.ry * cam.s * 0.62 * 0.86);
+        ctx.globalAlpha = 0.16;
+        PX.disc(ctx, c.x, c.y, rx, col, ry / Math.max(1, rx));
+        ctx.globalAlpha = 1;
+        PX.ring(ctx, c.x, c.y, rx, ry, col, 2);
+        PX.line(ctx, start.x, start.y, c.x, c.y, col, { dash: [2, 2] });
       } else if (a.t === 'man' && d.target) {
-        strokePath(ctx, [{ x: d.sx, y: d.sy }, { x: d.target.sx, y: d.target.sy + 0.6 }], X, Y, MAN_COLOR, u * 0.15, [u * 0.35, u * 0.25]);
+        const t = P({ x: d.target.sx, y: d.target.sy + 0.6 });
+        PX.line(ctx, start.x, start.y, t.x, t.y, MAN_COLOR, { dash: [3, 2] });
       } else if (a.t === 'rush') {
-        const pts = [{ x: d.sx + (qb.sx - d.sx) * 0.35, y: d.sy - 2.2 }];
-        strokePath(ctx, [{ x: d.sx, y: d.sy }, ...pts], X, Y, RUSH_COLOR, u * 0.2);
-        arrowHead(ctx, [{ x: d.sx, y: d.sy }, ...pts], X, Y, RUSH_COLOR, u);
+        const b = P({ x: d.sx + (qb.sx - d.sx) * 0.35, y: d.sy - 2.2 });
+        shadowed([start, b], RUSH_COLOR, { w: 2 });
+        PX.arrowHead(ctx, start.x, start.y, b.x, b.y, RUSH_COLOR, 3);
       } else if (a.t === 'blitz') {
-        const pts = [{ x: a.gapX, y: 0 }, { x: a.gapX + (qb.sx - a.gapX) * 0.5, y: -3 }];
-        strokePath(ctx, [{ x: d.sx, y: d.sy }, ...pts], X, Y, '#FF2E63', u * 0.24);
-        arrowHead(ctx, [{ x: d.sx, y: d.sy }, ...pts], X, Y, '#FF2E63', u);
+        const pts = [start, P({ x: a.gapX, y: 0 }), P({ x: a.gapX + (qb.sx - a.gapX) * 0.5, y: -3 })];
+        shadowed(pts, '#FF2E63', { w: 2 });
+        PX.arrowHead(ctx, pts[1].x, pts[1].y, pts[2].x, pts[2].y, '#FF2E63', 4);
       } else if (a.t === 'spy') {
-        ctx.strokeStyle = '#C77DFF';
-        ctx.lineWidth = Math.max(1, u * 0.12);
-        ctx.setLineDash([u * 0.3, u * 0.25]);
-        ctx.beginPath();
-        ctx.arc(X(qb.sx), Y(qb.sy + 5.5), u * 1.6, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
+        const c = P({ x: qb.sx, y: qb.sy + 5.5 });
+        PX.ring(ctx, c.x, c.y, Math.round(cam.s * 1.6), Math.round(cam.s * 1.4), '#C77DFF', 2);
       } else if (a.t === 'fit') {
-        const pts = [{ x: d.sx + (MID_X - d.sx) * 0.05, y: 1.2 }];
-        strokePath(ctx, [{ x: d.sx, y: d.sy }, ...pts], X, Y, '#FF8A3D', u * 0.2);
-        arrowHead(ctx, [{ x: d.sx, y: d.sy }, ...pts], X, Y, '#FF8A3D', u);
+        const b = P({ x: d.sx, y: 1.2 });
+        shadowed([start, b], '#FF8A3D', { w: 2 });
+        PX.arrowHead(ctx, start.x, start.y, b.x, b.y, '#FF8A3D', 3);
       }
     }
   }
-  ctx.restore();
+}
+
+function readTag(ctx, x, y, n, col) {
+  ctx.fillStyle = '#0e1a2b';
+  ctx.fillRect(x - 4, y, 9, 9);
+  ctx.fillStyle = col;
+  ctx.fillRect(x - 3, y + 1, 7, 7);
+  drawText(ctx, String(n), x - 2, y + 1, 1, '#0e1a2b');
 }
 
 function hexA(hex, a) {
   if (hex.startsWith('rgba')) return hex;
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
-}
-
-function strokePath(ctx, pts, X, Y, color, w, dash) {
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-  ctx.lineWidth = w + 2;
-  if (dash) ctx.setLineDash(dash);
-  ctx.beginPath();
-  pts.forEach((p, i) => (i ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y))));
-  ctx.stroke();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = w;
-  ctx.beginPath();
-  pts.forEach((p, i) => (i ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y))));
-  ctx.stroke();
-  ctx.setLineDash([]);
-}
-
-function arrowHead(ctx, pts, X, Y, color, u) {
-  if (pts.length < 1) return;
-  const b = pts[pts.length - 1];
-  const a = pts.length > 1 ? pts[pts.length - 2] : { x: b.x, y: b.y - 1 };
-  const ang = Math.atan2(Y(b.y) - Y(a.y), X(b.x) - X(a.x));
-  const L = u * 0.75;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(X(b.x) + Math.cos(ang) * L * 0.3, Y(b.y) + Math.sin(ang) * L * 0.3);
-  ctx.lineTo(X(b.x) + Math.cos(ang + 2.5) * L, Y(b.y) + Math.sin(ang + 2.5) * L);
-  ctx.lineTo(X(b.x) + Math.cos(ang - 2.5) * L, Y(b.y) + Math.sin(ang - 2.5) * L);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function endDot(ctx, pts, X, Y, color, u) {
-  const b = pts[pts.length - 1];
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(X(b.x), Y(b.y), u * 0.28, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function tBar(ctx, pts, X, Y, color, u) {
-  if (pts.length < 2) return;
-  const b = pts[pts.length - 1];
-  const a = pts[pts.length - 2];
-  const ang = Math.atan2(Y(b.y) - Y(a.y), X(b.x) - X(a.x)) + Math.PI / 2;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = u * 0.18;
-  ctx.beginPath();
-  ctx.moveTo(X(b.x) + Math.cos(ang) * u * 0.45, Y(b.y) + Math.sin(ang) * u * 0.45);
-  ctx.lineTo(X(b.x) - Math.cos(ang) * u * 0.45, Y(b.y) - Math.sin(ang) * u * 0.45);
-  ctx.stroke();
-}
-
-function readBadge(ctx, x, y, n, col, u) {
-  const r = u * 0.34;
-  ctx.fillStyle = col;
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#0e1a2b';
-  ctx.font = `800 ${Math.round(r * 1.5)}px "Big Shoulders Display", system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(String(n), x, y + r * 0.08);
 }
 
 // ---------------------------------------------------------------- cards (SVG)

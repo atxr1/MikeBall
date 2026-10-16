@@ -2,6 +2,38 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
+## 2026-10-15 — Pixel-art look
+
+**Done**
+- New pixel renderer: the field is drawn into a low-res buffer (about 5 device
+  pixels per art pixel on iPhone) and scaled up with nearest-neighbor.
+- Procedural pixel players (`src/render/pixelsprites.js`): outlined sprites
+  with big helmets, faces and facemasks, jersey numbers, shading; front, back
+  and side views; 4-frame run cycle, throwing, blocking, ball carrying,
+  lying down. Team uniforms are generated from team colors (home dark, away
+  white). Players and marks are original art, not copies of real players.
+- Pixel field: dithered turf with mowing stripes, crowd and sideline,
+  block-letter end zones, pixel yard numbers, midfield mark, goalposts.
+- Pixel play art (routes, blocks, zones, blitzes) with hard-edged lines.
+- Self-hosted pixel font `fonts/mikeball-pixel.woff` built by
+  `tools/make-font.py` (crisp at 10/20/30/40/60px, works offline). Google
+  Fonts removed.
+- Pixel UI: notched frames and bevels on buttons, tabs, cards, scoreboard,
+  banners; pixel team marks and pixel badge shields (`src/ui/pixelart.js`).
+- Reviewer fixes: Menu now pauses the game (no more freeze during a play),
+  kickoff-fumble spot, disabled plays can't be snapped, clock stops at the
+  start of Q2/Q4, sentence-case headlines, correct kicker on OT extra point,
+  44px tap targets, service worker hardening (no mixed old/new files,
+  3.5s network timeout), redraw only when something changes.
+- `tools/sprites.html` + `tools/page_shot.py` render a sprite sheet for art
+  review.
+
+**Next**
+- Milestone 2 (play drawing). Split `src/ui/coach.js` first (kicks and the
+  play-call sheet into their own modules) — it's near the size limit.
+- Art polish: more poses (stiff-arm, celebration, tackle collision),
+  weather (snow/rain), stadium-specific end zones and crowds.
+
 ## 2026-10-15 — Milestone 1: one playable game
 
 **Done**

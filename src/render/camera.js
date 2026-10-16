@@ -37,7 +37,11 @@ export class Camera {
     }
   }
 
+  // Returns true if the view changed enough to need a redraw.
   update(dt, rate = 4) {
+    const px = this.x;
+    const pf = this.f;
+    const pz = this.zoom;
     const k = 1 - Math.exp(-rate * dt);
     this.zoom = lerp(this.zoom, this.tzoom, k);
     // keep the field edges from scrolling too far past the sidelines
@@ -46,6 +50,7 @@ export class Camera {
     const maxX = Math.max(FIELD_W / 2, FIELD_W - halfW + 2);
     this.x = lerp(this.x, clamp(this.tx, minX, maxX), k);
     this.f = lerp(this.f, this.tf, k);
+    return Math.abs(this.x - px) + Math.abs(this.f - pf) > 0.002 || Math.abs(this.zoom - pz) > 0.0005;
   }
 
   sx(x) {

@@ -9,8 +9,8 @@ import { fgDistance, maxFgRange } from '../game/kicks.js';
 import { makeRng } from '../core/rng.js';
 import { MID_X, fmtClock, clamp, lerp } from '../core/util.js';
 import { Camera } from '../render/camera.js';
-import { drawField } from '../render/field.js';
-import { drawPlayer, drawBall, uniform } from '../render/sprites.js';
+import { drawField, drawGoalposts } from '../render/field.js';
+import { uniform, drawSprite, drawShadow, drawCarriedBall, drawFootball, viewFromFace } from '../render/pixelsprites.js';
 import { drawFieldArt, playCardSVG } from '../render/playart.js';
 import { DT } from '../sim/playsim.js';
 import { h, clear } from './dom.js';
@@ -43,7 +43,7 @@ export class CoachScreen {
     this.sel = null;
     this.cat = null;
     this.uniCache = new Map();
-    this.tmp = { x: 0, f: 0, vx: 0, vy: 0, face: 0, anim: 0, down: false, num: 0, skin: 0, juke: 0, lean: 0, diveT: 0 };
+    this.tmp = { view: 'N', pose: 'stand', frame: 0, num: 0, skin: 0 };
     this.build();
     this.loop = this.loop.bind(this);
     this.raf = requestAnimationFrame(this.loop);
@@ -85,7 +85,13 @@ export class CoachScreen {
     this.el.toast = h('div', { class: 'toast', hidden: true });
     this.el.tapHint = h('p', { class: 'tap-hint', hidden: true }, 'Tap to continue');
     this.stage = h('div', { class: 'stage' }, this.canvas, this.el.toast, this.el.banner, this.el.tapHint);
-    this.stage.addEventListener('pointerup', () => this.onStageTap());
+    this.stage.addEventListener('pointerdown', (e) => { this.tapStart = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+    this.stage.addEventListener('pointerup', (e) => {
+      const s0 = this.tapStart;
+      this.tapStart = null;
+      if (!s0 || Math.hypot(e.clientX - s0.x, e.clientY - s0.y) > 12 || performance.now() - s0.t > 450) return;
+      this.onStageTap();
+    });
 
     this.el.role = h('p', { class: 'role' });
     this.el.tabs = h('div', { class: 'tabs', role: 'tablist' });
@@ -115,15 +121,25 @@ export class CoachScreen {
     this.updateBug();
   }
 
+  // The field is drawn into a low-res buffer (one "art pixel" = several
+  // device pixels) and scaled up with nearest-neighbor for the pixel look.
   resize() {
     const r = this.stage.getBoundingClientRect();
     const dpr = Math.min(3, window.devicePixelRatio || 1);
-    this.canvas.width = Math.max(1, Math.round(r.width * dpr));
-    this.canvas.height = Math.max(1, Math.round(r.height * dpr));
+    const dw = Math.max(1, Math.round(r.width * dpr));
+    const dh = Math.max(1, Math.round(r.height * dpr));
+    this.canvas.width = dw;
+    this.canvas.height = dh;
     this.canvas.style.width = `${r.width}px`;
     this.canvas.style.height = `${r.height}px`;
     this.dpr = dpr;
-    this.cam.resize(r.width, r.height);
+    this.artPx = Math.max(2, Math.round(dpr * 1.7));
+    if (!this.lo) this.lo = document.createElement('canvas');
+    this.lo.width = Math.ceil(dw / this.artPx);
+    this.lo.height = Math.ceil(dh / this.artPx);
+    this.loCtx = this.lo.getContext('2d');
+    this.cam.resize(this.lo.width, this.lo.height);
+    this.dirty = true;
   }
 
   updateBug() {
@@ -218,6 +234,7 @@ export class CoachScreen {
   enterCall() {
     const g = this.game;
     this.mode = 'call';
+    if (this.cat === 'special') this.sel = null;
     this.updateBug();
     const userOff = g.poss === this.user;
     const cpuSide = other(this.user);
@@ -251,7 +268,7 @@ export class CoachScreen {
       this.el.tabs.append(b);
     }
     const plays = (userOff ? OFFENSE_PLAYS : DEFENSE_PLAYS).filter((p) => p.cat === this.cat);
-    if (!this.sel || !plays.includes(this.sel)) this.sel = this.suggestPlay(plays, userOff);
+    if (!this.sel || !plays.includes(this.sel) || this.playDisabled(this.sel)) this.sel = this.suggestPlay(plays, userOff);
     clear(this.el.cards);
     for (const p of plays) {
       const disabled = this.playDisabled(p);
@@ -332,6 +349,7 @@ export class CoachScreen {
     const g = this.game;
     const off = g.poss;
     const def = other(off);
+    this.dirty = true;
     this.scene = {
       kind: 'sim',
       sim,
@@ -354,7 +372,7 @@ export class CoachScreen {
 
   // ------------------------------------------------------------------ snapping
   snap() {
-    if (this.mode !== 'call') return;
+    if (this.mode !== 'call' || this.paused || !this.sel || this.playDisabled(this.sel)) return;
     const g = this.game;
     const cpu = other(this.user);
     this.setSheetEnabled(false);
@@ -454,9 +472,9 @@ export class CoachScreen {
     this.setTicker(out.text);
     if (out.flags && out.flags.includes('twoMinute')) this.toast('Two-minute warning');
     const head = out.headline;
-    if (head && head !== 'FIRST DOWN') this.banner(titleCase(head), out.text, 2.1, () => this.advance());
+    if (head && head !== 'First down') this.banner(head, out.text, 2.1, () => this.advance());
     else {
-      if (head === 'FIRST DOWN') this.toast('First down');
+      if (head === 'First down') this.toast('First down');
       this.after(0.5, () => this.advance());
     }
   }
@@ -511,7 +529,7 @@ export class CoachScreen {
       tx = MID_X + (this.kickRng().next() - 0.5) * 20;
       if (res.type === 'return' || res.type === 'td') ret = { to: 100 - res.ballOn };
     } else {
-      kSide = type === 'pat' ? this.lastPatSide(out) : out.side;
+      kSide = out.side;
       rSide = other(kSide);
       const start = type === 'pat' ? 85 : out.startBall;
       from = start - 7;
@@ -549,11 +567,6 @@ export class CoachScreen {
     this.setTicker(out.text);
   }
 
-  lastPatSide(out) {
-    // extraPoint() clears patSide; the kicking side is who kicks off next.
-    return this.game.kickingSide || this.game.poss;
-  }
-
   kickRng() {
     if (!this._krng) this._krng = makeRng(this.opts.seed ^ 0x5eed);
     return this._krng;
@@ -568,10 +581,10 @@ export class CoachScreen {
       this.updateBug();
       this.mode = 'idle';
       const head = out.headline;
-      const showHead = head && !(sc.type === 'pat' && out.good) && head !== 'FIELD GOAL' ? head : null;
+      const showHead = head || null;
       if (sc.type === 'fg' && out.res?.good) this.banner('Field goal', out.text, 1.8, () => this.advance());
       else if (sc.type === 'pat') this.banner(out.good ? 'Good' : 'No good', out.text, 1.4, () => this.advance());
-      else if (showHead) this.banner(titleCase(showHead), out.text, 2, () => this.advance());
+      else if (showHead) this.banner(showHead, out.text, 2, () => this.advance());
       else this.after(0.9, () => this.advance());
     }
   }
@@ -603,8 +616,8 @@ export class CoachScreen {
     }
   }
 
-  dialog(title, text, buttons) {
-    this.mode = 'idle';
+  dialog(title, text, buttons, { keepMode = false } = {}) {
+    if (!keepMode) this.mode = 'idle';
     this.setSheetEnabled(false);
     const close = () => d.remove();
     const d = h('div', { class: 'sheet dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
@@ -624,12 +637,14 @@ export class CoachScreen {
   }
 
   openMenu() {
-    const wasCall = this.mode === 'call';
+    if (this.paused) return;
+    this.paused = true;
+    const wasEnabled = !this.el.go.disabled;
     this.dialog('Menu', null, [
-      ['Resume', () => { if (wasCall) { this.mode = 'call'; this.setSheetEnabled(true); } }],
-      ['Sim to the end', () => this.simToEnd()],
+      ['Resume', () => { this.paused = false; if (wasEnabled && this.mode === 'call') this.setSheetEnabled(true); }],
+      ['Sim to the end', () => { this.paused = false; this.simToEnd(); }],
       ['Quit to title', () => this.app.showTitle()],
-    ]);
+    ], { keepMode: true });
   }
 
   simToEnd() {
@@ -656,6 +671,7 @@ export class CoachScreen {
     this.raf = requestAnimationFrame(this.loop);
     const dt = Math.min(0.05, (ts - (this.lastTs || ts)) / 1000) * (this.app.timeScale || 1);
     this.lastTs = ts;
+    if (this.paused) return;
     if (this.timers.length) {
       const due = [];
       for (const t of this.timers) { t.t -= dt; if (t.t <= 0) due.push(t); }
@@ -667,8 +683,12 @@ export class CoachScreen {
     if (this.mode === 'play' && this.scene.kind === 'sim') this.updatePlay(dt);
     if (this.mode === 'kick' && this.scene.kind === 'kick') this.updateKick(dt);
     this.updateCamera();
-    this.cam.update(dt, this.mode === 'play' ? 5 : 3.5);
-    this.draw();
+    const moved = this.cam.update(dt, this.mode === 'play' ? 5 : 3.5);
+    const live = this.mode === 'play' || this.mode === 'kick';
+    if (live || moved || this.dirty) {
+      this.dirty = false;
+      this.draw();
+    }
   }
 
   updateCamera() {
@@ -697,81 +717,124 @@ export class CoachScreen {
   }
 
   draw() {
-    const ctx = this.ctx;
     const sc = this.scene;
-    if (!sc) return;
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    if (!sc || !this.loCtx) return;
+    const ctx = this.loCtx;
     const g = this.game;
+    ctx.imageSmoothingEnabled = false;
     drawField(ctx, this.cam, { offTeam: sc.offTeam, defTeam: sc.defTeam, homeTeam: g.teams.home, los: sc.los, ltg: sc.ltg, showLines: sc.showLines });
     if (sc.kind === 'sim') this.drawSim(ctx, sc);
     else if (sc.kind === 'kick') this.drawKick(ctx, sc);
+    drawGoalposts(ctx, this.cam);
+    const out = this.ctx;
+    out.setTransform(1, 0, 0, 1, 0, 0);
+    out.imageSmoothingEnabled = false;
+    out.drawImage(this.lo, 0, 0, this.lo.width * this.artPx, this.lo.height * this.artPx);
+  }
+
+  poseFor(p, sim, live) {
+    const e = this.tmp;
+    e.num = p.rec.num;
+    e.skin = p.rec.skinTone;
+    e.frame = 0;
+    if (p.down) { e.pose = 'down'; e.view = Math.cos(p.face) >= 0 ? 'E' : 'W'; return e; }
+    const speed = Math.hypot(p.vx, p.vy);
+    if (!live || sim.t < 0.05) {
+      e.pose = 'stand';
+      e.view = p.side === 'O' ? 'N' : 'S';
+      return e;
+    }
+    e.view = viewFromFace(p.face);
+    const holder = sim.ball.holder === p;
+    if (p === sim.qb && (p.pending || (sim.passer === p && sim.t - (sim.ball.t0 || 0) < 0.22 && sim.ball.state === 'air'))) {
+      e.pose = 'throw';
+      if (e.view === 'E' || e.view === 'W') e.view = 'N';
+      return e;
+    }
+    if (p.blk) { e.pose = 'push'; return e; }
+    if (speed > 0.7) {
+      e.pose = holder ? 'carry' : 'run';
+      e.frame = Math.floor(p.anim * 0.6) % 4;
+      return e;
+    }
+    e.pose = 'stand';
+    return e;
   }
 
   drawSim(ctx, sc) {
     const sim = sc.sim;
-    if (this.mode === 'call' && sc.artSide) drawFieldArt(ctx, this.cam, sim, sc.artSide, sc.los);
-    const list = sim.players.slice().sort((a, b) => b.y - a.y);
+    const cam = this.cam;
+    if (this.mode === 'call' && sc.artSide) drawFieldArt(ctx, cam, sim, sc.artSide, sc.los);
+    const list = this.sortBuf || (this.sortBuf = []);
+    list.length = 0;
+    for (const p of sim.players) list.push(p);
+    list.sort((a, b) => b.y - a.y);
     const live = this.mode === 'play' || this.mode === 'idle';
     for (const p of list) {
-      const e = this.tmp;
-      e.x = p.x;
-      e.f = sc.los + p.y;
-      e.vx = p.vx;
-      e.vy = p.vy;
-      e.face = p.face;
-      e.anim = p.anim;
-      e.down = p.down;
-      e.num = p.rec.num;
-      e.skin = p.rec.skinTone;
-      e.juke = p.juke;
-      e.diveT = 0;
-      e.lean = p.blk ? 0.12 : 0;
-      const holder = live && sim.ball.holder === p && sim.phase === 'run';
-      drawPlayer(ctx, this.cam, e, p.side === 'O' ? sc.offUni : sc.defUni, {
-        stance: !live || sim.t < 0.05,
-        marker: holder ? '#FFD23F' : null,
-      });
+      const x = cam.sx(p.x);
+      const y = cam.sy(sc.los + p.y);
+      if (x < -20 || x > cam.w + 20 || y < -4 || y > cam.h + 30) continue;
+      drawShadow(ctx, x, y, p.down ? 18 : 12);
     }
     const b = sim.ball;
-    const ang = b.state === 'air' ? Math.atan2(-(b.ty - b.fy), b.tx - b.fx) : 0;
-    drawBall(ctx, this.cam, { x: b.x, f: sc.los + b.y, z: b.z, ang });
+    for (const p of list) {
+      const x = cam.sx(p.x);
+      const y = cam.sy(sc.los + p.y);
+      if (x < -20 || x > cam.w + 20 || y < -4 || y > cam.h + 30) continue;
+      const e = this.poseFor(p, sim, live);
+      drawSprite(ctx, p.side === 'O' ? sc.offUni : sc.defUni, e, x, y);
+      const holder = b.holder === p && b.state === 'held';
+      if (holder && live && e.pose !== 'throw' && e.pose !== 'down') drawCarriedBall(ctx, e.view, x, y);
+      if (holder && live && sim.phase === 'run' && !p.down) this.carrierMarker(ctx, x, y);
+    }
+    if (b.state !== 'held') {
+      drawFootball(ctx, cam.sx(b.x), cam.sy(sc.los + b.y), b.z * cam.s * 0.9, sim.t * 12);
+    }
+  }
+
+  carrierMarker(ctx, x, y) {
+    const X = Math.round(x);
+    const Y = Math.round(y) - 31;
+    ctx.fillStyle = '#2a2100';
+    ctx.fillRect(X - 3, Y - 1, 7, 2);
+    ctx.fillRect(X - 2, Y + 1, 5, 1);
+    ctx.fillRect(X - 1, Y + 2, 3, 1);
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillRect(X - 2, Y - 1, 5, 1);
+    ctx.fillRect(X - 1, Y, 3, 1);
+    ctx.fillRect(X, Y + 1, 1, 1);
   }
 
   drawKick(ctx, sc) {
+    const cam = this.cam;
     const p = this.kickBall(sc);
     const e = this.tmp;
-    // kicker
-    e.x = sc.from.x;
-    e.f = sc.from.f - 0.8;
-    e.vx = 0;
-    e.vy = sc.t < 0.4 ? 3 : 0;
-    e.face = Math.PI / 2;
-    e.anim = sc.t * 6;
-    e.down = false;
+    const kx = cam.sx(sc.from.x);
+    const ky = cam.sy(sc.from.f - 0.8);
+    drawShadow(ctx, kx, ky);
+    e.view = 'N';
+    e.pose = sc.t < 0.25 ? 'run' : 'stand';
+    e.frame = Math.floor(sc.t * 10) % 4;
     e.num = sc.kicker.num;
     e.skin = 1;
-    e.juke = 0;
-    e.lean = 0;
-    e.diveT = 0;
-    drawPlayer(ctx, this.cam, e, sc.kicker.uni, {});
+    drawSprite(ctx, sc.kicker.uni, e, kx, ky);
     if (sc.returner && sc.t > sc.flight * 0.4) {
       const running = sc.t > sc.flight;
-      e.x = running ? p.x : sc.to.x;
-      e.f = running ? p.f : sc.to.f + 0.5;
-      e.vx = 0;
-      e.vy = running ? -8 : 0;
-      e.face = -Math.PI / 2;
-      e.anim = sc.t * 8;
+      const rx = cam.sx(running ? p.x : sc.to.x);
+      const ry = cam.sy(running ? p.f : sc.to.f + 0.5);
+      drawShadow(ctx, rx, ry);
+      e.view = 'S';
+      e.pose = running ? 'carry' : 'stand';
+      e.frame = Math.floor(sc.t * 12) % 4;
       e.num = sc.returner.num;
       e.skin = sc.returner.skin;
-      drawPlayer(ctx, this.cam, e, sc.returner.uni, { marker: running ? '#FFD23F' : null });
+      drawSprite(ctx, sc.returner.uni, e, rx, ry);
+      if (running) {
+        drawCarriedBall(ctx, 'S', rx, ry);
+        this.carrierMarker(ctx, rx, ry);
+      }
     }
-    if (!(sc.returner && sc.t > sc.flight)) drawBall(ctx, this.cam, { x: p.x, f: p.f, z: p.z, ang: sc.t * 9 });
+    if (!(sc.returner && sc.t > sc.flight)) drawFootball(ctx, cam.sx(p.x), cam.sy(p.f), p.z * cam.s * 0.9, sc.t * 14);
   }
 }
 
-function titleCase(s) {
-  if (!s) return s;
-  const lower = s.toLowerCase();
-  return lower.charAt(0).toUpperCase() + lower.slice(1);
-}

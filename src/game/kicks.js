@@ -56,7 +56,7 @@ export function kickoff(kicker, returner, rng, { onside = false, fromYard = 35 }
   if (fromYard === 35 && (landing < -3 || rng.chance(0.18 + Math.max(0, -landing) * 0.12))) {
     return { type: 'touchback', ballOn: 35, landing, returnYds: 0 };
   }
-  if (rng.chance(0.004)) return { type: 'fumble', kickingRecovers: true, ballOn: clamp(100 - (landing + 20), 1, 99), landing, returnYds: 20 };
+  if (rng.chance(0.004)) return { type: 'fumble', kickingRecovers: true, ballOn: clamp(Math.round(landing + 20), 1, 99), landing, returnYds: 20 };
   const r = returner.attrs;
   let ret = 22 + (r.spd - 85) * 0.5 + (r.elu - 70) * 0.15 + rng.normal(0, 7);
   if (rng.chance(0.035)) ret += rng.int(15, 45);

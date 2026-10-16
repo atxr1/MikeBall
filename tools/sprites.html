@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Sprite sheet</title>
+<style>
+  body { margin: 0; background: #3f8a3a; }
+  canvas { image-rendering: pixelated; display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+  import { TEAMS } from '../src/data/teams.js';
+  import { uniform, drawSprite, drawShadow, drawCarriedBall, SW, SH } from '../src/render/pixelsprites.js';
+  const teams = (new URLSearchParams(location.search).get('teams') || 'KC,BUF,MIN,PIT').split(',');
+  const views = ['S', 'N', 'E', 'W'];
+  const rows = [];
+  for (const id of teams) {
+    const t = TEAMS.find((x) => x.id === id);
+    for (const home of [true, false]) rows.push({ uni: uniform(t, home), num: home ? 15 : 7 });
+  }
+  const cols = [];
+  for (const v of views) {
+    cols.push({ view: v, pose: 'stand', frame: 0 });
+    for (let f = 0; f < 4; f++) cols.push({ view: v, pose: 'run', frame: f });
+  }
+  cols.push({ view: 'S', pose: 'throw', frame: 0 });
+  cols.push({ view: 'N', pose: 'push', frame: 0 });
+  cols.push({ view: 'S', pose: 'push', frame: 0 });
+  cols.push({ view: 'E', pose: 'down', frame: 0 });
+  cols.push({ view: 'E', pose: 'dive', frame: 0 });
+  cols.push({ view: 'S', pose: 'carry', frame: 1, ball: true });
+  const cw = SW + 4;
+  const ch = SH + 4;
+  const lo = document.createElement('canvas');
+  lo.width = cols.length * cw;
+  lo.height = rows.length * ch;
+  const ctx = lo.getContext('2d');
+  ctx.fillStyle = '#3f8a3a';
+  ctx.fillRect(0, 0, lo.width, lo.height);
+  rows.forEach((r, ri) => cols.forEach((c, ci) => {
+    const x = ci * cw + 13;
+    const y = ri * ch + 28;
+    drawShadow(ctx, x, y);
+    drawSprite(ctx, r.uni, { ...c, num: r.num, skin: (ri + ci) % 6 }, x, y);
+    if (c.ball) drawCarriedBall(ctx, c.view, x, y);
+  }));
+  const out = document.getElementById('c');
+  const S = Number(new URLSearchParams(location.search).get('scale') || 5);
+  out.width = lo.width * S;
+  out.height = lo.height * S;
+  const o = out.getContext('2d');
+  o.imageSmoothingEnabled = false;
+  o.drawImage(lo, 0, 0, out.width, out.height);
+  document.title = 'ready';
+</script>
+</body>
+</html>

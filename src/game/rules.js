@@ -264,7 +264,7 @@ export class Game {
       out.penalty = pen;
       out.text = `${out.text} — FLAG: ${pen.text}`;
       out.kind = 'penalty';
-      out.headline = 'FLAG';
+      out.headline = 'Flag';
       this.finishNext();
       return out;
     }
@@ -278,8 +278,8 @@ export class Game {
       const absSpot = startBall + r.spotY;
       if (r.defTD) {
         out.kind = 'defTD';
-        out.headline = 'PICK SIX!';
-        if (r.fumble) out.headline = 'SCOOP & SCORE!';
+        out.headline = 'Pick six!';
+        if (r.fumble) out.headline = 'Scoop and score!';
         this.poss = def;
         this.addScore(def, 6);
         this.addLog(entryText, 'score');
@@ -289,7 +289,7 @@ export class Game {
         return this.finishOut(out);
       }
       out.kind = 'turnover';
-      out.headline = r.interception ? 'INTERCEPTED!' : 'FUMBLE!';
+      out.headline = r.interception ? 'Intercepted!' : 'Fumble!';
       let newBall = r.touchback ? 20 : clamp(Math.round(100 - absSpot), 1, 99);
       this.addLog(entryText, 'turnover');
       this.changePossession(newBall, clamp(r.spotX, HASH_L, HASH_R));
@@ -298,7 +298,7 @@ export class Game {
 
     if (r.safety) {
       out.kind = 'safety';
-      out.headline = 'SAFETY!';
+      out.headline = 'Safety!';
       this.addScore(def, 2);
       this.addLog(entryText, 'score');
       this.clockRunning = false;
@@ -314,7 +314,7 @@ export class Game {
       this.stats.team[off].yards += 100 - startBall;
       this.ballOn = 100;
       out.kind = 'td';
-      out.headline = 'TOUCHDOWN!';
+      out.headline = 'Touchdown!';
       this.addScore(off, 6);
       this.addLog(entryText, 'score');
       this.clockRunning = false;
@@ -335,12 +335,12 @@ export class Game {
       this.down = 1;
       this.ltg = Math.min(this.ballOn + 10, 100);
       out.kind = 'firstDown';
-      out.headline = 'FIRST DOWN';
+      out.headline = 'First down';
       this.stats.team[off].firstDowns++;
       if (thirdDown) this.stats.team[off].thirdConv++;
     } else if (this.down >= 4) {
       out.kind = 'downs';
-      out.headline = 'TURNOVER ON DOWNS';
+      out.headline = 'Turnover on downs';
       this.addLog(entryText, 'turnover');
       this.changePossession(100 - this.ballOn, this.ballX);
       return this.finishOut(out);
@@ -462,7 +462,7 @@ export class Game {
     if (res.good) { l.kick.xpm++; this.addScore(side, 1); }
     this.addLog(text, 'score');
     this.afterTry(side);
-    return { text, good: res.good, kind: 'pat', headline: res.good ? 'GOOD!' : 'NO GOOD', next: this.next, anim: { type: 'fg', distance: 33, good: res.good, miss: res.miss } };
+    return { text, side, good: res.good, kind: 'pat', headline: res.good ? 'Good!' : 'No good', next: this.next, anim: { type: 'fg', distance: 33, good: res.good, miss: res.miss } };
   }
 
   // r: PlaySim result run from the 2.
@@ -477,7 +477,7 @@ export class Game {
     }
     this.addLog(text, 'score');
     this.afterTry(side);
-    return { text, good, kind: 'twoPoint', headline: good ? 'TWO-POINT GOOD!' : 'NO GOOD', next: this.next };
+    return { text, good, kind: 'twoPoint', headline: good ? 'Two-point try good!' : 'No good', next: this.next };
   }
 
   afterTry(side) {
@@ -505,19 +505,19 @@ export class Game {
       this.setPossession(rSide, 35);
     } else if (res.type === 'onside_recovered') {
       text = `ONSIDE KICK — recovered by ${tk}!`;
-      headline = 'ONSIDE RECOVERED!';
+      headline = 'Onside kick recovered!';
       this.setPossession(kSide, res.ballOn);
     } else if (res.type === 'onside_failed') {
       text = `Onside kick recovered by ${tr}.`;
       this.setPossession(rSide, res.ballOn);
     } else if (res.type === 'fumble') {
       text = `${nm(ret)} fumbles the return! Recovered by ${tk}.`;
-      headline = 'FUMBLE!';
+      headline = 'Fumble!';
       this.runClock(5);
       this.setPossession(kSide, 100 - res.ballOn);
     } else if (res.type === 'td') {
       text = `${nm(ret)} returns the kick ${res.returnYds} yards for a TOUCHDOWN!`;
-      headline = 'KICK RETURN TD!';
+      headline = 'Kick return touchdown!';
       this.runClock(11);
       this.setPossession(rSide, 99);
       this.addScore(rSide, 6);
@@ -564,7 +564,7 @@ export class Game {
     let headline = null;
     if (res.type === 'blocked') {
       text = 'PUNT BLOCKED!';
-      headline = 'BLOCKED!';
+      headline = 'Blocked!';
       this.changePossession(res.ballOn);
     } else if (res.type === 'touchback') {
       text = `${nm(p)} punts ${res.gross} yards into the end zone. Touchback.`;
@@ -577,14 +577,14 @@ export class Game {
       this.changePossession(res.ballOn);
     } else if (res.type === 'muff') {
       text = `${nm(p)} punts ${res.gross} yards — MUFFED! ${tk} recovers.`;
-      headline = 'MUFFED PUNT!';
+      headline = 'Muffed punt!';
       this.ballOn = clamp(res.ballOn, 1, 99);
       this.down = 1;
       this.ltg = Math.min(this.ballOn + 10, 100);
       this.clockRunning = false;
     } else if (res.type === 'td') {
       text = `${nm(ret)} returns the punt ${res.returnYds} yards for a TOUCHDOWN!`;
-      headline = 'PUNT RETURN TD!';
+      headline = 'Punt return touchdown!';
       this.changePossession(99);
       this.addScore(opp, 6);
       this.addLog(text, 'score');
@@ -615,7 +615,7 @@ export class Game {
       l.kick.fgm++;
       l.kick.long = Math.max(l.kick.long, res.distance);
       text = `${nm(k)} ${res.distance}-yard field goal is GOOD.`;
-      headline = 'FIELD GOAL!';
+      headline = 'Field goal!';
       this.addScore(side, 3);
       this.addLog(text, 'score');
       if (!this.otScore(side, 'fg')) {
@@ -624,7 +624,7 @@ export class Game {
       }
     } else {
       text = res.blocked ? `${nm(k)} ${res.distance}-yard attempt is BLOCKED!` : `${nm(k)} ${res.distance}-yard field goal is NO GOOD (${res.miss}).`;
-      headline = res.blocked ? 'BLOCKED!' : 'NO GOOD';
+      headline = res.blocked ? 'Blocked!' : 'No good';
       this.addLog(text, 'kick');
       const kickSpot = startBall - 7;
       this.changePossession(Math.max(20, 100 - kickSpot));
@@ -639,6 +639,8 @@ export class Game {
     if (q === 1 || q === 3) {
       this.quarter++;
       this.clock = this.qLen * 60;
+      this.clockRunning = false;
+      this.shortRunoff = false;
       this.addLog(`End of ${ordinal(q)} quarter.`, 'info');
       this.finishNext();
       return { kind: 'quarter', text: `End of the ${ordinal(q)} quarter` };
