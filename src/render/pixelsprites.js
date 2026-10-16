@@ -317,6 +317,25 @@ function armsUpFB(p, c, y) {
   }
 }
 
+// Right arm raised (first-down point: in a back view it points up field).
+function armPointFB(p, c, y) {
+  p.rect(3, y + 1, 2, 2, c.J);
+  p.px(3, y + 1, c.Jl);
+  p.rect(3, y + 3, 2, 1, c.T);
+  p.rect(3, y + 4, 2, 3, c.K);
+  p.rect(13, y + 1, 2, 2, c.J);
+  p.px(14, y + 1, c.Jd);
+  p.limb(13, y + 1, 14, y - 4, 2, c.J);
+  p.rect(14, y - 5, 2, 1, c.T);
+  p.rect(14, y - 9, 2, 4, c.K);
+}
+
+// Salute: right hand up at the helmet brim (drawn over the helmet).
+function saluteHand(p, c, y) {
+  p.limb(14, y - 1, 11, y - 4, 2, c.K);
+  p.rect(10, y - 5, 2, 2, c.K);
+}
+
 // One arm held straight out to the left (stiff arm), or both (off balance).
 function armOutLeft(p, c, y) {
   p.rect(3, y + 1, 2, 2, c.J);
@@ -382,6 +401,7 @@ function lyingVertical(p, c, headUp) {
 const cache = new Map();
 
 // Poses: stand, run, carry, throw, push, down, dive, cheer (arms up),
+// point (first-down signal), salute,
 // stiffL / stiffR (arm out to that side of the screen; side views push it
 // forward), reel (off balance, both arms out), cutL / cutR (juke).
 
@@ -407,6 +427,8 @@ export function spriteFor(uni, skin, view, pose, frame) {
   let numY = null;
   let numDx = 0;
 
+  if (v === 'E' && pose === 'point') pose = 'stiffL';
+  if (v === 'E' && pose === 'salute') pose = 'cheer';
   if (pose === 'down') {
     if (v === 'E') lyingDown(p, c);
     else lyingVertical(p, c, v === 'N');
@@ -454,6 +476,16 @@ export function spriteFor(uni, skin, view, pose, frame) {
     torsoFB(up, c, 7 + bob, back);
     if (pose === 'throw') throwArm(up, c, 7 + bob);
     else if (pose === 'cheer') armsUpFB(up, c, 7 + bob);
+    else if (pose === 'point') armPointFB(up, c, 7 + bob);
+    else if (pose === 'salute') {
+      const y = 7 + bob;
+      up.rect(3, y + 1, 2, 2, c.J);
+      up.px(3, y + 1, c.Jl);
+      up.rect(3, y + 3, 2, 1, c.T);
+      up.rect(3, y + 4, 2, 3, c.K);
+      up.rect(13, y + 1, 2, 2, c.J);
+      up.limb(14, y + 1, 15, y - 1, 2, c.J);
+    }
     else if (pose === 'stiffL') {
       armOutLeft(up, c, 7 + bob);
       armDownRight(up, c, 7 + bob);
@@ -466,6 +498,7 @@ export function spriteFor(uni, skin, view, pose, frame) {
     } else armsFB(up, c, 7 + bob, run ? (f === 0 ? 1 : f === 2 ? -1 : 0) : 0, run ? (f === 0 ? -1 : f === 2 ? 1 : 0) : 0, pose);
     if (back) helmetBack(up, c, bob);
     else helmetFront(up, c, bob);
+    if (pose === 'salute' && !back) saluteHand(up, c, 7 + bob);
     numY = TOP + 8 + bob;
   }
   outline(canvas);

@@ -54,8 +54,7 @@ EXTRA = {
     "historical_logo": "extra/logos_historical",
     "endzone": "extra/endzones",
     "endzone_text": "extra/endzones",
-    "broadcast_title": "extra/broadcast",
-    "network_logo": "extra/broadcast",
+    # TV-network graphics are imported by tools/import_broadcast.py
 }
 
 manifest = []

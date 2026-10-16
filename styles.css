@@ -215,8 +215,8 @@ img.logo-dark { filter: drop-shadow(1px 0 0 #dfe6f2) drop-shadow(-1px 0 0 #dfe6f
   padding: 8px 12px 6px; font: 400 20px/1 var(--px); white-space: nowrap;
 }
 .banner {
-  position: absolute; left: 14px; right: 14px; top: 50%; z-index: 3;
-  transform: translateY(-50%);
+  /* low on the field so the play and the celebration stay in view */
+  position: absolute; left: 14px; right: 14px; bottom: 14%; z-index: 3;
   text-align: center; pointer-events: none;
 }
 .banner-head {
@@ -388,3 +388,46 @@ table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nu
 }
 .draw-chip.hint { color: var(--dim); font-weight: 600; pointer-events: none; }
 .draw-chip[hidden] { display: none; }
+
+/* Network scorebug (src/ui/broadcast.js): the pixel canvas replaces the
+   built-in bug once its art has loaded; the DOM bug stays for screen readers. */
+.scorebug-canvas { display: none; image-rendering: pixelated; }
+.bug.tv { display: flex; justify-content: center; align-items: center; background: transparent; box-shadow: none; min-height: 0; }
+.bug.tv .scorebug-canvas { display: block; }
+.bug.tv > :not(.scorebug-canvas) {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.banner-head.tv-card { background: none; box-shadow: none; padding: 0; text-shadow: none; }
+.banner-head.tv-card canvas { display: block; image-rendering: pixelated; }
+.tv-logo {
+  position: absolute; right: 8px; bottom: 8px; z-index: 2; width: 32px; height: 32px;
+  image-rendering: pixelated; opacity: 0.7; pointer-events: none;
+}
+.coach.live .tv-logo { bottom: 8px; }
+.card-flash {
+  position: absolute; left: 0; right: 0; top: 18%; z-index: 3; display: flex; justify-content: center;
+  pointer-events: none; animation: slam 0.3s steps(5) both;
+}
+.card-flash canvas { image-rendering: pixelated; }
+.segment.wrap { flex-wrap: wrap; }
+.segment.wrap button { flex: 1 1 30%; font-size: 15px; }
+.slot-note { margin: 0 0 8px; color: var(--dim); font-size: 13px; }
+
+/* Real honors from last season (src/data/honors.js) */
+.p-honors { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
+.honor { font: 800 11px/1 var(--ui); letter-spacing: 0.04em; padding: 2px 4px; color: #1a1205; }
+.honor.ap1 { background: #f2c94c; }
+.honor.ap2 { background: #c9ced8; }
+.honor.award { background: #ff5a4a; color: #fff; }
+.p-honor-list { margin: 0 0 8px; padding: 0; list-style: none; font-size: 12px; color: var(--dim); }
+.p-honor-list li::before { content: '★ '; color: #f2c94c; }
+
+/* Final screen: network card and Player of the Game */
+.final-card { display: flex; justify-content: center; margin: 4px 0 12px; }
+.final-card canvas { image-rendering: pixelated; }
+.potg { margin: 14px 0; }
+.potg-row { display: flex; gap: 12px; align-items: center; background: var(--panel); box-shadow: var(--frame); padding: 10px 12px; margin: 3px; }
+.potg-face { width: 64px; height: 64px; image-rendering: pixelated; }
+.potg-row strong { display: block; font-size: 16px; }
+.potg-row small { color: var(--dim); }
+.potg-row p { margin: 4px 0 0; font-size: 13px; }

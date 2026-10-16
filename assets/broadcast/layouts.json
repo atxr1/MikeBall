@@ -1,0 +1,2994 @@
+{
+ "cbs": {
+  "standard": {
+   "file": "scorebug_standard_320x40.png",
+   "mask": "team_mask_standard_320x40.png",
+   "width": 320,
+   "height": 40,
+   "fields": {
+    "away_logo": [
+     6,
+     7,
+     24,
+     24
+    ],
+    "away_abbr": [
+     34,
+     12,
+     19,
+     7
+    ],
+    "away_score": [
+     79,
+     10,
+     25,
+     18
+    ],
+    "home_logo": [
+     289,
+     7,
+     24,
+     24
+    ],
+    "home_abbr": [
+     265,
+     12,
+     19,
+     7
+    ],
+    "home_score": [
+     215,
+     10,
+     25,
+     18
+    ],
+    "period": [
+     119,
+     26,
+     17,
+     7
+    ],
+    "clock": [
+     143,
+     26,
+     33,
+     7
+    ],
+    "down_distance": [
+     133,
+     10,
+     57,
+     7
+    ],
+    "play_clock": [
+     184,
+     26,
+     12,
+     7
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      35,
+      6,
+      1
+     ],
+     [
+      44,
+      35,
+      6,
+      1
+     ],
+     [
+      53,
+      35,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      35,
+      6,
+      1
+     ],
+     [
+      269,
+      35,
+      6,
+      1
+     ],
+     [
+      278,
+      35,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     15
+    ],
+    "home": [
+     245,
+     15
+    ]
+   }
+  },
+  "compact": {
+   "file": "scorebug_compact_240x32.png",
+   "mask": "team_mask_compact_240x32.png",
+   "width": 240,
+   "height": 32,
+   "fields": {
+    "away_logo": [
+     4,
+     6,
+     18,
+     19
+    ],
+    "away_abbr": [
+     26,
+     10,
+     14,
+     6
+    ],
+    "away_score": [
+     59,
+     8,
+     19,
+     14
+    ],
+    "home_logo": [
+     217,
+     6,
+     18,
+     19
+    ],
+    "home_abbr": [
+     199,
+     10,
+     14,
+     6
+    ],
+    "home_score": [
+     161,
+     8,
+     19,
+     14
+    ],
+    "period": [
+     89,
+     21,
+     13,
+     6
+    ],
+    "clock": [
+     107,
+     21,
+     25,
+     6
+    ],
+    "down_distance": [
+     100,
+     8,
+     43,
+     6
+    ],
+    "play_clock": [
+     138,
+     21,
+     9,
+     6
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      26,
+      28,
+      4,
+      1
+     ],
+     [
+      33,
+      28,
+      4,
+      1
+     ],
+     [
+      40,
+      28,
+      4,
+      1
+     ]
+    ],
+    "home": [
+     [
+      195,
+      28,
+      4,
+      1
+     ],
+     [
+      202,
+      28,
+      4,
+      1
+     ],
+     [
+      208,
+      28,
+      4,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     52,
+     12
+    ],
+    "home": [
+     184,
+     12
+    ]
+   }
+  },
+  "expanded": {
+   "file": "scorebug_expanded_320x56.png",
+   "mask": "team_mask_expanded_320x56.png",
+   "width": 320,
+   "height": 56,
+   "fields": {
+    "away_logo": [
+     6,
+     10,
+     24,
+     34
+    ],
+    "away_abbr": [
+     34,
+     17,
+     19,
+     10
+    ],
+    "away_score": [
+     79,
+     14,
+     25,
+     25
+    ],
+    "home_logo": [
+     289,
+     10,
+     24,
+     34
+    ],
+    "home_abbr": [
+     265,
+     17,
+     19,
+     10
+    ],
+    "home_score": [
+     215,
+     14,
+     25,
+     25
+    ],
+    "period": [
+     119,
+     36,
+     17,
+     10
+    ],
+    "clock": [
+     143,
+     36,
+     33,
+     10
+    ],
+    "down_distance": [
+     133,
+     14,
+     57,
+     10
+    ],
+    "play_clock": [
+     184,
+     36,
+     12,
+     10
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      49,
+      6,
+      1
+     ],
+     [
+      44,
+      49,
+      6,
+      1
+     ],
+     [
+      53,
+      49,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      49,
+      6,
+      1
+     ],
+     [
+      269,
+      49,
+      6,
+      1
+     ],
+     [
+      278,
+      49,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     21
+    ],
+    "home": [
+     245,
+     21
+    ]
+   }
+  }
+ },
+ "fox": {
+  "standard": {
+   "file": "scorebug_standard_320x40.png",
+   "mask": "team_mask_standard_320x40.png",
+   "width": 320,
+   "height": 40,
+   "fields": {
+    "away_logo": [
+     7,
+     7,
+     30,
+     24
+    ],
+    "away_abbr": [
+     40,
+     15,
+     19,
+     7
+    ],
+    "away_score": [
+     79,
+     10,
+     25,
+     18
+    ],
+    "home_logo": [
+     283,
+     7,
+     30,
+     24
+    ],
+    "home_abbr": [
+     260,
+     15,
+     19,
+     7
+    ],
+    "home_score": [
+     215,
+     10,
+     25,
+     18
+    ],
+    "period": [
+     151,
+     23,
+     17,
+     7
+    ],
+    "clock": [
+     143,
+     12,
+     35,
+     7
+    ],
+    "down_distance": [
+     220,
+     1,
+     73,
+     7
+    ],
+    "play_clock": [
+     300,
+     1,
+     12,
+     7
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      35,
+      6,
+      1
+     ],
+     [
+      44,
+      35,
+      6,
+      1
+     ],
+     [
+      53,
+      35,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      35,
+      6,
+      1
+     ],
+     [
+      269,
+      35,
+      6,
+      1
+     ],
+     [
+      278,
+      35,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     15
+    ],
+    "home": [
+     245,
+     15
+    ]
+   }
+  },
+  "compact": {
+   "file": "scorebug_compact_240x32.png",
+   "mask": "team_mask_compact_240x32.png",
+   "width": 240,
+   "height": 32,
+   "fields": {
+    "away_logo": [
+     5,
+     6,
+     22,
+     19
+    ],
+    "away_abbr": [
+     30,
+     12,
+     14,
+     6
+    ],
+    "away_score": [
+     59,
+     8,
+     19,
+     14
+    ],
+    "home_logo": [
+     212,
+     6,
+     22,
+     19
+    ],
+    "home_abbr": [
+     195,
+     12,
+     14,
+     6
+    ],
+    "home_score": [
+     161,
+     8,
+     19,
+     14
+    ],
+    "period": [
+     113,
+     18,
+     13,
+     6
+    ],
+    "clock": [
+     107,
+     10,
+     26,
+     6
+    ],
+    "down_distance": [
+     165,
+     1,
+     55,
+     6
+    ],
+    "play_clock": [
+     225,
+     1,
+     9,
+     6
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      26,
+      28,
+      4,
+      1
+     ],
+     [
+      33,
+      28,
+      4,
+      1
+     ],
+     [
+      40,
+      28,
+      4,
+      1
+     ]
+    ],
+    "home": [
+     [
+      195,
+      28,
+      4,
+      1
+     ],
+     [
+      202,
+      28,
+      4,
+      1
+     ],
+     [
+      208,
+      28,
+      4,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     52,
+     12
+    ],
+    "home": [
+     184,
+     12
+    ]
+   }
+  },
+  "expanded": {
+   "file": "scorebug_expanded_320x56.png",
+   "mask": "team_mask_expanded_320x56.png",
+   "width": 320,
+   "height": 56,
+   "fields": {
+    "away_logo": [
+     7,
+     10,
+     30,
+     34
+    ],
+    "away_abbr": [
+     40,
+     21,
+     19,
+     10
+    ],
+    "away_score": [
+     79,
+     14,
+     25,
+     25
+    ],
+    "home_logo": [
+     283,
+     10,
+     30,
+     34
+    ],
+    "home_abbr": [
+     260,
+     21,
+     19,
+     10
+    ],
+    "home_score": [
+     215,
+     14,
+     25,
+     25
+    ],
+    "period": [
+     151,
+     32,
+     17,
+     10
+    ],
+    "clock": [
+     143,
+     17,
+     35,
+     10
+    ],
+    "down_distance": [
+     220,
+     1,
+     73,
+     10
+    ],
+    "play_clock": [
+     300,
+     1,
+     12,
+     10
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      49,
+      6,
+      1
+     ],
+     [
+      44,
+      49,
+      6,
+      1
+     ],
+     [
+      53,
+      49,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      49,
+      6,
+      1
+     ],
+     [
+      269,
+      49,
+      6,
+      1
+     ],
+     [
+      278,
+      49,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     21
+    ],
+    "home": [
+     245,
+     21
+    ]
+   }
+  }
+ },
+ "nbc": {
+  "standard": {
+   "file": "scorebug_standard_320x40.png",
+   "mask": "team_mask_standard_320x40.png",
+   "width": 320,
+   "height": 40,
+   "fields": {
+    "away_logo": [
+     4,
+     12,
+     21,
+     19
+    ],
+    "away_abbr": [
+     28,
+     16,
+     21,
+     7
+    ],
+    "away_score": [
+     84,
+     14,
+     24,
+     14
+    ],
+    "home_logo": [
+     292,
+     12,
+     21,
+     19
+    ],
+    "home_abbr": [
+     266,
+     16,
+     21,
+     7
+    ],
+    "home_score": [
+     211,
+     14,
+     24,
+     14
+    ],
+    "period": [
+     147,
+     27,
+     12,
+     7
+    ],
+    "clock": [
+     145,
+     16,
+     35,
+     7
+    ],
+    "down_distance": [
+     239,
+     33,
+     58,
+     7
+    ],
+    "play_clock": [
+     166,
+     27,
+     12,
+     7
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      35,
+      6,
+      1
+     ],
+     [
+      44,
+      35,
+      6,
+      1
+     ],
+     [
+      53,
+      35,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      35,
+      6,
+      1
+     ],
+     [
+      269,
+      35,
+      6,
+      1
+     ],
+     [
+      278,
+      35,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     15
+    ],
+    "home": [
+     245,
+     15
+    ]
+   }
+  },
+  "compact": {
+   "file": "scorebug_compact_240x32.png",
+   "mask": "team_mask_compact_240x32.png",
+   "width": 240,
+   "height": 32,
+   "fields": {
+    "away_logo": [
+     3,
+     10,
+     16,
+     15
+    ],
+    "away_abbr": [
+     21,
+     13,
+     16,
+     6
+    ],
+    "away_score": [
+     63,
+     11,
+     18,
+     11
+    ],
+    "home_logo": [
+     219,
+     10,
+     16,
+     15
+    ],
+    "home_abbr": [
+     200,
+     13,
+     16,
+     6
+    ],
+    "home_score": [
+     158,
+     11,
+     18,
+     11
+    ],
+    "period": [
+     110,
+     22,
+     9,
+     6
+    ],
+    "clock": [
+     109,
+     13,
+     26,
+     6
+    ],
+    "down_distance": [
+     179,
+     26,
+     44,
+     6
+    ],
+    "play_clock": [
+     124,
+     22,
+     9,
+     6
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      26,
+      28,
+      4,
+      1
+     ],
+     [
+      33,
+      28,
+      4,
+      1
+     ],
+     [
+      40,
+      28,
+      4,
+      1
+     ]
+    ],
+    "home": [
+     [
+      195,
+      28,
+      4,
+      1
+     ],
+     [
+      202,
+      28,
+      4,
+      1
+     ],
+     [
+      208,
+      28,
+      4,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     52,
+     12
+    ],
+    "home": [
+     184,
+     12
+    ]
+   }
+  },
+  "expanded": {
+   "file": "scorebug_expanded_320x56.png",
+   "mask": "team_mask_expanded_320x56.png",
+   "width": 320,
+   "height": 56,
+   "fields": {
+    "away_logo": [
+     4,
+     17,
+     21,
+     27
+    ],
+    "away_abbr": [
+     28,
+     22,
+     21,
+     10
+    ],
+    "away_score": [
+     84,
+     20,
+     24,
+     20
+    ],
+    "home_logo": [
+     292,
+     17,
+     21,
+     27
+    ],
+    "home_abbr": [
+     266,
+     22,
+     21,
+     10
+    ],
+    "home_score": [
+     211,
+     20,
+     24,
+     20
+    ],
+    "period": [
+     147,
+     38,
+     12,
+     10
+    ],
+    "clock": [
+     145,
+     22,
+     35,
+     10
+    ],
+    "down_distance": [
+     239,
+     46,
+     58,
+     10
+    ],
+    "play_clock": [
+     166,
+     38,
+     12,
+     10
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      49,
+      6,
+      1
+     ],
+     [
+      44,
+      49,
+      6,
+      1
+     ],
+     [
+      53,
+      49,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      49,
+      6,
+      1
+     ],
+     [
+      269,
+      49,
+      6,
+      1
+     ],
+     [
+      278,
+      49,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     21
+    ],
+    "home": [
+     245,
+     21
+    ]
+   }
+  }
+ },
+ "espn": {
+  "standard": {
+   "file": "scorebug_standard_320x40.png",
+   "mask": "team_mask_standard_320x40.png",
+   "width": 320,
+   "height": 40,
+   "fields": {
+    "away_logo": [
+     51,
+     9,
+     24,
+     24
+    ],
+    "away_score": [
+     96,
+     13,
+     24,
+     14
+    ],
+    "home_logo": [
+     154,
+     9,
+     24,
+     24
+    ],
+    "home_score": [
+     126,
+     13,
+     24,
+     14
+    ],
+    "period": [
+     215,
+     25,
+     17,
+     7
+    ],
+    "clock": [
+     234,
+     12,
+     36,
+     7
+    ],
+    "down_distance": [
+     275,
+     13,
+     43,
+     14
+    ],
+    "play_clock": [
+     256,
+     25,
+     12,
+     7
+    ],
+    "away_abbr": [
+     76,
+     14,
+     17,
+     7
+    ],
+    "home_abbr": [
+     180,
+     14,
+     18,
+     7
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      35,
+      6,
+      1
+     ],
+     [
+      44,
+      35,
+      6,
+      1
+     ],
+     [
+      53,
+      35,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      35,
+      6,
+      1
+     ],
+     [
+      269,
+      35,
+      6,
+      1
+     ],
+     [
+      278,
+      35,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     15
+    ],
+    "home": [
+     245,
+     15
+    ]
+   }
+  },
+  "compact": {
+   "file": "scorebug_compact_240x32.png",
+   "mask": "team_mask_compact_240x32.png",
+   "width": 240,
+   "height": 32,
+   "fields": {
+    "away_logo": [
+     38,
+     7,
+     18,
+     19
+    ],
+    "away_score": [
+     72,
+     10,
+     18,
+     11
+    ],
+    "home_logo": [
+     116,
+     7,
+     18,
+     19
+    ],
+    "home_score": [
+     94,
+     10,
+     18,
+     11
+    ],
+    "period": [
+     161,
+     20,
+     13,
+     6
+    ],
+    "clock": [
+     176,
+     10,
+     27,
+     6
+    ],
+    "down_distance": [
+     206,
+     10,
+     32,
+     11
+    ],
+    "play_clock": [
+     192,
+     20,
+     9,
+     6
+    ],
+    "away_abbr": [
+     57,
+     11,
+     13,
+     6
+    ],
+    "home_abbr": [
+     135,
+     11,
+     14,
+     6
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      26,
+      28,
+      4,
+      1
+     ],
+     [
+      33,
+      28,
+      4,
+      1
+     ],
+     [
+      40,
+      28,
+      4,
+      1
+     ]
+    ],
+    "home": [
+     [
+      195,
+      28,
+      4,
+      1
+     ],
+     [
+      202,
+      28,
+      4,
+      1
+     ],
+     [
+      208,
+      28,
+      4,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     52,
+     12
+    ],
+    "home": [
+     184,
+     12
+    ]
+   }
+  },
+  "expanded": {
+   "file": "scorebug_expanded_320x56.png",
+   "mask": "team_mask_expanded_320x56.png",
+   "width": 320,
+   "height": 56,
+   "fields": {
+    "away_logo": [
+     51,
+     13,
+     24,
+     34
+    ],
+    "away_score": [
+     96,
+     18,
+     24,
+     20
+    ],
+    "home_logo": [
+     154,
+     13,
+     24,
+     34
+    ],
+    "home_score": [
+     126,
+     18,
+     24,
+     20
+    ],
+    "period": [
+     215,
+     35,
+     17,
+     10
+    ],
+    "clock": [
+     234,
+     17,
+     36,
+     10
+    ],
+    "down_distance": [
+     275,
+     18,
+     43,
+     20
+    ],
+    "play_clock": [
+     256,
+     35,
+     12,
+     10
+    ],
+    "away_abbr": [
+     76,
+     20,
+     17,
+     10
+    ],
+    "home_abbr": [
+     180,
+     20,
+     18,
+     10
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      49,
+      6,
+      1
+     ],
+     [
+      44,
+      49,
+      6,
+      1
+     ],
+     [
+      53,
+      49,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      49,
+      6,
+      1
+     ],
+     [
+      269,
+      49,
+      6,
+      1
+     ],
+     [
+      278,
+      49,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     21
+    ],
+    "home": [
+     245,
+     21
+    ]
+   }
+  }
+ },
+ "abc": {
+  "standard": {
+   "file": "scorebug_standard_320x40.png",
+   "mask": "team_mask_standard_320x40.png",
+   "width": 320,
+   "height": 40,
+   "fields": {
+    "away_logo": [
+     51,
+     9,
+     24,
+     24
+    ],
+    "away_score": [
+     96,
+     13,
+     24,
+     14
+    ],
+    "home_logo": [
+     154,
+     9,
+     24,
+     24
+    ],
+    "home_score": [
+     126,
+     13,
+     24,
+     14
+    ],
+    "period": [
+     215,
+     25,
+     17,
+     7
+    ],
+    "clock": [
+     234,
+     12,
+     36,
+     7
+    ],
+    "down_distance": [
+     275,
+     13,
+     43,
+     14
+    ],
+    "play_clock": [
+     256,
+     25,
+     12,
+     7
+    ],
+    "away_abbr": [
+     76,
+     14,
+     17,
+     7
+    ],
+    "home_abbr": [
+     180,
+     14,
+     18,
+     7
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      35,
+      6,
+      1
+     ],
+     [
+      44,
+      35,
+      6,
+      1
+     ],
+     [
+      53,
+      35,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      35,
+      6,
+      1
+     ],
+     [
+      269,
+      35,
+      6,
+      1
+     ],
+     [
+      278,
+      35,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     15
+    ],
+    "home": [
+     245,
+     15
+    ]
+   }
+  },
+  "compact": {
+   "file": "scorebug_compact_240x32.png",
+   "mask": "team_mask_compact_240x32.png",
+   "width": 240,
+   "height": 32,
+   "fields": {
+    "away_logo": [
+     38,
+     7,
+     18,
+     19
+    ],
+    "away_score": [
+     72,
+     10,
+     18,
+     11
+    ],
+    "home_logo": [
+     116,
+     7,
+     18,
+     19
+    ],
+    "home_score": [
+     94,
+     10,
+     18,
+     11
+    ],
+    "period": [
+     161,
+     20,
+     13,
+     6
+    ],
+    "clock": [
+     176,
+     10,
+     27,
+     6
+    ],
+    "down_distance": [
+     206,
+     10,
+     32,
+     11
+    ],
+    "play_clock": [
+     192,
+     20,
+     9,
+     6
+    ],
+    "away_abbr": [
+     57,
+     11,
+     13,
+     6
+    ],
+    "home_abbr": [
+     135,
+     11,
+     14,
+     6
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      26,
+      28,
+      4,
+      1
+     ],
+     [
+      33,
+      28,
+      4,
+      1
+     ],
+     [
+      40,
+      28,
+      4,
+      1
+     ]
+    ],
+    "home": [
+     [
+      195,
+      28,
+      4,
+      1
+     ],
+     [
+      202,
+      28,
+      4,
+      1
+     ],
+     [
+      208,
+      28,
+      4,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     52,
+     12
+    ],
+    "home": [
+     184,
+     12
+    ]
+   }
+  },
+  "expanded": {
+   "file": "scorebug_expanded_320x56.png",
+   "mask": "team_mask_expanded_320x56.png",
+   "width": 320,
+   "height": 56,
+   "fields": {
+    "away_logo": [
+     51,
+     13,
+     24,
+     34
+    ],
+    "away_score": [
+     96,
+     18,
+     24,
+     20
+    ],
+    "home_logo": [
+     154,
+     13,
+     24,
+     34
+    ],
+    "home_score": [
+     126,
+     18,
+     24,
+     20
+    ],
+    "period": [
+     215,
+     35,
+     17,
+     10
+    ],
+    "clock": [
+     234,
+     17,
+     36,
+     10
+    ],
+    "down_distance": [
+     275,
+     18,
+     43,
+     20
+    ],
+    "play_clock": [
+     256,
+     35,
+     12,
+     10
+    ],
+    "away_abbr": [
+     76,
+     20,
+     17,
+     10
+    ],
+    "home_abbr": [
+     180,
+     20,
+     18,
+     10
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      49,
+      6,
+      1
+     ],
+     [
+      44,
+      49,
+      6,
+      1
+     ],
+     [
+      53,
+      49,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      49,
+      6,
+      1
+     ],
+     [
+      269,
+      49,
+      6,
+      1
+     ],
+     [
+      278,
+      49,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     21
+    ],
+    "home": [
+     245,
+     21
+    ]
+   }
+  }
+ },
+ "prime": {
+  "standard": {
+   "file": "scorebug_standard_320x40.png",
+   "mask": "team_mask_standard_320x40.png",
+   "width": 320,
+   "height": 40,
+   "fields": {
+    "away_logo": [
+     6,
+     7,
+     24,
+     24
+    ],
+    "away_abbr": [
+     34,
+     12,
+     19,
+     7
+    ],
+    "away_score": [
+     79,
+     10,
+     25,
+     18
+    ],
+    "home_logo": [
+     289,
+     7,
+     24,
+     24
+    ],
+    "home_abbr": [
+     265,
+     12,
+     19,
+     7
+    ],
+    "home_score": [
+     215,
+     10,
+     25,
+     18
+    ],
+    "period": [
+     119,
+     26,
+     17,
+     7
+    ],
+    "clock": [
+     143,
+     26,
+     33,
+     7
+    ],
+    "down_distance": [
+     133,
+     10,
+     57,
+     7
+    ],
+    "play_clock": [
+     184,
+     26,
+     12,
+     7
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#1B2A40"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      35,
+      6,
+      1
+     ],
+     [
+      44,
+      35,
+      6,
+      1
+     ],
+     [
+      53,
+      35,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      35,
+      6,
+      1
+     ],
+     [
+      269,
+      35,
+      6,
+      1
+     ],
+     [
+      278,
+      35,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     15
+    ],
+    "home": [
+     245,
+     15
+    ]
+   }
+  },
+  "compact": {
+   "file": "scorebug_compact_240x32.png",
+   "mask": "team_mask_compact_240x32.png",
+   "width": 240,
+   "height": 32,
+   "fields": {
+    "away_logo": [
+     4,
+     6,
+     18,
+     19
+    ],
+    "away_abbr": [
+     26,
+     10,
+     14,
+     6
+    ],
+    "away_score": [
+     59,
+     8,
+     19,
+     14
+    ],
+    "home_logo": [
+     217,
+     6,
+     18,
+     19
+    ],
+    "home_abbr": [
+     199,
+     10,
+     14,
+     6
+    ],
+    "home_score": [
+     161,
+     8,
+     19,
+     14
+    ],
+    "period": [
+     89,
+     21,
+     13,
+     6
+    ],
+    "clock": [
+     107,
+     21,
+     25,
+     6
+    ],
+    "down_distance": [
+     100,
+     8,
+     43,
+     6
+    ],
+    "play_clock": [
+     138,
+     21,
+     9,
+     6
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#1B2A40"
+   },
+   "timeouts": {
+    "away": [
+     [
+      26,
+      28,
+      4,
+      1
+     ],
+     [
+      33,
+      28,
+      4,
+      1
+     ],
+     [
+      40,
+      28,
+      4,
+      1
+     ]
+    ],
+    "home": [
+     [
+      195,
+      28,
+      4,
+      1
+     ],
+     [
+      202,
+      28,
+      4,
+      1
+     ],
+     [
+      208,
+      28,
+      4,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     52,
+     12
+    ],
+    "home": [
+     184,
+     12
+    ]
+   }
+  },
+  "expanded": {
+   "file": "scorebug_expanded_320x56.png",
+   "mask": "team_mask_expanded_320x56.png",
+   "width": 320,
+   "height": 56,
+   "fields": {
+    "away_logo": [
+     6,
+     10,
+     24,
+     34
+    ],
+    "away_abbr": [
+     34,
+     17,
+     19,
+     10
+    ],
+    "away_score": [
+     79,
+     14,
+     25,
+     25
+    ],
+    "home_logo": [
+     289,
+     10,
+     24,
+     34
+    ],
+    "home_abbr": [
+     265,
+     17,
+     19,
+     10
+    ],
+    "home_score": [
+     215,
+     14,
+     25,
+     25
+    ],
+    "period": [
+     119,
+     36,
+     17,
+     10
+    ],
+    "clock": [
+     143,
+     36,
+     33,
+     10
+    ],
+    "down_distance": [
+     133,
+     14,
+     57,
+     10
+    ],
+    "play_clock": [
+     184,
+     36,
+     12,
+     10
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#1B2A40"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      49,
+      6,
+      1
+     ],
+     [
+      44,
+      49,
+      6,
+      1
+     ],
+     [
+      53,
+      49,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      49,
+      6,
+      1
+     ],
+     [
+      269,
+      49,
+      6,
+      1
+     ],
+     [
+      278,
+      49,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     21
+    ],
+    "home": [
+     245,
+     21
+    ]
+   }
+  }
+ },
+ "nfl_network": {
+  "standard": {
+   "file": "scorebug_standard_320x40.png",
+   "mask": "team_mask_standard_320x40.png",
+   "width": 320,
+   "height": 40,
+   "fields": {
+    "away_logo": [
+     6,
+     7,
+     24,
+     24
+    ],
+    "away_abbr": [
+     34,
+     12,
+     19,
+     7
+    ],
+    "away_score": [
+     79,
+     10,
+     25,
+     18
+    ],
+    "home_logo": [
+     289,
+     7,
+     24,
+     24
+    ],
+    "home_abbr": [
+     265,
+     12,
+     19,
+     7
+    ],
+    "home_score": [
+     215,
+     10,
+     25,
+     18
+    ],
+    "period": [
+     119,
+     26,
+     17,
+     7
+    ],
+    "clock": [
+     143,
+     26,
+     33,
+     7
+    ],
+    "down_distance": [
+     133,
+     10,
+     57,
+     7
+    ],
+    "play_clock": [
+     184,
+     26,
+     12,
+     7
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#1B2A40"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      35,
+      6,
+      1
+     ],
+     [
+      44,
+      35,
+      6,
+      1
+     ],
+     [
+      53,
+      35,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      35,
+      6,
+      1
+     ],
+     [
+      269,
+      35,
+      6,
+      1
+     ],
+     [
+      278,
+      35,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     15
+    ],
+    "home": [
+     245,
+     15
+    ]
+   }
+  },
+  "compact": {
+   "file": "scorebug_compact_240x32.png",
+   "mask": "team_mask_compact_240x32.png",
+   "width": 240,
+   "height": 32,
+   "fields": {
+    "away_logo": [
+     4,
+     6,
+     18,
+     19
+    ],
+    "away_abbr": [
+     26,
+     10,
+     14,
+     6
+    ],
+    "away_score": [
+     59,
+     8,
+     19,
+     14
+    ],
+    "home_logo": [
+     217,
+     6,
+     18,
+     19
+    ],
+    "home_abbr": [
+     199,
+     10,
+     14,
+     6
+    ],
+    "home_score": [
+     161,
+     8,
+     19,
+     14
+    ],
+    "period": [
+     89,
+     21,
+     13,
+     6
+    ],
+    "clock": [
+     107,
+     21,
+     25,
+     6
+    ],
+    "down_distance": [
+     100,
+     8,
+     43,
+     6
+    ],
+    "play_clock": [
+     138,
+     21,
+     9,
+     6
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#1B2A40"
+   },
+   "timeouts": {
+    "away": [
+     [
+      26,
+      28,
+      4,
+      1
+     ],
+     [
+      33,
+      28,
+      4,
+      1
+     ],
+     [
+      40,
+      28,
+      4,
+      1
+     ]
+    ],
+    "home": [
+     [
+      195,
+      28,
+      4,
+      1
+     ],
+     [
+      202,
+      28,
+      4,
+      1
+     ],
+     [
+      208,
+      28,
+      4,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     52,
+     12
+    ],
+    "home": [
+     184,
+     12
+    ]
+   }
+  },
+  "expanded": {
+   "file": "scorebug_expanded_320x56.png",
+   "mask": "team_mask_expanded_320x56.png",
+   "width": 320,
+   "height": 56,
+   "fields": {
+    "away_logo": [
+     6,
+     10,
+     24,
+     34
+    ],
+    "away_abbr": [
+     34,
+     17,
+     19,
+     10
+    ],
+    "away_score": [
+     79,
+     14,
+     25,
+     25
+    ],
+    "home_logo": [
+     289,
+     10,
+     24,
+     34
+    ],
+    "home_abbr": [
+     265,
+     17,
+     19,
+     10
+    ],
+    "home_score": [
+     215,
+     14,
+     25,
+     25
+    ],
+    "period": [
+     119,
+     36,
+     17,
+     10
+    ],
+    "clock": [
+     143,
+     36,
+     33,
+     10
+    ],
+    "down_distance": [
+     133,
+     14,
+     57,
+     10
+    ],
+    "play_clock": [
+     184,
+     36,
+     12,
+     10
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#1B2A40"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      49,
+      6,
+      1
+     ],
+     [
+      44,
+      49,
+      6,
+      1
+     ],
+     [
+      53,
+      49,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      49,
+      6,
+      1
+     ],
+     [
+      269,
+      49,
+      6,
+      1
+     ],
+     [
+      278,
+      49,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     21
+    ],
+    "home": [
+     245,
+     21
+    ]
+   }
+  }
+ },
+ "netflix": {
+  "standard": {
+   "file": "scorebug_standard_320x40.png",
+   "mask": "team_mask_standard_320x40.png",
+   "width": 320,
+   "height": 40,
+   "fields": {
+    "away_logo": [
+     6,
+     7,
+     24,
+     24
+    ],
+    "away_abbr": [
+     34,
+     12,
+     19,
+     7
+    ],
+    "away_score": [
+     79,
+     10,
+     25,
+     18
+    ],
+    "home_logo": [
+     289,
+     7,
+     24,
+     24
+    ],
+    "home_abbr": [
+     265,
+     12,
+     19,
+     7
+    ],
+    "home_score": [
+     215,
+     10,
+     25,
+     18
+    ],
+    "period": [
+     119,
+     26,
+     17,
+     7
+    ],
+    "clock": [
+     143,
+     26,
+     33,
+     7
+    ],
+    "down_distance": [
+     133,
+     10,
+     57,
+     7
+    ],
+    "play_clock": [
+     184,
+     26,
+     12,
+     7
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      35,
+      6,
+      1
+     ],
+     [
+      44,
+      35,
+      6,
+      1
+     ],
+     [
+      53,
+      35,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      35,
+      6,
+      1
+     ],
+     [
+      269,
+      35,
+      6,
+      1
+     ],
+     [
+      278,
+      35,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     15
+    ],
+    "home": [
+     245,
+     15
+    ]
+   }
+  },
+  "compact": {
+   "file": "scorebug_compact_240x32.png",
+   "mask": "team_mask_compact_240x32.png",
+   "width": 240,
+   "height": 32,
+   "fields": {
+    "away_logo": [
+     4,
+     6,
+     18,
+     19
+    ],
+    "away_abbr": [
+     26,
+     10,
+     14,
+     6
+    ],
+    "away_score": [
+     59,
+     8,
+     19,
+     14
+    ],
+    "home_logo": [
+     217,
+     6,
+     18,
+     19
+    ],
+    "home_abbr": [
+     199,
+     10,
+     14,
+     6
+    ],
+    "home_score": [
+     161,
+     8,
+     19,
+     14
+    ],
+    "period": [
+     89,
+     21,
+     13,
+     6
+    ],
+    "clock": [
+     107,
+     21,
+     25,
+     6
+    ],
+    "down_distance": [
+     100,
+     8,
+     43,
+     6
+    ],
+    "play_clock": [
+     138,
+     21,
+     9,
+     6
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      26,
+      28,
+      4,
+      1
+     ],
+     [
+      33,
+      28,
+      4,
+      1
+     ],
+     [
+      40,
+      28,
+      4,
+      1
+     ]
+    ],
+    "home": [
+     [
+      195,
+      28,
+      4,
+      1
+     ],
+     [
+      202,
+      28,
+      4,
+      1
+     ],
+     [
+      208,
+      28,
+      4,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     52,
+     12
+    ],
+    "home": [
+     184,
+     12
+    ]
+   }
+  },
+  "expanded": {
+   "file": "scorebug_expanded_320x56.png",
+   "mask": "team_mask_expanded_320x56.png",
+   "width": 320,
+   "height": 56,
+   "fields": {
+    "away_logo": [
+     6,
+     10,
+     24,
+     34
+    ],
+    "away_abbr": [
+     34,
+     17,
+     19,
+     10
+    ],
+    "away_score": [
+     79,
+     14,
+     25,
+     25
+    ],
+    "home_logo": [
+     289,
+     10,
+     24,
+     34
+    ],
+    "home_abbr": [
+     265,
+     17,
+     19,
+     10
+    ],
+    "home_score": [
+     215,
+     14,
+     25,
+     25
+    ],
+    "period": [
+     119,
+     36,
+     17,
+     10
+    ],
+    "clock": [
+     143,
+     36,
+     33,
+     10
+    ],
+    "down_distance": [
+     133,
+     14,
+     57,
+     10
+    ],
+    "play_clock": [
+     184,
+     36,
+     12,
+     10
+    ]
+   },
+   "textColor": "#F0F0DA",
+   "textColors": {
+    "down_distance": "#F0F0DA"
+   },
+   "timeouts": {
+    "away": [
+     [
+      35,
+      49,
+      6,
+      1
+     ],
+     [
+      44,
+      49,
+      6,
+      1
+     ],
+     [
+      53,
+      49,
+      6,
+      1
+     ]
+    ],
+    "home": [
+     [
+      260,
+      49,
+      6,
+      1
+     ],
+     [
+      269,
+      49,
+      6,
+      1
+     ],
+     [
+      278,
+      49,
+      6,
+      1
+     ]
+    ]
+   },
+   "possession": {
+    "away": [
+     69,
+     21
+    ],
+    "home": [
+     245,
+     21
+    ]
+   }
+  }
+ }
+}

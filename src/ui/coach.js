@@ -12,13 +12,17 @@ import { Camera } from '../render/camera.js';
 import { drawField, drawGoalposts, drawFieldDecals, drawScrimmageLines } from '../render/field.js';
 import { makeCrowd } from '../render/crowd.js';
 import { Effects } from '../render/effects.js';
+import { ScoreShow } from '../render/scoreshow.js';
 import { ready, image, setImageLoadListener } from '../render/images.js';
 import { teamArt } from '../data/realleague.js';
 import { Y_SQUASH } from '../render/camera.js';
 import { uniform, clearSpriteCache } from '../render/pixelsprites.js';
 import { drawSimPlayers, carrierMarker } from '../render/simdraw.js';
 import { PlayDrawing } from './drawing.js';
+import { Scorebug, titleCard, fitPixelCanvas, preloadBroadcast, netArt, loadLayouts } from './broadcast.js';
+import { broadcastFor } from '../data/broadcast.js';
 import { playClockMethods } from './playclock.js';
+import { presentationMethods } from './presentation.js';
 import { drawFieldArt, playCardSVG } from '../render/playart.js';
 import { DT } from '../sim/playsim.js';
 import { h, clear } from './dom.js';
@@ -43,6 +47,9 @@ export class CoachScreen {
       seed,
     });
     this.opts = opts;
+    // who's carrying the game (Sunday afternoon on CBS/FOX, TNF on Prime...)
+    this.broadcast = broadcastFor(opts.slot || 'sun_early', this.game.teams.home, this.game.teams.away);
+    preloadBroadcast(this.broadcast.net);
     this.cam = new Camera();
     this.mode = 'idle';
     this.timers = [];
@@ -54,8 +61,11 @@ export class CoachScreen {
     this.uniCache = new Map();
     clearSpriteCache(); // sprites from the last game's uniforms
     this.fx = new Effects();
+    this.show = new ScoreShow(this.game.teams.home);
+    this.homePts = 0; // home score the stadium show has celebrated
     this.build();
-    setImageLoadListener(() => { this.dirty = true; });
+    setImageLoadListener(() => { this.dirty = true; this.updateScorebug(); });
+    loadLayouts().then(() => this.updateScorebug());
     this.preloadArt();
     this.loop = this.loop.bind(this);
     this.raf = requestAnimationFrame(this.loop);
@@ -71,7 +81,7 @@ export class CoachScreen {
     if (!home.art) return;
     image(teamArt(home, 'endzone.png'));
     image(teamArt(home, 'midfield_96.png'));
-    if (home.stadium) image(`assets/stadiums/${home.stadium.id}_day.png`);
+    if (home.stadium) image(`assets/stadiums/${home.stadium.id}_${this.broadcast.night ? 'night' : 'day'}.png`);
   }
 
   destroy() {
@@ -110,7 +120,9 @@ export class CoachScreen {
     this.el.banner = h('div', { class: 'banner', hidden: true }, h('strong', { class: 'banner-head' }), h('p', { class: 'banner-text' }));
     this.el.toast = h('div', { class: 'toast', hidden: true });
     this.el.tapHint = h('p', { class: 'tap-hint', hidden: true }, 'Tap to continue');
-    this.stage = h('div', { class: 'stage' }, this.canvas, this.el.ticker, this.el.toast, this.el.banner, this.el.tapHint);
+    this.el.tvLogo = h('img', { class: 'tv-logo', src: netArt(this.broadcast.net, 'logo_32.png'), alt: this.broadcast.netName, width: 32, height: 32 });
+    this.el.tvLogo.addEventListener('error', () => this.el.tvLogo.remove());
+    this.stage = h('div', { class: 'stage' }, this.canvas, this.el.ticker, this.el.toast, this.el.banner, this.el.tapHint, this.el.tvLogo);
     this.stage.addEventListener('pointerdown', (e) => { this.tapStart = { x: e.clientX, y: e.clientY, t: performance.now() }; });
     this.stage.addEventListener('pointerup', (e) => {
       const s0 = this.tapStart;
@@ -132,12 +144,14 @@ export class CoachScreen {
     );
 
     this.root = h('div', { class: 'coach' },
-      h('header', { class: 'bug' }, teamBlock('away'), teamBlock('home'),
-        h('div', { class: 'bug-state' }, h('div', { class: 'bug-time' }, this.el.q, this.el.pc, this.el.clock), this.el.dd)),
+      (this.el.bug = h('header', { class: 'bug' }, teamBlock('away'), teamBlock('home'),
+        h('div', { class: 'bug-state' }, h('div', { class: 'bug-time' }, this.el.q, this.el.pc, this.el.clock), this.el.dd))),
       this.stage,
       this.el.sheet,
     );
     this.app.root.append(this.root);
+    this.scorebug = new Scorebug(this.broadcast.net, g.teams.home, g.teams.away);
+    this.el.bug.append(this.scorebug.canvas);
     this.drawing = new PlayDrawing(this);
     this.ctx = this.canvas.getContext('2d');
     this.ro = new ResizeObserver(() => this.resize());
@@ -177,6 +191,7 @@ export class CoachScreen {
       const g = this.game;
       const hype = this.crowd ? this.crowd.hype : 0;
       this.crowd = makeCrowd(g.teams.home, g.teams.away, lw, this.opts.seed || 1);
+      this.crowd.night = this.broadcast.night;
       this.crowdReady = false;
       this.crowd.hype = hype;
     }
@@ -186,26 +201,6 @@ export class CoachScreen {
     // ResizeObserver runs before paint: redraw now so no blank frame shows.
     this.dirty = false;
     this.draw();
-  }
-
-  updateBug() {
-    const g = this.game;
-    for (const side of ['home', 'away']) {
-      const e = this.el[side];
-      e.score.textContent = String(g.score[side]);
-      const n = g.timeouts[side];
-      [...e.tos.children].forEach((i, k) => i.classList.toggle('used', k >= n));
-      e.blk.classList.toggle('has-ball', g.poss === side && g.phase !== 'kickoff' && !g.over);
-    }
-    this.el.q.textContent = g.over ? 'Final' : g.quarterText();
-    this.updateClocks();
-    let dd = '';
-    if (!g.over) {
-      if (g.phase === 'kickoff') dd = 'Kickoff';
-      else if (g.phase === 'pat' || this.twoPoint) dd = this.twoPoint ? 'Two-point try' : 'Extra point';
-      else dd = `${g.downText()} at ${g.spotText()}`;
-    }
-    this.el.dd.textContent = dd;
   }
 
   setTicker(text) {
@@ -230,20 +225,6 @@ export class CoachScreen {
     this.el.go.disabled = !on;
     // a timeout also saves you from a delay of game, so it's allowed with the clock stopped
     this.el.timeout.disabled = !on || this.game.timeouts[this.user] <= 0 || this.twoPoint || this.game.phase === 'pat';
-  }
-
-  showIntro() {
-    const g = this.game;
-    const home = g.teams.home;
-    const url = home.art && home.stadium ? `assets/stadiums/${home.stadium.id}_day.png` : null;
-    this.scene = url
-      ? { kind: 'stadium', url, t: 0, dur: 2.6, name: home.stadium.name }
-      : { kind: 'field', los: 25, ltg: null, offTeam: g.teams.away, defTeam: g.teams.home, showLines: false };
-    this.cam.set(MID_X, 50, 0.95, true);
-    if (url) this.setTicker(home.stadium.name);
-    this.setSheetEnabled(false);
-    const recv = g.teams[g.firstReceiver];
-    this.banner(`${g.teams.away.abbr} at ${g.teams.home.abbr}`, `${recv.city} won the toss and will receive.`, 2.6, () => this.advance());
   }
 
   advance() {
@@ -434,7 +415,7 @@ export class CoachScreen {
       const s = g.snap(Math.min(g.playClock, g.snapAt(g.poss)));
       this.updateBug();
       if (s.stop) { this.mode = 'idle'; return this.advance(); }
-      if (s.events.includes('twoMinute')) this.toast('Two-minute warning');
+      if (s.events.includes('twoMinute')) this.twoMinuteCard();
       const bx = g.ballX;
       if (o.special === 'punt') return this.runKick('punt', g.punt(), bx);
       if (o.special === 'fg') return this.runKick('fg', g.fieldGoal(), bx);
@@ -494,10 +475,19 @@ export class CoachScreen {
       sim.step();
       this.acc -= DT;
     }
+    let hold = 0.75;
+    if (sim.done && !this.playEnded) {
+      const c = this.celebrationFor(sim);
+      if (c) {
+        sim.celebrate(c);
+        if (c.kind === 'td') this.cheer(sim.result, this.game.offense); // the crowd reacts at the whistle
+        hold = { td: 1.8, big: 1.35, first: 1.15, sack: 1.25, int: 1.3, takeaway: 1.2 }[c.kind] || 0.75;
+      }
+    }
     if (sim.done) sim.settle(dt * this.speed);
     if (sim.done && !this.playEnded) {
       this.playEnded = true;
-      this.after(0.75, () => this.finishPlay());
+      this.after(hold, () => this.finishPlay());
     }
   }
 
@@ -512,30 +502,17 @@ export class CoachScreen {
     } else {
       out = g.applyPlay(r, this.liveO, this.liveD);
     }
+    this.syncHomeScore();
     this.mode = 'idle';
     this.updateBug();
     this.setTicker(out.text);
-    if (out.flags && out.flags.includes('twoMinute')) this.toast('Two-minute warning');
+    if (out.flags && out.flags.includes('twoMinute')) this.twoMinuteCard();
     const head = out.headline;
     if (head && head !== 'First down') this.banner(head, out.text, 2.1, () => this.advance());
     else {
       if (head === 'First down') this.toast('First down');
       this.after(0.5, () => this.advance());
     }
-  }
-
-  // The home crowd gets loud when the home team makes a play.
-  cheer(r, offSide) {
-    if (!this.crowd) return;
-    const homeO = offSide === 'home';
-    let h = 0;
-    if (r.td && !r.turnover) h = homeO ? 1 : 0;
-    else if (r.turnover) h = homeO ? 0 : 1;
-    else if (r.kind === 'sack') h = homeO ? 0 : 0.7;
-    else if (r.yards >= 20) h = homeO ? 0.7 : 0;
-    else if (r.yards >= 10) h = homeO ? 0.35 : 0;
-    else if (!homeO && r.yards <= 0) h = 0.3;
-    this.crowd.hype = Math.max(this.crowd.hype, h);
   }
 
   // ------------------------------------------------------------------ kicks
@@ -591,6 +568,7 @@ export class CoachScreen {
     if (sc.done && !sc.reported) {
       sc.reported = true;
       const out = sc.out;
+      this.syncHomeScore();
       this.updateBug();
       this.mode = 'idle';
       const head = out.headline;
@@ -606,26 +584,6 @@ export class CoachScreen {
       else if (head) this.banner(head, out.text, 2, () => this.advance());
       else this.after(0.6, () => this.advance());
     }
-  }
-
-  // ------------------------------------------------------------------ dialogs / banners
-  banner(head, text, sec, then) {
-    const b = this.el.banner;
-    b.querySelector('.banner-head').textContent = head;
-    b.querySelector('.banner-text').textContent = text || '';
-    b.hidden = false;
-    b.classList.remove('in');
-    void b.offsetWidth;
-    b.classList.add('in');
-    this.el.tapHint.hidden = false;
-    this.bannerThen = () => {
-      b.hidden = true;
-      this.el.tapHint.hidden = true;
-      this.bannerThen = null;
-      then && then();
-    };
-    const token = (this.bannerToken = {});
-    this.after(sec, () => { if (this.bannerToken === token && this.bannerThen) this.bannerThen(); });
   }
 
   onStageTap() {
@@ -668,6 +626,12 @@ export class CoachScreen {
 
   simToEnd() {
     const g = this.game;
+    // a play that ended but is still on screen (celebration) counts first
+    this.timers = [];
+    if (this.mode === 'play' && this.playEnded && this.scene?.sim?.done) {
+      const r = this.scene.sim.result;
+      if (this.twoPoint) { g.applyTwoPoint(r); this.twoPoint = false; } else g.applyPlay(r, this.liveO, this.liveD);
+    }
     if (this.twoPoint) {
       const sim = makePlaySim(g, cpuOffense(g, g.poss).cat === 'special' ? offPlay('slants') : cpuOffense(g, g.poss), cpuDefense(g, other(g.poss)));
       g.applyTwoPoint(sim.runToEnd());
@@ -716,11 +680,15 @@ export class CoachScreen {
       this.dirty = true;
     }
     if (this.mode === 'play' && this.scene.kind === 'sim') this.updatePlay(dt);
-    else if (this.mode === 'idle' && this.scene?.kind === 'sim' && this.scene.sim.done && (this.scene.sim.post?.t ?? 0) < 2.5) {
+    else if (this.mode === 'idle' && this.scene?.kind === 'sim' && this.scene.sim.done && (this.scene.sim.post?.t ?? 0) < 4.5) {
       this.scene.sim.settle(dt * this.speed);
       this.dirty = true;
     }
     if (this.fx.update(dt)) this.dirty = true;
+    if (this.show.active) {
+      this.show.update(dt, this.cam);
+      this.dirty = true;
+    }
     this.tickPlayClock(dt);
     if (this.mode === 'kick' && this.scene.kind === 'kick') this.updateKick(dt);
     this.updateCamera();
@@ -766,6 +734,8 @@ export class CoachScreen {
     // drawing at an integer scale keeps them pixel-exact without a buffer.
     out.setTransform(k, 0, 0, k, 0, 0);
     out.imageSmoothingEnabled = false;
+    const topEnd = sc.offTeam && sc.offTeam.id !== g.teams.home.id ? 'S' : 'N';
+    this.show.drawStatic(out, this.cam, topEnd);
     if (sc.showLines) drawScrimmageLines(out, this.cam, sc.los, sc.ltg);
     if (sc.kind === 'sim') this.drawSim(out, sc);
     else if (sc.kind === 'kick') {
@@ -774,6 +744,7 @@ export class CoachScreen {
       this.fx.draw(out, this.cam);
     }
     drawGoalposts(out, this.cam);
+    this.show.draw(out, this.cam);
     out.setTransform(1, 0, 0, 1, 0, 0);
   }
 
@@ -823,4 +794,4 @@ export class CoachScreen {
 
 }
 
-Object.assign(CoachScreen.prototype, playClockMethods);
+Object.assign(CoachScreen.prototype, playClockMethods, presentationMethods);

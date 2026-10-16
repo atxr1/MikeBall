@@ -5,6 +5,9 @@ import { teamMarkSVG } from './emblems.js';
 import { TEAMS, CONFERENCES, DIVISIONS } from '../data/teams.js';
 import { openRoster } from './roster.js';
 import { fmtClock } from '../core/util.js';
+import { SLOTS, slotById, broadcastFor } from '../data/broadcast.js';
+import { playerOfTheGame } from '../game/awards.js';
+import { titleCard, fitPixelCanvas } from './broadcast.js';
 
 export function titleScreen(app) {
   const s = app.settings;
@@ -52,6 +55,8 @@ export function setupScreen(app, userId) {
   let oppId = s.oppId && s.oppId !== userId ? s.oppId : null;
   let home = s.userHome !== false;
   let qLen = s.qLen || 8;
+  let slot = s.slot || 'sun_early';
+  let renderSlotNote = () => {};
 
   const oppGrid = h('div', { class: 'opp-grid' });
   const oppLabel = h('p', { class: 'opp-label' });
@@ -67,6 +72,7 @@ export function setupScreen(app, userId) {
     }
     const o = TEAMS.find((t) => t.id === oppId);
     oppLabel.textContent = o ? `${o.city} ${o.name}` : 'Random opponent';
+    renderSlotNote();
   };
   renderOpp();
 
@@ -83,11 +89,32 @@ export function setupScreen(app, userId) {
     return wrap;
   };
 
+  // TV window: decides the network (scorebug, title cards) and day or night
+  const slotNote = h('p', { class: 'slot-note' });
+  renderSlotNote = () => {
+    const opp = TEAMS.find((t) => t.id === oppId);
+    const sl = slotById(slot);
+    if (!opp) { slotNote.textContent = sl.title; return; }
+    const b = broadcastFor(slot, home ? user : opp, home ? opp : user);
+    slotNote.textContent = `${b.title} on ${b.netName}${b.night ? ', under the lights' : ''}`;
+  };
+  const slotGrid = h('div', { class: 'segment wrap', role: 'radiogroup' });
+  for (const sl of SLOTS) {
+    const b = h('button', { role: 'radio', 'aria-checked': String(sl.id === slot) }, sl.label);
+    b.addEventListener('click', () => {
+      slot = sl.id;
+      for (const x of slotGrid.children) x.setAttribute('aria-checked', String(x === b));
+      renderSlotNote();
+    });
+    slotGrid.append(b);
+  }
+  renderSlotNote();
+
   const start = () => {
     const opp = oppId || app.randomOpponent(userId);
-    app.settings = { ...s, userId, oppId, userHome: home, qLen };
+    app.settings = { ...s, userId, oppId, userHome: home, qLen, slot };
     app.saveSettings();
-    app.startGame({ userId, oppId: opp, userHome: home, qLen });
+    app.startGame({ userId, oppId: opp, userHome: home, qLen, slot });
   };
 
   return h('div', { class: 'screen setup-screen' },
@@ -103,7 +130,12 @@ export function setupScreen(app, userId) {
     ),
     h('section', { class: 'setup-block' },
       h('h2', {}, 'Where'),
-      seg([[true, 'Home'], [false, 'Away']], () => home, (v) => { home = v; }),
+      seg([[true, 'Home'], [false, 'Away']], () => home, (v) => { home = v; renderSlotNote(); }),
+    ),
+    h('section', { class: 'setup-block' },
+      h('h2', {}, 'TV slot'),
+      slotNote,
+      slotGrid,
     ),
     h('section', { class: 'setup-block' },
       h('h2', {}, 'Quarter length'),
@@ -176,7 +208,9 @@ export function finalScreen(app, game, opts) {
         h('span', { class: 'final-sep' }, ''),
         h('span', {}, `${T.home.abbr} ${game.score.home}`)),
     ),
+    finalCard(game, opts),
     lineScore,
+    potg(game),
     h('h2', {}, 'Team stats'),
     teamStats,
     h('h2', {}, 'Leaders'),
@@ -184,6 +218,36 @@ export function finalScreen(app, game, opts) {
     h('div', { class: 'setup-actions' },
       h('button', { class: 'act', onclick: () => app.showTitle() }, 'Change team'),
       h('button', { class: 'go', onclick: () => app.startGame({ ...opts, seed: undefined }) }, 'Rematch'),
+    ),
+  );
+}
+
+// The network's "Final" card over the box score.
+function finalCard(game, opts) {
+  const b = broadcastFor(opts.slot || 'sun_early', game.teams.home, game.teams.away);
+  const card = titleCard(b.net, 'Final');
+  if (!card) return null;
+  card.setAttribute('aria-label', `Final, ${b.title} on ${b.netName}`);
+  const wrap = h('div', { class: 'final-card' }, card);
+  requestAnimationFrame(() => fitPixelCanvas(card, Math.min(400, wrap.clientWidth || 400)));
+  return wrap;
+}
+
+// Player of the Game, from the box score.
+function potg(game) {
+  const pg = playerOfTheGame(game);
+  if (!pg) return null;
+  const l = pg.line;
+  const rec = game.rosters[pg.side].players.find((p) => p.id === l.id);
+  return h('section', { class: 'potg' },
+    h('h2', {}, 'Player of the Game'),
+    h('div', { class: 'potg-row' },
+      rec && rec.portrait ? h('img', { class: 'px potg-face', src: `assets/portraits/${rec.id}.png`, width: 32, height: 32, alt: '' }) : h('span', { class: 'potg-mark', html: teamMarkSVG(pg.team, 40) }),
+      h('div', {},
+        h('strong', {}, `#${l.num} ${rec ? `${rec.first} ${rec.last}` : l.name}`),
+        h('small', {}, `${pg.team.abbr} ${l.pos}`),
+        h('p', {}, pg.summary || ''),
+      ),
     ),
   );
 }

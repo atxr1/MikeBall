@@ -27,7 +27,7 @@
   const set = new URLSearchParams(location.search).get('set');
   if (set === 'moves') {
     for (const [v, pose] of [['S', 'cheer'], ['N', 'cheer'], ['E', 'cheer'], ['N', 'stiffL'], ['N', 'stiffR'], ['S', 'stiffL'], ['E', 'stiffL'], ['W', 'stiffR'],
-      ['N', 'reel'], ['S', 'reel'], ['E', 'reel'], ['N', 'cutL'], ['N', 'cutR'], ['S', 'cutL'], ['E', 'cutL'], ['N', 'down'], ['S', 'down'], ['E', 'down'], ['W', 'dive'], ['E', 'push']]) {
+      ['N', 'reel'], ['S', 'reel'], ['E', 'reel'], ['N', 'cutL'], ['N', 'cutR'], ['S', 'cutL'], ['E', 'cutL'], ['N', 'down'], ['S', 'down'], ['E', 'down'], ['W', 'dive'], ['E', 'push'], ['N', 'point'], ['S', 'point'], ['S', 'salute'], ['E', 'point']]) {
       cols.push({ view: v, pose, frame: 0, ball: pose.startsWith('stiff') || pose.startsWith('cut') });
     }
   } else for (const v of views) {

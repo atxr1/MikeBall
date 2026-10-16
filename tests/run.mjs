@@ -14,6 +14,9 @@ import { PlaySim } from '../src/sim/playsim.js';
 import { OFFENSE_PLAYS, DEFENSE_PLAYS } from '../src/data/playbook.js';
 import { makeRng } from '../src/core/rng.js';
 import { applyEdits, editFromStroke, editFromTap, editFromDoubleTap } from '../src/game/playedit.js';
+import { broadcastFor } from '../src/data/broadcast.js';
+import { playerOfTheGame, seasonAwards } from '../src/game/awards.js';
+import { resolveHonors, honorsFor } from '../src/data/honors.js';
 
 let failed = 0;
 let passed = 0;
@@ -152,11 +155,64 @@ console.log('play drawing');
   check('double-tapping the fullback hands him the ball', dbl && sim.carrier && sim.carrier.slot === 'FB', sim.carrier && sim.carrier.slot);
 }
 
+console.log('celebrations');
+{
+  const o = OFFENSE_PLAYS.find((p) => p.id === 'four_verts');
+  const d = DEFENSE_PLAYS.find((p) => p.id === 'cov1_43');
+  let sim = null;
+  for (let seed = 1; seed < 400; seed++) {
+    const s2 = new PlaySim({ offPlay: o, defPlay: d, offLineup: offenseLineup(league[TEAMS[4].id], o.formation), defLineup: defenseLineup(league[TEAMS[5].id], d.front), ballOn: 90, ballX: 26.67, rng: makeRng(seed) });
+    s2.runToEnd();
+    if (s2.result.td && !s2.result.defTD) { sim = s2; break; }
+  }
+  check('found a touchdown to celebrate', !!sim);
+  if (sim) {
+    const before = JSON.stringify(sim.result);
+    const rngState = sim.rng.state;
+    sim.celebrate({ kind: 'td', leap: true });
+    let err = null;
+    try { for (let i = 0; i < 240; i++) sim.settle(1 / 60); } catch (e) { err = e; }
+    check('celebrations run without touching the result or the RNG', !err && JSON.stringify(sim.result) === before && sim.rng.state === rngState, err && err.message);
+    check('the Lambeau Leap ends with the scorer in the stands', sim.players.some((p) => p.hidden));
+  }
+}
+
+console.log('broadcasts and awards');
+{
+  const T = (id, conf) => ({ id, conf });
+  check('Sunday afternoon: CBS for an AFC road team, FOX for an NFC road team',
+    broadcastFor('sun_early', T('KC', 'AFC'), T('BUF', 'AFC')).net === 'cbs' && broadcastFor('sun_late', T('KC', 'AFC'), T('DAL', 'NFC')).net === 'fox');
+  check('TNF on Prime, Christmas on Netflix, SNF on NBC at night',
+    broadcastFor('tnf', T('KC', 'AFC'), T('BUF', 'AFC')).net === 'prime' && broadcastFor('christmas', T('CHI', 'NFC'), T('GB', 'NFC')).net === 'netflix'
+    && broadcastFor('snf', T('KC', 'AFC'), T('BUF', 'AFC')).night);
+  check('Thanksgiving: Lions on CBS, Cowboys on FOX, night game on NBC',
+    broadcastFor('thanksgiving', T('DET', 'NFC'), T('CHI', 'NFC')).net === 'cbs' && broadcastFor('thanksgiving', T('DAL', 'NFC'), T('PHI', 'NFC')).net === 'fox'
+    && broadcastFor('thanksgiving', T('BUF', 'AFC'), T('KC', 'AFC')).night);
+  const h = TEAMS[6];
+  const a = TEAMS[7];
+  const g = new Game({ homeTeam: h, awayTeam: a, homeRoster: league[h.id], awayRoster: league[a.id], userSide: null, qLen: 8, seed: 77 });
+  simulateGame(g);
+  const pg = playerOfTheGame(g);
+  check('Player of the Game picked with a stat line', !!pg && !!pg.line && typeof pg.summary === 'string', pg && pg.summary);
+  const mk = (id, pos, extra) => ({ id, pos, team: 'A', gp: 17, pass: {}, rush: {}, rec: {}, def: {}, kick: {}, punt: {}, ...extra });
+  const lines = [
+    mk('q1', 'QB', { pass: { yds: 4800, td: 38, int: 8 } }), mk('q2', 'QB', { pass: { yds: 3900, td: 25, int: 12 } }),
+    ...[1, 2, 3, 4, 5, 6, 7].map((i) => mk(`w${i}`, 'WR', { rec: { rec: 80 + i, yds: 900 + i * 60, td: i } })),
+    mk('r1', 'RB', { rush: { yds: 1500, td: 14 }, rookie: true }), mk('d1', 'DL', { slot: 'EDGE', def: { tkl: 50, sacks: 17 } }),
+  ];
+  const sa = seasonAwards({ lines, teams: [{ id: 'A', wins: 12, lastWins: 5 }] });
+  check('season awards: MVP, OPOY, DPOY and rookie of the year', sa.awards.MVP && sa.awards.MVP.id === 'q1' && sa.awards.DPOY.id === 'd1' && sa.awards.OROY.id === 'r1' && sa.awards.OPOY && sa.awards.OPOY.id !== 'q1');
+  check('All-Pro: three first-team and three second-team receivers', sa.allPro.first.filter((x) => x.slot === 'WR').length === 3 && sa.allPro.second.filter((x) => x.slot === 'WR').length === 3);
+}
+
 if (existsSync('assets/data/league.json')) {
   console.log('real league (assets/data/league.json)');
   const { teams, rosters } = fromLeagueJson(JSON.parse(readFileSync('assets/data/league.json', 'utf8')));
   const rp = Object.values(rosters).flatMap((r) => r.players);
   check('32 real teams', teams.length === 32 && Object.keys(rosters).length === 32);
+  const matched = resolveHonors(Object.values(rosters).flatMap((r) => r.players));
+  const staff = Object.values(rosters).flatMap((r) => r.players).find((p) => p.first === 'Matthew' && p.last === 'Stafford');
+  check('real 2025 honors land on the right players (Stafford: MVP and All-Pro)', matched >= 60 && honorsFor(staff).some((x) => x.short === 'MVP') && honorsFor(staff).some((x) => x.kind === 'allpro'), `matched ${matched}`);
   check('every real team can field all starters', Object.values(rosters).every((r) => ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'K', 'P'].every((pos) => (r.depth[pos] || []).length >= ({ OL: 5, DL: 4, WR: 3, LB: 3, CB: 2, S: 2 }[pos] || 1))));
   check('real ratings all 0-100', rp.every((p) => Object.values(p.attrs).every((v) => Number.isInteger(v) && v >= 0 && v <= 100)));
   computeBadges(rp);

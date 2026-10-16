@@ -405,12 +405,9 @@ export const contactMethods = {
           }
         });
       }
-      if (h && r && r.td && !h.down) {
-        h.cheer = true;
-        for (const o of this.players) if (o.side === h.side && !o.down && dist(o.x, o.y, h.x, h.y) < 8) o.cheer = true;
-      }
     }
     this.post.t += dt;
+    this.spikeBall(dt);
     for (const p of this.players) {
       if (p.down) {
         if (p.upT > 0) {
@@ -418,7 +415,8 @@ export const contactMethods = {
           if (p.downT >= p.upT) p.down = false;
         }
         this.brake(p, dt, 14);
-      } else this.brake(p, dt, p.cheer ? 3 : 6.5);
+      } else if (p.celeb) this.celebMove(p, dt);
+      else this.brake(p, dt, 6.5);
       this.tickMove(p, dt);
       p.x += p.vx * dt;
       p.y += p.vy * dt;

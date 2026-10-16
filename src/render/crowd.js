@@ -332,13 +332,18 @@ function lowerBound(fans, y) {
 
 // Draw one stand at (ox, oy), clipped to the screen rect (cx, cy, cw, ch),
 // with some fans waving.
-function blit(ctx, st, ox, oy, cx, cy, cw, ch, t, hype) {
+function blit(ctx, st, ox, oy, cx, cy, cw, ch, t, hype, night = false) {
   const x0 = Math.max(cx, ox);
   const y0 = Math.max(cy, oy);
   const x1 = Math.min(cx + cw, ox + st.W);
   const y1 = Math.min(cy + ch, oy + st.H);
   if (x1 <= x0 || y1 <= y0) return;
   ctx.drawImage(st.canvas, x0 - ox, y0 - oy, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0);
+  if (night) {
+    // under the lights the field glows and the stands fall into shadow
+    ctx.fillStyle = 'rgba(4,8,26,0.34)';
+    ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+  }
   const rate = 0.01 + hype * 0.35;
   const beat = Math.floor(t * (4 + hype * 3));
   const f = st.fans;
@@ -357,6 +362,31 @@ function blit(ctx, st, ox, oy, cx, cy, cw, ch, t, hype) {
     ctx.fillRect(x - 1, y - 2 - up, 1, 2);
     ctx.fillRect(x + w, y - 2 - up, 1, 2);
   }
+  if (night) cameraFlashes(ctx, st, ox, oy, x0, y0, x1, y1, t, hype);
+}
+
+// Primetime: phones and cameras flashing all over the stands, more of them
+// when the place is going crazy.
+function cameraFlashes(ctx, st, ox, oy, x0, y0, x1, y1, t, hype) {
+  const f = st.fans;
+  const nFans = f.length / 5;
+  if (!nFans) return;
+  const tick = Math.floor(t * 12);
+  const count = Math.round(((x1 - x0) * (y1 - y0)) / 9000 * (1 + hype * 5));
+  for (let j = 0; j < count; j++) {
+    const h = (Math.imul(tick * 97 + j, 2654435761) ^ Math.imul(j + 13, 40503)) >>> 0;
+    const i = (h % nFans) * 5;
+    const x = f[i] + ox + 1;
+    const y = f[i + 1] + oy;
+    if (x < x0 + 2 || x > x1 - 3 || y < y0 + 2 || y > y1 - 3) continue;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x, y, 1, 1);
+    if ((h >> 8) & 1) {
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillRect(x - 1, y, 3, 1);
+      ctx.fillRect(x, y - 1, 1, 3);
+    }
+  }
 }
 
 // Draw the stands around the stadium wall.
@@ -371,12 +401,12 @@ export function drawCrowd(ctx, cam, crowd, e, topEnd, t = 0) {
   if (e.T > 0) {
     const st = crowd.stand(`${topEnd}:front`);
     ctx.fillRect(0, 0, W, e.T);
-    blit(ctx, st, mid - (st.W >> 1), e.T - st.H, 0, 0, W, e.T, t, hype);
+    blit(ctx, st, mid - (st.W >> 1), e.T - st.H, 0, 0, W, e.T, t, hype, crowd.night);
   }
   if (e.B < H) {
     const st = crowd.stand(`${topEnd === 'N' ? 'S' : 'N'}:back`);
     ctx.fillRect(0, e.B, W, H - e.B);
-    blit(ctx, st, mid - (st.W >> 1), e.B, 0, e.B, W, H - e.B, t, hype);
+    blit(ctx, st, mid - (st.W >> 1), e.B, 0, e.B, W, H - e.B, t, hype, crowd.night);
   }
   const sy0 = Math.max(0, e.T);
   const sy1 = Math.min(H, e.B);
@@ -385,12 +415,12 @@ export function drawCrowd(ctx, cam, crowd, e, topEnd, t = 0) {
     if (e.L > 0) {
       const st = crowd.stand('L:front');
       ctx.fillRect(0, sy0, e.L, sy1 - sy0);
-      blit(ctx, st, e.L - st.W, cy - (st.H >> 1), 0, sy0, e.L, sy1 - sy0, t, hype);
+      blit(ctx, st, e.L - st.W, cy - (st.H >> 1), 0, sy0, e.L, sy1 - sy0, t, hype, crowd.night);
     }
     if (e.R < W) {
       const st = crowd.stand('R:front');
       ctx.fillRect(e.R, sy0, W - e.R, sy1 - sy0);
-      blit(ctx, st, e.R, cy - (st.H >> 1), e.R, sy0, W - e.R, sy1 - sy0, t, hype);
+      blit(ctx, st, e.R, cy - (st.H >> 1), e.R, sy0, W - e.R, sy1 - sy0, t, hype, crowd.night);
     }
   }
 }

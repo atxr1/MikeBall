@@ -30,6 +30,8 @@ export function poseFor(p, sim, live) {
   }
   e.view = viewFromFace(p.face);
   if (p.cheer) { e.pose = 'cheer'; e.ball = false; return e; }
+  const c = p.celeb;
+  if (c && sim.post && sim.post.t >= c.t0 && celebPose(e, p, c, sim.post.t - c.t0, speed, sim.post.t)) return e;
   const holder = sim.ball.holder === p;
   if (p === sim.qb && (p.pending || (sim.passer === p && sim.t - (sim.ball.t0 || 0) < 0.22 && sim.ball.state === 'air'))) {
     e.pose = 'throw';
@@ -85,6 +87,72 @@ export function poseFor(p, sim, live) {
   return e;
 }
 
+// Celebration poses (see src/sim/celebrate.js). Returns false to fall back
+// to the normal pose.
+function celebPose(e, p, c, u, speed, now) {
+  const run = (pose) => {
+    e.pose = pose;
+    e.frame = Math.floor(p.anim * 0.6) % 4;
+  };
+  e.ball = c.k === 'point' || c.k === 'flexpoint' || c.k === 'arms' || c.k === 'hug';
+  switch (c.k) {
+    case 'dejected':
+      if (speed > 0.7) return false;
+      e.pose = 'stand';
+      e.view = p.side === 'O' ? 'S' : 'N';
+      return true;
+    case 'hug':
+      if (speed > 1.2) { run('run'); return true; }
+      e.pose = 'cheer';
+      e.view = 'S';
+      e.lift = Math.round(Math.abs(Math.sin(u * 9 + (p.rec.num || 0))) * 4);
+      return true;
+    case 'leap': {
+      if (c.arrived == null) { run('carry'); e.ball = true; return true; }
+      const k = now - c.arrived;
+      e.pose = 'cheer';
+      e.view = 'N';
+      e.lift = Math.round(Math.sin(Math.min(1, k / 0.45) * (Math.PI / 2)) * 14);
+      return true;
+    }
+    case 'spike':
+      e.pose = u < 0.25 ? 'throw' : 'cheer';
+      e.view = 'S';
+      return true;
+    case 'dance':
+      e.pose = ['cutL', 'cheer', 'cutR', 'cheer'][Math.floor(u * 6) % 4];
+      e.view = 'S';
+      return true;
+    case 'arms':
+      e.pose = 'cheer';
+      e.view = 'S';
+      e.lift = u < 0.6 ? Math.round(Math.abs(Math.sin(u * 10)) * 3) : 0;
+      return true;
+    case 'point':
+      e.pose = 'point';
+      e.view = p.side === 'O' ? 'N' : 'S';
+      return true;
+    case 'flex':
+      e.pose = 'reel';
+      e.view = 'S';
+      return true;
+    case 'flexpoint':
+      e.pose = u < 0.7 ? 'reel' : 'point';
+      e.view = u < 0.7 ? 'S' : p.side === 'O' ? 'N' : 'S';
+      return true;
+    case 'salute':
+      e.pose = 'salute';
+      e.view = 'S';
+      return true;
+    case 'sackdance':
+      e.pose = ['cutL', 'reel', 'cutR', 'reel'][Math.floor(u * 5) % 4];
+      e.view = 'S';
+      return true;
+    default:
+      return false;
+  }
+}
+
 // sc: { sim, los, offUni, defUni }; live: the play is running or just ended.
 export function drawSimPlayers(ctx, cam, sc, live) {
   const sim = sc.sim;
@@ -93,6 +161,7 @@ export function drawSimPlayers(ctx, cam, sc, live) {
   for (const p of sim.players) list.push(p);
   list.sort((a, b) => b.y - a.y);
   for (const p of list) {
+    if (p.hidden) continue;
     const x = cam.sx(p.x);
     const y = cam.sy(sc.los + p.y);
     if (x < -20 || x > cam.w + 20 || y < -4 || y > cam.h + 30) continue;
@@ -100,6 +169,7 @@ export function drawSimPlayers(ctx, cam, sc, live) {
   }
   const b = sim.ball;
   for (const p of list) {
+    if (p.hidden) continue;
     const x = cam.sx(p.x);
     const y = cam.sy(sc.los + p.y);
     if (x < -20 || x > cam.w + 20 || y < -4 || y > cam.h + 30) continue;

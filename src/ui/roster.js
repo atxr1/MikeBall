@@ -5,6 +5,7 @@ import { badgeRow, badgeSVG, teamMarkSVG } from './emblems.js';
 import { TIER_LABEL, STAT_LABEL } from '../game/badges.js';
 import { POS_LIST, POS_NAME, heightStr } from '../data/roster.js';
 import { rosterIndex } from '../game/personnel.js';
+import { honorsFor } from '../data/honors.js';
 
 const GROUPS = [
   ['QB', ['QB']], ['RB', ['RB']], ['WR', ['WR']], ['TE', ['TE']], ['OL', ['OL']],
@@ -29,7 +30,7 @@ export function openRoster(host, team, roster, onClose) {
         const row = h('button', { class: 'p-row', 'aria-expanded': 'false' },
           h('span', { class: 'p-num' }, String(p.num)),
           p.portrait ? h('img', { class: 'px p-face', src: `assets/portraits/${p.id}.png`, width: 32, height: 32, alt: '' }) : h('span', { class: 'p-face' }),
-          h('span', { class: 'p-name' }, h('strong', {}, `${p.first} ${p.last}`), h('small', {}, `${POS_NAME[p.pos]}${i === 0 ? ', starter' : `, depth ${i + 1}`}`)),
+          h('span', { class: 'p-name' }, h('strong', {}, `${p.first} ${p.last}`), h('small', {}, `${POS_NAME[p.pos]}${i === 0 ? ', starter' : `, depth ${i + 1}`}`), honorChips(p)),
           h('span', { class: 'p-badges', html: badgeRow(p, 24) }),
         );
         row.addEventListener('click', () => {
@@ -81,8 +82,18 @@ function legend() {
     ...tiers.map((t) => h('span', { class: 'legend-item' }, h('span', { html: badgeSVG(t, 'skill', 18) }), TIER_LABEL[t])));
 }
 
+// Real honors from last season (All-Pro, MVP...), as small chips.
+function honorChips(p) {
+  const list = honorsFor(p);
+  if (!list.length) return null;
+  return h('span', { class: 'p-honors' }, ...list.slice(0, 2).map((x) =>
+    h('span', { class: `honor ${x.kind === 'award' ? 'award' : x.team === 1 ? 'ap1' : 'ap2'}`, title: x.label }, x.kind === 'award' ? `${x.short}` : x.team === 1 ? 'ALL-PRO' : '2ND-TEAM AP')));
+}
+
 function fillDetail(el, p) {
   const stats = ['speed', 'strength', 'skill'];
+  const honors = honorsFor(p);
+  if (honors.length) el.append(h('ul', { class: 'p-honor-list' }, ...honors.map((x) => h('li', {}, x.label))));
   el.append(
     h('div', { class: 'p-bio' },
       h('span', {}, `Age ${p.age}`),

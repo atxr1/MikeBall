@@ -2,6 +2,58 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
+## 2026-10-16 (evening) — Celebrations, stadium score shows, TV packages, honors
+
+**Done**
+- Field orientation (shipped in the previous commit, verified again): the
+  near end zone reads from the field of play, the midfield logo faces the
+  home sideline and turns with the view.
+- Celebrations (`src/sim/celebrate.js`, visual only, no effect on results):
+  touchdowns (spike, dance, point to the crowd, flex, Broncos-style salute,
+  Lambeau Leap at Green Bay with the scorer disappearing into the stands),
+  first-down signals, big-play arms up, sacks, interceptions and fumble
+  recoveries. Teammates run over to hug, the other side hangs its heads,
+  downed players get up. Each choice is hashed from the play, so replays
+  match.
+- Stadium score shows (`src/data/traditions.js`, `src/render/scoreshow.js`),
+  only where the real stadium does it: Arrowhead fireworks (one shell per
+  point), Tampa's pirate ship cannons, the Patriots' End Zone Militia
+  muskets, Denver's Thunder galloping the field, and the crowd songs in
+  Philadelphia, Miami and Houston. Fires when the home score actually
+  changes, so a flag that wipes out a touchdown doesn't set it off.
+- TV packages (`src/data/broadcast.js`, `src/ui/broadcast.js`, pack art
+  imported by `tools/import_broadcast.py` into `assets/broadcast/`): pick a
+  TV window in setup. Sunday afternoon goes to CBS or FOX by the road
+  team's conference, SNF on NBC, MNF on ESPN, Thursday and Black Friday on
+  Prime Video, Christmas on Netflix, international games on NFL Network,
+  Thanksgiving by host (Lions CBS, Cowboys FOX, night game NBC). Each
+  network's scorebug is tinted with the two teams' colors and filled in
+  live; its title cards (kickoff, touchdown, field goal, halftime, two-minute
+  warning, overtime, final) are re-lettered in the game's pixel font; its
+  logo sits in the corner of the field. Night windows use the night stadium
+  art, a darker crowd and camera flashes.
+- Honors: the real 2025 AP All-Pro first and second teams and the 2026 NFL
+  Honors winners show on player cards (`src/data/honors.js`, matched by
+  name). Player of the Game on the final screen (`src/game/awards.js`),
+  which also has the season engine (MVP, OPOY, DPOY, both rookie awards,
+  Coach of the Year, AP-format All-Pro teams) ready for season mode.
+- Reviewer fixes: the TV scorebug freezes between plays so a kick's result
+  can't show before the kick, the "& Goal" line shortens instead of being
+  cut off, bigger honor chips, night art preloaded for night games,
+  "Sim to end" during a celebration counts that play first.
+
+**Known issues**
+- The asset pack's rosters don't include Myles Garrett, Micah Parsons or
+  Brian Burns, so their 2025 honors have nobody to attach to.
+- Scorebug lettering is about 9 CSS px on an iPhone; readable but small.
+- International games still use the home team's stadium.
+- Points per team in full CPU games are still high (about 36).
+- No audio yet (the songs and cannons are visual plus a ticker line).
+
+**Next**
+- Rest of milestone 2: subs and challenges; saving drawn plays.
+- Season mode (milestone 3) feeds the season awards engine.
+
 ## 2026-10-16 (later) — Real field markings, live contact, play clock, play drawing
 
 **Done**
@@ -53,7 +105,7 @@ Newest first. Each session: what got done, what's broken, what's next.
   season mode.
 
 **Next**
-- Celebrations, stadium fireworks, broadcast packages, awards (in progress).
+- Celebrations, stadium fireworks, broadcast packages, awards (done next session).
 - Rest of milestone 2: subs and challenges; saving drawn plays.
 
 ## 2026-10-16 — Real NFL assets and a bigger field

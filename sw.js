@@ -2,13 +2,18 @@
 // online, with a cached copy for offline play. Bump CACHE_VERSION on every
 // release so phones drop the old copy.
 
-const CACHE_VERSION = 'mikeball-v7';
+const CACHE_VERSION = 'mikeball-v8';
 const NET_TIMEOUT_MS = 3500;
 const TEAM_IDS = 'BUF MIA NE NYJ BAL CIN CLE PIT HOU IND JAX TEN DEN KC LV LAC DAL NYG PHI WAS CHI DET GB MIN ATL CAR NO TB ARI LAR SF SEA'.split(' ');
 // Team logos are small and used on every screen, so they're cached up front.
 const LOGOS = TEAM_IDS.flatMap((t) => [16, 32, 64].map((n) => `assets/teams/${t}/logo_${n}.png`));
 // Helmet logos for the player sprites (Cleveland's helmet is plain).
 const DECALS = TEAM_IDS.filter((t) => t !== 'CLE').map((t) => `assets/teams/${t}/helmet_5x4.png`);
+// TV packages: each network's logo, scorebug and the title cards the game uses.
+const NETS = ['cbs', 'fox', 'nbc', 'espn', 'abc', 'prime', 'nfl_network', 'netflix'];
+const TV_FILES = ['logo_32.png', 'scorebug_standard_320x40.png', 'team_mask_standard_320x40.png',
+  ...['kickoff', 'touchdown', 'field_goal', 'final', 'two_minute', 'halftime', 'overtime'].map((k) => `${k}_240x60.png`)];
+const TV = ['assets/broadcast/layouts.json', ...NETS.flatMap((n) => TV_FILES.map((f) => `assets/broadcast/${n}/${f}`))];
 const SHELL = [
   './',
   'index.html',
@@ -60,6 +65,14 @@ const SHELL = [
   'src/ui/kickscene.js',
   'src/ui/drawing.js',
   'src/ui/playclock.js',
+  'src/ui/presentation.js',
+  'src/data/broadcast.js',
+  'src/data/honors.js',
+  'src/data/traditions.js',
+  'src/game/awards.js',
+  'src/render/scoreshow.js',
+  'src/sim/celebrate.js',
+  'src/ui/broadcast.js',
 ];
 
 self.addEventListener('install', (e) => {
@@ -67,7 +80,7 @@ self.addEventListener('install', (e) => {
   // old and new modules.
   e.waitUntil(
     caches.open(CACHE_VERSION)
-      .then((c) => c.addAll([...SHELL, ...LOGOS, ...DECALS].map((u) => new Request(u, { cache: 'reload' }))))
+      .then((c) => c.addAll([...SHELL, ...LOGOS, ...DECALS, ...TV].map((u) => new Request(u, { cache: 'reload' }))))
       .then(() => self.skipWaiting()),
   );
 });

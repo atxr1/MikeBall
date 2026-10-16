@@ -21,6 +21,7 @@ export const playClockMethods = {
     const txt = show ? `:${String(pc).padStart(2, '0')}` : '';
     if (this.el.pc.textContent !== txt) this.el.pc.textContent = txt;
     this.el.pc.classList.toggle('low', show && pc <= 5);
+    this.updateScorebug();
   },
 
   // Tries (extra point / two-point) aren't timed here.
@@ -51,7 +52,7 @@ export const playClockMethods = {
     }
     if (ev.includes('twoMinute')) {
       this.updateBug();
-      this.toast('Two-minute warning');
+      this.twoMinuteCard();
       this.mode = 'call';
       this.setSheetEnabled(true);
       return;

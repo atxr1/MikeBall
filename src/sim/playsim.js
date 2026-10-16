@@ -8,6 +8,7 @@ import { FIELD_W, clamp, dist } from '../core/util.js';
 import { FORMATIONS } from '../data/playbook.js';
 import { alignOffense, alignDefense, routePoints, pathPoints } from './align.js';
 import { contactMethods } from './contact.js';
+import { celebrateMethods } from './celebrate.js';
 
 export const DT = 1 / 60;
 const HIST = 40;
@@ -24,7 +25,7 @@ function mkEnt(rec, side, slot, pos, x, y) {
     blk: null, target: null, retarget: 0,
     freeT: 0, stunT: 0, stumbleT: 0, tackleCD: 0, moveCD: 0, jamT: 0,
     down: false, downT: 0, upT: 0, anim: (x * 7.3 + y * 3.1) % 6, juke: 0,
-    move: null, diveT: 0, wrapOn: null, cheer: false,
+    move: null, diveT: 0, wrapOn: null, cheer: false, celeb: null, hidden: false,
     hist: new Float32Array(HIST * 2), hi: 0,
     wp: 0, pts: null, routeEnd: 'continue', released: false,
     readDelay: 0, ballReact: 0, paFooled: false, sat: false,
@@ -1380,7 +1381,7 @@ export class PlaySim {
   }
 }
 
-Object.assign(PlaySim.prototype, contactMethods);
+Object.assign(PlaySim.prototype, contactMethods, celebrateMethods);
 
 const LOOKS = [[1.5, 1.4], [3.5, 1.0], [6, 0.6]];
 
