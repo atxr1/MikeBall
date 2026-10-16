@@ -40,8 +40,8 @@
   ctx.fillStyle = '#3f8a3a';
   ctx.fillRect(0, 0, lo.width, lo.height);
   rows.forEach((r, ri) => cols.forEach((c, ci) => {
-    const x = ci * cw + 13;
-    const y = ri * ch + 28;
+    const x = ci * cw + 11;
+    const y = ri * ch + 26;
     drawShadow(ctx, x, y);
     drawSprite(ctx, r.uni, { ...c, num: r.num, skin: (ri + ci) % 6 }, x, y);
     if (c.ball) drawCarriedBall(ctx, c.view, x, y);

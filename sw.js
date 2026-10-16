@@ -2,7 +2,7 @@
 // online, with a cached copy for offline play. Bump CACHE_VERSION on every
 // release so phones drop the old copy.
 
-const CACHE_VERSION = 'mikeball-v3';
+const CACHE_VERSION = 'mikeball-v4';
 const NET_TIMEOUT_MS = 3500;
 const SHELL = [
   './',
@@ -44,6 +44,7 @@ const SHELL = [
   'src/ui/roster.js',
   'src/ui/menus.js',
   'src/ui/coach.js',
+  'src/ui/kickscene.js',
 ];
 
 self.addEventListener('install', (e) => {

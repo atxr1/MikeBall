@@ -53,7 +53,7 @@ export function drawFieldArt(ctx, cam, sim, side, los) {
         shadowed(pts, col, { w: 2, dash: j.t === 'chkrel' ? [3, 2] : null });
         const a = pts[pts.length - 2];
         const b = pts[pts.length - 1];
-        if (p.routeEnd === 'continue') PX.arrowHead(ctx, a.x, a.y, b.x, b.y, col, 4);
+        if (p.routeEnd === 'continue') PX.arrowHead(ctx, a.x, a.y, b.x, b.y, col, 5);
         else PX.disc(ctx, b.x, b.y, 2, col);
         if (idx >= 0) readTag(ctx, X(p.sx), Y(p.sy) + 3, idx + 1, col);
       } else if (j.t === 'carry') {
@@ -61,7 +61,7 @@ export function drawFieldArt(ctx, cam, sim, side, los) {
         shadowed(pts, '#ffffff', { w: 2 });
         const a = pts[pts.length - 2];
         const b = pts[pts.length - 1];
-        PX.arrowHead(ctx, a.x, a.y, b.x, b.y, '#ffffff', 4);
+        PX.arrowHead(ctx, a.x, a.y, b.x, b.y, '#ffffff', 5);
       } else if (j.t === 'pafake') {
         shadowed([start, ...p.pts].map(P), '#ffffff', { dash: [2, 2] });
       } else if (j.t === 'pull' || j.t === 'lead') {

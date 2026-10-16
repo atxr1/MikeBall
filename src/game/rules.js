@@ -493,7 +493,8 @@ export class Game {
     const rSide = other(kSide);
     const k = this.kicker(kSide);
     const ret = this.returner(rSide);
-    const res = K.kickoff(k, ret, this.rng, { onside, fromYard: this.freeKick ? 20 : 35 });
+    const fromYard = this.freeKick ? 20 : 35;
+    const res = K.kickoff(k, ret, this.rng, { onside, fromYard });
     this.freeKick = false;
     let text;
     let headline = null;
@@ -524,7 +525,7 @@ export class Game {
       this.addLog(text, 'score');
       if (!this.otScore(rSide, 'td')) this.startPat(rSide);
       this.finishNext();
-      return { text, headline, kind: 'kickoff', res, kSide, rSide, returner: ret, next: this.next };
+      return { text, headline, kind: 'kickoff', res, kSide, rSide, from: fromYard, returner: ret, next: this.next };
     } else {
       text = `${nm(k)} kicks off, ${nm(ret)} returns it ${res.returnYds} yards to the ${fieldLabel(res.ballOn, tr, tk)}.`;
       this.runClock(clamp(4 + res.returnYds * 0.12, 4, 9));
@@ -532,7 +533,7 @@ export class Game {
     }
     this.addLog(text, 'kick');
     this.finishNext();
-    return { text, headline, kind: 'kickoff', res, kSide, rSide, returner: ret, next: this.next };
+    return { text, headline, kind: 'kickoff', res, kSide, rSide, from: fromYard, returner: ret, next: this.next };
   }
 
   setPossession(side, ballOn) {

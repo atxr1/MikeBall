@@ -16,6 +16,7 @@ import { DT } from '../sim/playsim.js';
 import { h, clear } from './dom.js';
 import { teamMarkSVG } from './emblems.js';
 import { openRoster } from './roster.js';
+import { KickScene } from './kickscene.js';
 
 export class CoachScreen {
   constructor(app, opts) {
@@ -133,7 +134,7 @@ export class CoachScreen {
     this.canvas.style.width = `${r.width}px`;
     this.canvas.style.height = `${r.height}px`;
     this.dpr = dpr;
-    this.artPx = Math.max(2, Math.round(dpr * 1.7));
+    this.artPx = Math.max(1, Math.round(dpr));
     if (!this.lo) this.lo = document.createElement('canvas');
     this.lo.width = Math.ceil(dw / this.artPx);
     this.lo.height = Math.ceil(dh / this.artPx);
@@ -393,8 +394,9 @@ export class CoachScreen {
       this.updateBug();
       if (s.stop) { this.mode = 'idle'; return this.advance(); }
       if (s.events.includes('twoMinute')) this.toast('Two-minute warning');
-      if (o.special === 'punt') return this.runKick('punt', g.punt());
-      if (o.special === 'fg') return this.runKick('fg', g.fieldGoal());
+      const bx = g.ballX;
+      if (o.special === 'punt') return this.runKick('punt', g.punt(), bx);
+      if (o.special === 'fg') return this.runKick('fg', g.fieldGoal(), bx);
       const pen = g.preSnapPenalty();
       if (pen) {
         g.finishNext();
@@ -499,71 +501,25 @@ export class CoachScreen {
     this.enterCall();
   }
 
-  runKick(type, out) {
+  runKick(type, out, bx = MID_X) {
     const g = this.game;
     this.mode = 'kick';
     this.setSheetEnabled(false);
-    const res = out.res || out.anim || {};
     let kSide;
-    let rSide;
-    let from;
-    let to;
-    let ret = null;
-    let fx = MID_X;
-    let tx = MID_X;
-    let peak = 12;
-    if (type === 'kickoff') {
-      kSide = out.kSide;
-      rSide = out.rSide;
-      from = res.type && res.type.startsWith('onside') ? 35 : 35;
-      to = 100 - (res.landing ?? 0);
-      peak = res.type && res.type.startsWith('onside') ? 1.5 : 16;
-      tx = MID_X + (this.kickRng().next() - 0.5) * 16;
-      if (res.type === 'return' || res.type === 'td') ret = { to: 100 - res.ballOn };
-    } else if (type === 'punt') {
-      kSide = out.side;
-      rSide = other(kSide);
-      from = out.startBall - 14;
-      to = res.type === 'touchback' ? 106 : res.type === 'blocked' ? out.startBall - 11 : res.landing;
-      peak = res.type === 'blocked' ? 2 : 19;
-      tx = MID_X + (this.kickRng().next() - 0.5) * 20;
-      if (res.type === 'return' || res.type === 'td') ret = { to: 100 - res.ballOn };
-    } else {
-      kSide = out.side;
-      rSide = other(kSide);
-      const start = type === 'pat' ? 85 : out.startBall;
-      from = start - 7;
-      const a = out.anim || {};
-      const good = a.good;
-      const miss = a.miss || '';
-      to = miss === 'short' ? 107 : 112;
-      tx = MID_X + (good ? (this.kickRng().next() - 0.5) * 2.5 : miss.includes('left') ? -4.4 : miss.includes('right') ? 4.4 : 0);
-      fx = type === 'pat' ? MID_X : g.ballX;
-      peak = 7 + (to - from) * 0.08;
-      if (out.res && out.res.blocked) { to = from + 2; peak = 1; }
-    }
-    const dist = Math.abs(to - from);
-    const flight = clamp(0.7 + dist * 0.028, 0.8, 2.6);
-    this.scene = {
-      kind: 'kick',
-      type,
-      t: 0,
-      flight,
-      from: { x: fx, f: from },
-      to: { x: tx, f: to },
-      peak,
-      ret,
-      retDur: ret ? clamp(Math.abs(ret.to - to) / 9.5, 0.5, 4) : 0,
-      kicker: { team: g.teams[kSide], uni: this.uni(kSide), num: (type === 'punt' ? g.punter(kSide) : g.kicker(kSide)).num },
-      returner: ret ? { uni: this.uni(rSide), num: g.returner(rSide).num, skin: g.returner(rSide).skinTone } : null,
-      offTeam: g.teams[kSide],
-      defTeam: g.teams[rSide],
-      los: from + (type === 'punt' ? 14 : 7),
-      ltg: null,
-      showLines: false,
-      out,
-    };
-    this.cam.set(fx, from + 8, 1.05, true);
+    if (type === 'kickoff') kSide = out.kSide;
+    else kSide = out.side;
+    const rSide = other(kSide);
+    const sc = new KickScene({ type, out, game: g, kSide, rSide, rng: this.kickRng(), ballX: type === 'pat' ? MID_X : bx });
+    sc.offTeam = g.teams[kSide];
+    sc.defTeam = g.teams[rSide];
+    sc.ltg = null;
+    sc.showLines = type !== 'kickoff';
+    sc.uniK = this.uni(kSide);
+    sc.uniR = this.uni(rSide);
+    this.scene = sc;
+    const f0 = sc.focus();
+    this.cam.set(f0.x, f0.f + 6, 1.15, true);
+    this.dirty = true;
     this.setTicker(out.text);
   }
 
@@ -574,18 +530,17 @@ export class CoachScreen {
 
   updateKick(dt) {
     const sc = this.scene;
-    sc.t += dt * this.speed;
-    if (!sc.doneT && sc.t >= sc.flight + sc.retDur + 0.4) {
-      sc.doneT = true;
+    sc.update(dt * this.speed);
+    if (sc.done && !sc.reported) {
+      sc.reported = true;
       const out = sc.out;
       this.updateBug();
       this.mode = 'idle';
       const head = out.headline;
-      const showHead = head || null;
       if (sc.type === 'fg' && out.res?.good) this.banner('Field goal', out.text, 1.8, () => this.advance());
       else if (sc.type === 'pat') this.banner(out.good ? 'Good' : 'No good', out.text, 1.4, () => this.advance());
-      else if (showHead) this.banner(showHead, out.text, 2, () => this.advance());
-      else this.after(0.9, () => this.advance());
+      else if (head) this.banner(head, out.text, 2, () => this.advance());
+      else this.after(0.6, () => this.advance());
     }
   }
 
@@ -702,18 +657,9 @@ export class CoachScreen {
       if (b.state === 'air') { x = lerp(b.x, b.tx, 0.4); f = sc.los + lerp(b.y, b.ty, 0.4); }
       this.cam.set(x, f + 3, 1.36);
     } else if (sc.kind === 'kick') {
-      const p = this.kickBall(sc);
-      this.cam.set(p.x, p.f + 4, 1.05);
+      const p = sc.focus();
+      this.cam.set(p.x, p.f + 3, 1.15);
     }
-  }
-
-  kickBall(sc) {
-    const u = clamp(sc.t / sc.flight, 0, 1);
-    if (sc.t <= sc.flight || !sc.ret) {
-      return { x: lerp(sc.from.x, sc.to.x, u), f: lerp(sc.from.f, sc.to.f, u), z: 4 * sc.peak * u * (1 - u) + 1, u };
-    }
-    const v = clamp((sc.t - sc.flight) / sc.retDur, 0, 1);
-    return { x: sc.to.x + Math.sin(v * 3) * 2, f: lerp(sc.to.f, sc.ret.to, v), z: 1.1, u: 1, v };
   }
 
   draw() {
@@ -724,7 +670,7 @@ export class CoachScreen {
     ctx.imageSmoothingEnabled = false;
     drawField(ctx, this.cam, { offTeam: sc.offTeam, defTeam: sc.defTeam, homeTeam: g.teams.home, los: sc.los, ltg: sc.ltg, showLines: sc.showLines });
     if (sc.kind === 'sim') this.drawSim(ctx, sc);
-    else if (sc.kind === 'kick') this.drawKick(ctx, sc);
+    else if (sc.kind === 'kick') sc.draw(ctx, this.cam, sc.uniK, sc.uniR, (c, x, y) => this.carrierMarker(c, x, y));
     drawGoalposts(ctx, this.cam);
     const out = this.ctx;
     out.setTransform(1, 0, 0, 1, 0, 0);
@@ -774,7 +720,7 @@ export class CoachScreen {
       const x = cam.sx(p.x);
       const y = cam.sy(sc.los + p.y);
       if (x < -20 || x > cam.w + 20 || y < -4 || y > cam.h + 30) continue;
-      drawShadow(ctx, x, y, p.down ? 18 : 12);
+      drawShadow(ctx, x, y, p.down ? 16 : 10);
     }
     const b = sim.ball;
     for (const p of list) {
@@ -794,7 +740,7 @@ export class CoachScreen {
 
   carrierMarker(ctx, x, y) {
     const X = Math.round(x);
-    const Y = Math.round(y) - 31;
+    const Y = Math.round(y) - 28;
     ctx.fillStyle = '#2a2100';
     ctx.fillRect(X - 3, Y - 1, 7, 2);
     ctx.fillRect(X - 2, Y + 1, 5, 1);
@@ -804,37 +750,4 @@ export class CoachScreen {
     ctx.fillRect(X - 1, Y, 3, 1);
     ctx.fillRect(X, Y + 1, 1, 1);
   }
-
-  drawKick(ctx, sc) {
-    const cam = this.cam;
-    const p = this.kickBall(sc);
-    const e = this.tmp;
-    const kx = cam.sx(sc.from.x);
-    const ky = cam.sy(sc.from.f - 0.8);
-    drawShadow(ctx, kx, ky);
-    e.view = 'N';
-    e.pose = sc.t < 0.25 ? 'run' : 'stand';
-    e.frame = Math.floor(sc.t * 10) % 4;
-    e.num = sc.kicker.num;
-    e.skin = 1;
-    drawSprite(ctx, sc.kicker.uni, e, kx, ky);
-    if (sc.returner && sc.t > sc.flight * 0.4) {
-      const running = sc.t > sc.flight;
-      const rx = cam.sx(running ? p.x : sc.to.x);
-      const ry = cam.sy(running ? p.f : sc.to.f + 0.5);
-      drawShadow(ctx, rx, ry);
-      e.view = 'S';
-      e.pose = running ? 'carry' : 'stand';
-      e.frame = Math.floor(sc.t * 12) % 4;
-      e.num = sc.returner.num;
-      e.skin = sc.returner.skin;
-      drawSprite(ctx, sc.returner.uni, e, rx, ry);
-      if (running) {
-        drawCarriedBall(ctx, 'S', rx, ry);
-        this.carrierMarker(ctx, rx, ry);
-      }
-    }
-    if (!(sc.returner && sc.t > sc.flight)) drawFootball(ctx, cam.sx(p.x), cam.sy(p.f), p.z * cam.s * 0.9, sc.t * 14);
-  }
 }
-

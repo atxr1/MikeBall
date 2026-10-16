@@ -2,6 +2,26 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
+## 2026-10-15 — Proportions and full special teams
+
+**Done**
+- Players redrawn at real-world scale: about 23 px tall and 12 px across the
+  pads, drawn at 1 art pixel per CSS pixel (≈2.4 yards tall on the field
+  instead of ≈4.3). Yard numbers sized to real 6-ft numbers and placed
+  12 yards in from the sidelines.
+- New `src/ui/kickscene.js`: every kick now has all 22 players.
+  - Kickoffs use the current alignment (kicking team at the receiving 40,
+    receivers in the 30-35 setup zone, two deep), nobody moves until the
+    ball lands, then blocking, lane coverage and a tackle at the spot the
+    rules engine chose. Onside kicks, touchbacks, return TDs and fumbles.
+  - Punts: shield line, wings, gunners vs jammers, personal protector,
+    rushers; fair catches, returns, downed punts, touchbacks, muffs, blocks.
+  - Field goals and PATs: 7-man line plus wings, holder, kicker, 11 rushers;
+    ball flies through (or wide of) the uprights at the right height.
+- `coach.js` shrank (kick animation moved out), reviewer's split suggestion
+  done for kicks.
+- Pixel font: narrower "1" so the clock no longer reads "4:1 7".
+
 ## 2026-10-15 — Pixel-art look
 
 **Done**
@@ -29,8 +49,8 @@ Newest first. Each session: what got done, what's broken, what's next.
   review.
 
 **Next**
-- Milestone 2 (play drawing). Split `src/ui/coach.js` first (kicks and the
-  play-call sheet into their own modules) — it's near the size limit.
+- Milestone 2 (play drawing). Move the play-call sheet out of
+  `src/ui/coach.js` first.
 - Art polish: more poses (stiff-arm, celebration, tackle collision),
   weather (snow/rain), stadium-specific end zones and crowds.
 

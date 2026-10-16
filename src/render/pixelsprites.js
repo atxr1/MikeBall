@@ -2,13 +2,18 @@
 // tiny canvas, then given a dark selective outline, and cached. Views:
 // 'N' (back, running up the screen), 'S' (front, facing the camera),
 // 'E' (side, facing right; 'W' is E mirrored).
+//
+// Proportions: about 23 px tall and 12 px across the shoulder pads, which
+// on the field (≈11 px per yard) makes a player about 2.4 yards tall —
+// slightly heroic, like broadcast pixel art, but true to the field.
 
 import { drawNumber } from './pixelfont.js';
 
-export const SW = 22; // sprite canvas width
-export const SH = 28; // sprite canvas height
-export const AX = 11; // anchor x (between the feet)
-export const AY = 26; // anchor y (ground)
+export const SW = 18; // sprite canvas width
+export const SH = 27; // sprite canvas height (2 px headroom for raised arms)
+export const AX = 9; // anchor x (between the feet)
+export const AY = 24; // anchor y (bottom row of the cleats)
+const TOP = 2; // headroom above the helmet
 
 const SKIN = ['#f3cfae', '#e3b18c', '#c98d66', '#a8714b', '#7f5236', '#5c3a26'];
 const MASK = '#c3c9d2';
@@ -16,6 +21,9 @@ const MASK_D = '#7d8590';
 const CLEAT = '#1c1e24';
 const CLEAT_L = '#4a4f5a';
 const EYE = '#16120f';
+const BALL = '#7a3f1c';
+const BALL_L = '#a35a2c';
+const LACE = '#f1e7d8';
 
 function hex(h) {
   const n = parseInt(h.slice(1), 16);
@@ -49,7 +57,7 @@ export function paletteFor(uni, skin) {
     N: uni.num,
     H: uni.helmet, Hl: tone(uni.helmet, 0.45), Hd: tone(uni.helmet, -0.3),
     S: uni.stripe,
-    P: uni.pants, Pd: tone(uni.pants, -0.25),
+    P: uni.pants, Pl: tone(uni.pants, 0.15), Pd: tone(uni.pants, -0.25),
     O: uni.socks, Od: tone(uni.socks, -0.25),
     K, Kd: tone(K, -0.2),
   };
@@ -57,19 +65,17 @@ export function paletteFor(uni, skin) {
 
 // ------------------------------------------------------------------ painter
 class Painter {
-  constructor(ctx) { this.ctx = ctx; }
-  px(x, y, c) { if (!c) return; this.ctx.fillStyle = c; this.ctx.fillRect(x, y, 1, 1); }
-  rect(x, y, w, h, c) { if (!c || w <= 0 || h <= 0) return; this.ctx.fillStyle = c; this.ctx.fillRect(x, y, w, h); }
+  constructor(ctx, dy = 0) { this.ctx = ctx; this.dy = dy; }
+  px(x, y, c) { if (!c) return; this.ctx.fillStyle = c; this.ctx.fillRect(x, y + this.dy, 1, 1); }
+  rect(x, y, w, h, c) { if (!c || w <= 0 || h <= 0) return; this.ctx.fillStyle = c; this.ctx.fillRect(x, y + this.dy, w, h); }
   hline(x0, x1, y, c) { this.rect(Math.min(x0, x1), y, Math.abs(x1 - x0) + 1, 1, c); }
   vline(x, y0, y1, c) { this.rect(x, Math.min(y0, y1), 1, Math.abs(y1 - y0) + 1, c); }
-  // thick line between two points (for limbs)
-  limb(x0, y0, x1, y1, w, c, cd) {
+  limb(x0, y0, x1, y1, w, c) {
     const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
     for (let i = 0; i <= n; i++) {
       const x = Math.round(x0 + ((x1 - x0) * i) / n);
       const y = Math.round(y0 + ((y1 - y0) * i) / n);
       this.rect(x, y, w, 1, c);
-      if (cd && w > 1) this.px(x + w - 1, y, cd);
     }
   }
 }
@@ -107,213 +113,188 @@ function outline(canvas) {
 }
 
 // ------------------------------------------------------------------ parts
-// All coordinates are in the 22x28 sprite canvas. Body center x = 11.
+// Body center is x = 8.5 (columns 3..14). Rows: helmet 0-7, pads/torso 7-13,
+// pants 14-17, socks 18-20, cleats 21-22 (before the TOP offset).
 
-function helmetFront(p, c, oy, ox = 0) {
-  const x = 6 + ox;
-  const y = oy;
-  // shell
-  p.hline(x + 2, x + 7, y, c.H);
-  p.hline(x + 1, x + 8, y + 1, c.H);
-  p.rect(x, y + 2, 10, 6, c.H);
-  p.px(x + 2, y, c.Hl); p.px(x + 3, y, c.Hl); p.px(x + 1, y + 1, c.Hl); p.px(x + 2, y + 1, c.Hl); p.px(x + 1, y + 2, c.Hl);
-  p.vline(x + 9, y + 3, y + 7, c.Hd);
-  p.vline(x, y + 4, y + 7, c.Hd);
-  // stripe over the crown
-  p.rect(x + 4, y, 2, 3, c.S);
+function helmetFront(p, c, y) {
+  p.hline(7, 10, y, c.H);
+  p.hline(6, 11, y + 1, c.H);
+  p.rect(5, y + 2, 8, 4, c.H);
+  p.px(7, y, c.Hl); p.px(6, y + 1, c.Hl); p.px(7, y + 1, c.Hl); p.px(6, y + 2, c.Hl);
+  p.rect(8, y, 2, 2, c.S); // crown stripe
+  p.vline(12, y + 3, y + 5, c.Hd);
   // face
-  p.rect(x + 2, y + 3, 6, 5, c.K);
-  p.hline(x + 2, x + 7, y + 3, c.Kd);
-  p.px(x + 3, y + 4, EYE); p.px(x + 6, y + 4, EYE);
-  p.px(x + 2, y + 6, c.Kd); p.px(x + 7, y + 6, c.Kd);
-  p.hline(x + 4, x + 5, y + 7, c.Kd);
-  // facemask: one bar across, a short chin bar
-  p.hline(x + 1, x + 8, y + 5, MASK);
-  p.px(x + 1, y + 5, MASK_D); p.px(x + 8, y + 5, MASK_D);
-  p.hline(x + 3, x + 6, y + 8, MASK_D);
+  p.hline(6, 11, y + 3, c.Kd);
+  p.hline(6, 11, y + 4, c.K);
+  p.px(7, y + 4, EYE); p.px(10, y + 4, EYE);
+  // facemask bar
+  p.hline(6, 11, y + 5, MASK);
+  // chin
+  p.px(6, y + 6, c.Hd); p.px(11, y + 6, c.Hd);
+  p.hline(7, 10, y + 6, c.K);
+  p.px(8, y + 6, c.Kd); p.px(9, y + 6, c.Kd);
+  p.hline(7, 10, y + 7, MASK_D);
 }
 
-function helmetBack(p, c, oy, ox = 0) {
-  const x = 6 + ox;
-  const y = oy;
-  p.hline(x + 2, x + 7, y, c.H);
-  p.hline(x + 1, x + 8, y + 1, c.H);
-  p.rect(x, y + 2, 10, 5, c.H);
-  p.hline(x + 1, x + 8, y + 7, c.Hd);
-  p.px(x + 2, y, c.Hl); p.px(x + 1, y + 1, c.Hl); p.px(x + 2, y + 1, c.Hl); p.px(x + 1, y + 2, c.Hl); p.px(x + 1, y + 3, c.Hl);
-  p.vline(x + 9, y + 3, y + 6, c.Hd);
-  p.rect(x + 4, y, 2, 7, c.S);
-  // neck
-  p.rect(x + 3, y + 8, 4, 1, c.Kd);
+function helmetBack(p, c, y) {
+  p.hline(7, 10, y, c.H);
+  p.hline(6, 11, y + 1, c.H);
+  p.rect(5, y + 2, 8, 4, c.H);
+  p.hline(6, 11, y + 6, c.Hd);
+  p.px(7, y, c.Hl); p.px(6, y + 1, c.Hl); p.px(6, y + 2, c.Hl); p.px(6, y + 3, c.Hl);
+  p.vline(12, y + 3, y + 5, c.Hd);
+  p.rect(8, y, 2, 6, c.S);
+  p.hline(7, 10, y + 7, c.Kd); // neck
 }
 
-function helmetSide(p, c, oy, ox = 0) {
+function helmetSide(p, c, y, ox) {
   // facing right
-  const x = 6 + ox;
-  const y = oy;
-  p.hline(x + 2, x + 7, y, c.H);
-  p.hline(x + 1, x + 8, y + 1, c.H);
-  p.rect(x, y + 2, 9, 5, c.H);
-  p.hline(x + 1, x + 6, y + 7, c.Hd);
-  p.hline(x + 1, x + 7, y, c.S);
-  p.px(x + 2, y + 1, c.Hl); p.px(x + 1, y + 2, c.Hl); p.px(x + 1, y + 3, c.Hl);
-  p.px(x + 3, y + 4, c.Hd); // ear hole
+  const x = ox;
+  p.hline(x + 6, x + 10, y, c.S);
+  p.hline(x + 5, x + 11, y + 1, c.H);
+  p.px(x + 6, y + 1, c.Hl);
+  p.rect(x + 5, y + 2, 5, 4, c.H);
+  p.px(x + 5, y + 2, c.Hl);
+  p.px(x + 7, y + 3, c.Hd); // ear hole
+  p.hline(x + 6, x + 9, y + 6, c.Hd);
   // face
-  p.rect(x + 6, y + 3, 3, 4, c.K);
-  p.px(x + 7, y + 4, EYE);
-  p.px(x + 6, y + 6, c.Kd);
+  p.rect(x + 10, y + 2, 2, 4, c.K);
+  p.px(x + 10, y + 2, c.H);
+  p.px(x + 11, y + 3, EYE);
+  p.px(x + 10, y + 5, c.Kd);
   // facemask
-  p.vline(x + 9, y + 4, y + 7, MASK_D);
-  p.hline(x + 8, x + 10, y + 6, MASK);
+  p.vline(x + 12, y + 3, y + 6, MASK_D);
+  p.hline(x + 11, x + 13, y + 5, MASK);
 }
 
-function torsoFB(p, c, oy, back) {
-  const y = oy;
+function torsoFB(p, c, y, back) {
   // shoulder pads
-  p.hline(6, 15, y, c.J);
-  p.rect(5, y + 1, 12, 2, c.J);
+  p.hline(5, 12, y, c.J);
+  p.rect(3, y + 1, 12, 2, c.J);
+  p.px(3, y + 1, c.Jl); p.px(4, y + 1, c.Jl);
+  p.px(14, y + 1, c.Jd); p.px(14, y + 2, c.Jd);
   // body
-  p.rect(6, y + 3, 10, 5, c.J);
-  p.vline(6, y + 1, y + 7, c.Jl);
-  p.vline(15, y + 1, y + 7, c.Jd);
-  p.px(5, y + 1, c.Jl);
-  p.px(16, y + 1, c.Jd); p.px(16, y + 2, c.Jd);
+  p.rect(5, y + 3, 8, 4, c.J);
+  p.vline(5, y + 3, y + 6, c.Jl);
+  p.vline(12, y + 3, y + 6, c.Jd);
+  p.hline(5, 12, y + 6, c.Jd);
   // collar
-  if (!back) { p.hline(9, 12, y, c.Jd); p.px(10, y, c.Kd); p.px(11, y, c.Kd); }
-  else p.hline(9, 12, y, c.Jd);
-  // belt line
-  p.hline(6, 15, y + 7, c.Jd);
+  if (back) p.hline(7, 10, y, c.Jd);
+  else { p.hline(7, 10, y, c.Jd); p.px(8, y, c.Kd); p.px(9, y, c.Kd); }
 }
 
-function sleevesFB(p, c, oy, la, ra, pose) {
-  // la / ra: arm swing offsets (-1 up, +1 down)
-  const y = oy;
+function armsFB(p, c, y, la, ra, pose) {
+  // y = top of the pads row
   if (pose === 'push') {
-    // arms raised forward at shoulder height
-    for (const [x, dir] of [[4, 1], [16, -1]]) {
+    for (const x of [3, 13]) {
       p.rect(x, y + 1, 2, 2, c.J);
       p.rect(x, y + 3, 2, 1, c.T);
-      p.rect(x + dir * 0, y + 4, 2, 2, c.K);
     }
-    p.rect(7, y + 2, 2, 2, c.K);
-    p.rect(13, y + 2, 2, 2, c.K);
+    // hands out in front, at chest height
+    p.rect(4, y + 4, 2, 2, c.K);
+    p.rect(12, y + 4, 2, 2, c.K);
     return;
   }
-  for (const [x, off, shade] of [[4, la, c.Jl], [16, ra, c.Jd]]) {
-    p.rect(x, y + 1, 2, 3, c.J);
-    p.px(x === 4 ? 4 : 17, y + 1, shade);
+  for (const [x, off, shade] of [[3, la, c.Jl], [13, ra, c.Jd]]) {
+    p.rect(x, y + 1, 2, 2, c.J);
+    p.px(x === 3 ? 3 : 14, y + 1, shade);
     p.rect(x, y + 3, 2, 1, c.T);
     p.rect(x, y + 4 + off, 2, 3, c.K);
-    p.px(x === 4 ? 4 : 17, y + 5 + off, c.Kd);
+    p.px(x === 3 ? 3 : 14, y + 5 + off, c.Kd);
   }
 }
 
-function throwArm(p, c, oy) {
-  // right arm cocked up behind the helmet with the ball
-  const y = oy;
-  p.rect(4, y + 1, 2, 3, c.J);
-  p.rect(4, y + 3, 2, 1, c.T);
-  p.rect(4, y + 4, 2, 3, c.K);
-  p.rect(16, y - 1, 2, 3, c.J);
-  p.rect(16, y - 2, 2, 1, c.T);
-  p.rect(16, y - 5, 2, 3, c.K);
-  // ball
-  p.rect(16, y - 8, 3, 3, '#7a3f1c');
-  p.px(17, y - 8, '#a35a2c');
-  p.px(17, y - 7, '#f1e7d8');
+function throwArm(p, c, y) {
+  p.rect(3, y + 1, 2, 2, c.J);
+  p.rect(3, y + 3, 2, 1, c.T);
+  p.rect(3, y + 4, 2, 3, c.K);
+  // right arm cocked high behind the helmet
+  p.rect(13, y - 1, 2, 2, c.J);
+  p.rect(13, y - 2, 2, 1, c.T);
+  p.rect(13, y - 5, 2, 3, c.K);
+  p.rect(13, y - 8, 3, 3, BALL);
+  p.px(14, y - 8, BALL_L);
+  p.px(14, y - 7, LACE);
 }
 
-function legsFB(p, c, oy, lUp, rUp) {
-  const y = oy;
+function legsFB(p, c, y, lUp, rUp) {
   // pants
-  p.rect(6, y, 10, 3, c.P);
-  p.vline(6, y, y + 2, tone(c.P, 0.15));
-  p.vline(15, y, y + 2, c.Pd);
-  // leg split
-  for (const [x, up] of [[6, lUp], [12, rUp]]) {
-    const ly = y + 3 - up;
-    p.rect(x, ly, 4, 2, c.P);
-    p.px(x + 3, ly + 1, c.Pd);
-    // socks
-    p.rect(x + 1, ly + 2, 3, 4, c.O);
-    p.px(x + 3, ly + 3, c.Od);
-    p.hline(x + 1, x + 3, ly + 2, tone(c.O, 0.25));
-    // cleats
-    p.rect(x, ly + 6, 4, 2, CLEAT);
-    p.hline(x, x + 1, ly + 6, CLEAT_L);
+  p.rect(5, y, 8, 2, c.P);
+  p.vline(5, y, y + 1, c.Pl);
+  p.vline(12, y, y + 1, c.Pd);
+  for (const [x, up, sx] of [[5, lUp, 6], [10, rUp, 10]]) {
+    const ly = y + 2 - up;
+    p.rect(x, ly, 3, 2, c.P);
+    p.px(x + 2, ly + 1, c.Pd);
+    p.rect(sx, ly + 2, 2, 3, c.O);
+    p.px(sx + 1, ly + 3, c.Od);
+    p.rect(x, ly + 5, 3, 2, CLEAT);
+    p.px(x, ly + 5, CLEAT_L);
   }
 }
 
-function torsoSide(p, c, oy, ox) {
-  const y = oy;
-  const x = 7 + ox;
-  p.hline(x + 1, x + 7, y, c.J);
-  p.rect(x, y + 1, 9, 2, c.J);
-  p.rect(x + 1, y + 3, 7, 5, c.J);
-  p.vline(x + 1, y + 3, y + 7, c.Jd);
-  p.vline(x + 7, y + 1, y + 6, c.Jl);
-  p.hline(x + 1, x + 7, y + 7, c.Jd);
-  // number on the shoulder
-  p.hline(x + 3, x + 5, y + 1, c.N);
+function torsoSide(p, c, y, ox) {
+  const x = ox;
+  p.hline(x + 6, x + 11, y, c.J);
+  p.rect(x + 5, y + 1, 8, 2, c.J);
+  p.rect(x + 6, y + 3, 6, 4, c.J);
+  p.vline(x + 6, y + 3, y + 6, c.Jd);
+  p.vline(x + 11, y + 1, y + 5, c.Jl);
+  p.hline(x + 6, x + 11, y + 6, c.Jd);
 }
 
-function armSide(p, c, oy, ox, swing, front) {
+function armSide(p, c, y, ox, swing, front) {
   // swing: -1 back, 0 down, 1 forward
-  const sx = 10 + ox;
-  const sy = oy + 1;
-  p.rect(sx, sy, 3, 3, front ? c.J : c.Jd);
-  p.rect(sx, sy + 2, 3, 1, c.T);
-  const ex = sx + 1 + swing * 3;
-  const ey = sy + 6 - Math.abs(swing);
-  p.limb(sx + 1, sy + 3, ex, ey, 2, c.K, c.Kd);
+  const sx = 8 + ox;
+  p.rect(sx, y + 1, 2, 2, front ? c.J : c.Jd);
+  p.rect(sx, y + 3, 2, 1, c.T);
+  const ex = sx + swing * 2;
+  const ey = y + 6 - Math.abs(swing);
+  p.limb(sx, y + 4, ex, ey, 2, front ? c.K : c.Kd);
 }
 
-function legsSide(p, c, oy, frame) {
-  const y = oy;
-  p.rect(8, y, 7, 3, c.P);
-  p.hline(8, 14, y + 2, c.Pd);
-  const pose = [
-    [[12, 3, 15, 6, 16, 9], [9, 3, 7, 6, 5, 8]], // stride, right leg ahead
-    [[11, 3, 12, 6, 11, 9], [10, 3, 8, 5, 8, 7]], // passing, back leg tucked
-    [[12, 3, 14, 6, 14, 9], [9, 3, 8, 6, 6, 9]], // stride 2
-    [[11, 3, 11, 6, 12, 9], [9, 3, 7, 5, 6, 6]], // passing 2
+function legsSide(p, c, y, frame) {
+  p.rect(6, y, 6, 2, c.P);
+  p.hline(6, 11, y + 1, c.Pd);
+  // [hipX, kneeX, kneeY, footX, footY] relative to y
+  const poses = [
+    [[9, 11, 4, 12, 6], [7, 5, 4, 3, 5]],
+    [[9, 9, 4, 9, 6], [7, 7, 4, 6, 5]],
+    [[9, 10, 4, 11, 6], [7, 6, 4, 4, 6]],
+    [[9, 8, 4, 8, 6], [7, 7, 3, 7, 5]],
   ][frame % 4];
-  for (const [i, L] of pose.entries()) {
-    const [hx, hy, kx, ky, fx, fy] = L;
-    const col = i === 0 ? c.O : c.Od;
-    p.limb(hx, y + hy - 1, kx, y + ky - 1, 3, i === 0 ? c.P : c.Pd);
-    p.limb(kx, y + ky - 1, fx, y + fy - 1, 3, col);
-    p.rect(fx - 1, y + fy, 5, 2, CLEAT);
-    p.px(fx + 3, y + fy + 1, CLEAT_L);
-  }
+  poses.forEach(([hx, kx, ky, fx, fy], i) => {
+    p.limb(hx, y + 2, kx, y + ky, 2, i === 0 ? c.P : c.Pd);
+    p.limb(kx, y + ky, fx, y + fy, 2, i === 0 ? c.O : c.Od);
+    p.rect(fx - 1, y + fy + 1, 4, 2, CLEAT);
+    p.px(fx + 2, y + fy + 2, CLEAT_L);
+  });
 }
 
 function lyingDown(p, c) {
-  // body lying flat, head to the right
-  const y = 19;
-  p.rect(1, y + 1, 4, 3, c.O); // socks
+  const y = 18;
   p.rect(0, y + 2, 2, 3, CLEAT);
-  p.rect(5, y, 5, 4, c.P);
-  p.rect(10, y - 1, 6, 5, c.J);
-  p.hline(10, 15, y - 1, c.Jl);
-  p.rect(12, y + 4, 3, 2, c.K); // arm
-  p.rect(16, y - 2, 5, 5, c.H);
-  p.rect(17, y - 2, 3, 1, c.S);
-  p.vline(21, y - 1, y + 2, MASK);
+  p.rect(1, y + 1, 3, 3, c.O);
+  p.rect(4, y, 4, 4, c.P);
+  p.rect(8, y - 1, 5, 5, c.J);
+  p.hline(8, 12, y - 1, c.Jl);
+  p.rect(9, y + 4, 3, 1, c.K);
+  p.rect(13, y - 2, 4, 5, c.H);
+  p.hline(14, 16, y - 2, c.S);
+  p.vline(17, y - 1, y + 2, MASK);
 }
 
 function diving(p, c) {
-  // stretched out horizontally, arms forward to the right
-  const y = 14;
-  p.rect(0, y + 3, 3, 2, CLEAT);
-  p.rect(2, y + 2, 4, 2, c.O);
-  p.rect(5, y + 1, 5, 3, c.P);
-  p.rect(10, y, 6, 4, c.J);
-  p.hline(10, 15, y, c.Jl);
-  p.rect(15, y - 3, 5, 5, c.H);
-  p.rect(16, y - 3, 3, 1, c.S);
-  p.vline(20, y - 2, y + 1, MASK);
-  p.hline(16, 21, y + 3, c.K);
+  const y = 12;
+  p.rect(0, y + 3, 2, 2, CLEAT);
+  p.rect(1, y + 2, 3, 2, c.O);
+  p.rect(4, y + 1, 4, 3, c.P);
+  p.rect(8, y, 5, 4, c.J);
+  p.hline(8, 12, y, c.Jl);
+  p.rect(12, y - 3, 4, 5, c.H);
+  p.hline(13, 15, y - 3, c.S);
+  p.vline(16, y - 2, y + 1, MASK);
+  p.hline(13, 17, y + 3, c.K);
 }
 
 // ------------------------------------------------------------------ build
@@ -325,7 +306,7 @@ export function spriteFor(uni, skin, view, pose, frame) {
   if (spr) return spr;
   const canvas = makeCanvas(SW, SH);
   const ctx = canvas.getContext('2d');
-  const p = new Painter(ctx);
+  const p = new Painter(ctx, TOP);
   const c = paletteFor(uni, skin);
   const mirror = view === 'W';
   const v = mirror ? 'E' : view;
@@ -335,15 +316,14 @@ export function spriteFor(uni, skin, view, pose, frame) {
   else if (pose === 'dive') diving(p, c);
   else if (v === 'E') {
     const run = pose === 'run' || pose === 'carry';
-    const f = run ? frame : 1;
-    const bob = run && f % 2 === 1 ? 0 : 1;
-    const lean = run ? 1 : 0;
-    legsSide(p, c, 17, run ? f : 1);
-    armSide(p, c, 8 + bob, lean, run ? (f < 2 ? -1 : 1) : 0, false);
-    torsoSide(p, c, 8 + bob, lean);
-    helmetSide(p, c, bob, lean + 1);
-    if (pose === 'push') armSide(p, c, 8 + bob, lean, 1, true);
-    else armSide(p, c, 8 + bob, lean, run ? (f < 2 ? 1 : -1) : 0, true);
+    const f = run ? frame % 4 : 1;
+    const bob = run && f % 2 === 0 ? 0 : 1;
+    const lean = run || pose === 'push' ? 1 : 0;
+    legsSide(p, c, 14, run ? f : 1);
+    armSide(p, c, 7 + bob, lean, run ? (f < 2 ? -1 : 1) : 0, false);
+    torsoSide(p, c, 7 + bob, lean - 1);
+    helmetSide(p, c, bob, lean - 1);
+    armSide(p, c, 7 + bob, lean, pose === 'push' ? 1 : run ? (f < 2 ? 1 : -1) : 0, true);
   } else {
     const run = pose === 'run' || pose === 'carry';
     const f = frame % 4;
@@ -351,13 +331,13 @@ export function spriteFor(uni, skin, view, pose, frame) {
     const rUp = run && f === 2 ? 2 : 0;
     const bob = run && (f === 1 || f === 3) ? 1 : 0;
     const back = v === 'N';
-    legsFB(p, c, 17, lUp, rUp);
-    torsoFB(p, c, 9 + bob, back);
-    if (pose === 'throw') throwArm(p, c, 9 + bob);
-    else sleevesFB(p, c, 9 + bob, run ? (f === 0 ? 1 : f === 2 ? -1 : 0) : 0, run ? (f === 0 ? -1 : f === 2 ? 1 : 0) : 0, pose);
-    if (back) helmetBack(p, c, 1 + bob);
+    legsFB(p, c, 14, lUp, rUp);
+    torsoFB(p, c, 7 + bob, back);
+    if (pose === 'throw') throwArm(p, c, 7 + bob);
+    else armsFB(p, c, 7 + bob, run ? (f === 0 ? 1 : f === 2 ? -1 : 0) : 0, run ? (f === 0 ? -1 : f === 2 ? 1 : 0) : 0, pose);
+    if (back) helmetBack(p, c, bob);
     else helmetFront(p, c, bob);
-    numY = 11 + bob;
+    numY = TOP + 8 + bob;
   }
   outline(canvas);
   let out = canvas;
@@ -385,39 +365,36 @@ export function viewFromFace(face) {
   return sy > 0 ? 'N' : 'S';
 }
 
-// Draw a player at low-res pixel position (x, y = ground point).
+// Draw a player with the ground point at low-res pixel (x, y).
 // e: { view, pose, frame, num, skin }
 export function drawSprite(ctx, uni, e, x, y) {
   const spr = spriteFor(uni, e.skin || 0, e.view, e.pose, e.frame || 0);
   const ox = Math.round(x) - AX;
   const oy = Math.round(y) - AY;
   ctx.drawImage(spr.canvas, ox, oy);
-  if (spr.numY != null && e.num != null && e.pose !== 'throw') {
-    drawNumber(ctx, e.num, ox + 11, oy + spr.numY, spr.numColor);
-  } else if (spr.numY != null && e.pose === 'throw' && e.num != null) {
-    drawNumber(ctx, e.num, ox + 11, oy + spr.numY, spr.numColor);
-  }
+  if (spr.numY != null && e.num != null) drawNumber(ctx, e.num, ox + 8.5, oy + spr.numY, spr.numColor);
 }
 
-// Ball carried in the hands, drawn on top of a sprite.
+// Ball tucked in the arms, drawn on top of a sprite.
 export function drawCarriedBall(ctx, view, x, y) {
-  const bx = Math.round(x) + (view === 'W' ? -6 : view === 'E' ? 3 : view === 'N' ? 5 : 3);
-  const by = Math.round(y) - 13;
-  ctx.fillStyle = '#5a2c12';
+  const bx = Math.round(x) + (view === 'W' ? -6 : view === 'E' ? 3 : view === 'N' ? 4 : 2);
+  const by = Math.round(y) - 12;
+  ctx.fillStyle = '#3a1c0a';
   ctx.fillRect(bx - 1, by - 1, 5, 4);
   ctx.fillStyle = '#8a4a20';
   ctx.fillRect(bx, by, 3, 2);
-  ctx.fillStyle = '#f1e7d8';
+  ctx.fillStyle = LACE;
   ctx.fillRect(bx + 1, by, 1, 1);
 }
 
-export function drawShadow(ctx, x, y, w = 12) {
+export function drawShadow(ctx, x, y, w = 10) {
   ctx.fillStyle = 'rgba(10,30,12,0.35)';
   const X = Math.round(x);
   const Y = Math.round(y);
-  ctx.fillRect(X - w / 2 + 1, Y - 1, w - 2, 1);
-  ctx.fillRect(X - w / 2, Y, w, 2);
-  ctx.fillRect(X - w / 2 + 1, Y + 2, w - 2, 1);
+  const h = w >> 1;
+  ctx.fillRect(X - h + 1, Y - 1, w - 2, 1);
+  ctx.fillRect(X - h, Y, w, 2);
+  ctx.fillRect(X - h + 1, Y + 2, w - 2, 1);
 }
 
 export function drawFootball(ctx, x, y, z, spin = 0) {
@@ -433,9 +410,9 @@ export function drawFootball(ctx, x, y, z, spin = 0) {
   ctx.fillRect(X - 1, Y - 2, 3, 5);
   ctx.fillStyle = '#8a4a20';
   ctx.fillRect(X - 1, Y - 1, 3, 3);
-  ctx.fillStyle = Math.floor(spin) % 2 ? '#f1e7d8' : '#a35a2c';
+  ctx.fillStyle = Math.floor(spin) % 2 ? LACE : BALL_L;
   ctx.fillRect(X, Y - 1, 1, 1);
-  ctx.fillStyle = '#f1e7d8';
+  ctx.fillStyle = LACE;
   ctx.fillRect(X, Y, 1, 1);
 }
 

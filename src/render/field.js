@@ -132,13 +132,14 @@ export function drawField(ctx, cam, opts) {
   }
 
   // yard numbers near each sideline; the yard line breaks around them
-  const ns = s >= 5.5 ? 2 : 1;
+  // real numbers are 6 ft tall
+  const ns = Math.max(1, Math.round((s * 0.86 * 2) / 7));
   for (let f = 10; f <= 90; f += 10) {
     if (f < f0 - 3 || f > f1 + 3) continue;
     const label = String(f <= 50 ? f : 100 - f);
     const len = textWidth(label, ns, 1);
     const y = Y(f) - Math.round((7 * ns) / 2);
-    for (const cx of [X(9), X(FIELD_W - 9)]) {
+    for (const cx of [X(12), X(FIELD_W - 12)]) {
       const lx = cx - Math.round(len / 2);
       ctx.fillStyle = Math.floor((f + 10) / 5) % 2 === 0 ? TURF_A : TURF_B;
       ctx.fillRect(lx - 2, Y(f) - 1, len + 4, 3);
@@ -216,7 +217,7 @@ export function drawGoalposts(ctx, cam) {
     const s = cam.s;
     const cx = Math.round(cam.sx(FIELD_W / 2));
     const half = Math.round(3.08 * s);
-    const bar = Math.round(3.4 * s);
+    const bar = Math.round(3.33 * s * 0.9); // 10 ft crossbar, same height scale as the ball
     const up = Math.round(7 * s);
     const P = '#f6d33a';
     const PD = '#a8861a';
