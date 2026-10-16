@@ -9,6 +9,7 @@ import { simulateGame } from '../src/game/autoplay.js';
 import { runBalance } from '../tools/balance.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { fromLeagueJson } from '../src/data/realleague.js';
+import { defenseLineup } from '../src/game/personnel.js';
 
 let failed = 0;
 let passed = 0;
@@ -75,6 +76,14 @@ if (existsSync('assets/data/league.json')) {
     const fa = rp.filter((p) => p.badges[stat] === 'franchise').length;
     check(`real franchise ${stat} count is 5-6`, fa >= 5 && fa <= 6, `got ${fa}`);
   }
+  const front34 = teams.filter((t) => t.front === '34');
+  const okEnds = front34.every((t) => {
+    const L = defenseLineup(rosters[t.id], '34');
+    return L.DE_L.pos === 'DL' && L.DE_R.pos === 'DL' && L.NT.pos === 'DL';
+  });
+  check('3-4 fronts start defensive linemen at end and nose', okEnds);
+  check('DL depth lists hold only linemen', Object.values(rosters).every((r) => r.depth.DL.every((id) => r.players.find((p) => p.id === id).pos === 'DL')));
+  check('every 4-man front starts two pass rushers', teams.every((t) => { const L = defenseLineup(rosters[t.id], '43'); return rosters[t.id].depth.EDGE.slice(0, 2).includes(L.DE_L.id); }));
   const rs = runBalance(1500, 99, rosters);
   const rypc = rs.run.yds / rs.run.n;
   const rcomp = rs.pass.comp / rs.pass.att;

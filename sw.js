@@ -2,8 +2,11 @@
 // online, with a cached copy for offline play. Bump CACHE_VERSION on every
 // release so phones drop the old copy.
 
-const CACHE_VERSION = 'mikeball-v5';
+const CACHE_VERSION = 'mikeball-v6';
 const NET_TIMEOUT_MS = 3500;
+const TEAM_IDS = 'BUF MIA NE NYJ BAL CIN CLE PIT HOU IND JAX TEN DEN KC LV LAC DAL NYG PHI WAS CHI DET GB MIN ATL CAR NO TB ARI LAR SF SEA'.split(' ');
+// Team logos are small and used on every screen, so they're cached up front.
+const LOGOS = TEAM_IDS.flatMap((t) => [16, 32, 64].map((n) => `assets/teams/${t}/logo_${n}.png`));
 const SHELL = [
   './',
   'index.html',
@@ -55,7 +58,7 @@ self.addEventListener('install', (e) => {
   // old and new modules.
   e.waitUntil(
     caches.open(CACHE_VERSION)
-      .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+      .then((c) => c.addAll([...SHELL, ...LOGOS].map((u) => new Request(u, { cache: 'reload' }))))
       .then(() => self.skipWaiting()),
   );
 });

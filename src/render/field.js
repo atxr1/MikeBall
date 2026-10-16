@@ -8,6 +8,7 @@ import { disc, makeCanvas } from './pixeldraw.js';
 import { tone } from './pixelsprites.js';
 import { makeRng } from '../core/rng.js';
 import { ready } from './images.js';
+import { Y_SQUASH } from './camera.js';
 import { teamArt } from '../data/realleague.js';
 
 const TURF_A = '#3d8c3c';
@@ -215,13 +216,11 @@ export function drawFieldDecals(out, cam, k, homeTeam) {
     const [f0, f1] = cam.fRange();
     if (f0 < 58 && f1 > 42) {
       const w = Math.round(cam.s * 11); // about 11 yards across
-      const h = Math.round(w * Y_SQ);
+      const h = Math.round(w * Y_SQUASH);
       out.drawImage(mid, (X(FIELD_W / 2) - w / 2) * k, (Y(50) - h / 2) * k, w * k, h * k);
     }
   }
 }
-
-const Y_SQ = 0.86;
 
 function drawEndZone(ctx, cam, fa, fb, team) {
   if (!team) return;

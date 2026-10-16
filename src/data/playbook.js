@@ -105,11 +105,18 @@ export const SLOT_DEPTH = {
   X: ['WR', 0], Z: ['WR', 1], SL: ['WR', 2], SL2: ['WR', 3],
   Y: ['TE', 0], Y2: ['TE', 1], Y3: ['TE', 2],
   LT: ['OL', 0], RT: ['OL', 1], C: ['OL', 2], LG: ['OL', 3], RG: ['OL', 4],
-  DE_L: ['DL', 0], DE_R: ['DL', 1], DT_L: ['DL', 2], DT_R: ['DL', 3], NT: ['DL', 4],
+  // EDGE = the team's pass rushers (4-3 ends, or 3-4 outside linebackers);
+  // DL = interior linemen first.
+  DE_L: ['EDGE', 0], DE_R: ['EDGE', 1], DT_L: ['DL', 0], DT_R: ['DL', 1], NT: ['DL', 2],
   MIKE: ['LB', 0], WILL: ['LB', 1], SAM: ['LB', 2],
-  ILB_L: ['LB', 0], ILB_R: ['LB', 1], OLB_R: ['LB', 2], OLB_L: ['DL', 4],
+  ILB_L: ['LB', 0], ILB_R: ['LB', 1], OLB_L: ['EDGE', 0], OLB_R: ['EDGE', 1],
   CB_L: ['CB', 0], CB_R: ['CB', 1], NB: ['CB', 2], DB: ['CB', 3],
   FS: ['S', 0], SS: ['S', 1],
+};
+
+// In a 3-4 the two ends are interior linemen and the rushers play OLB.
+export const FRONT_SLOT_DEPTH = {
+  '34': { DE_L: ['DL', 0], DE_R: ['DL', 1], NT: ['DL', 2] },
 };
 
 export const ROUTES = {

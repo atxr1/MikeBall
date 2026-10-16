@@ -1,9 +1,10 @@
 // Badge tiers. Players only ever show these, never numbers.
 //
 // Each stat (speed, strength, skill) is ranked within the player's position
-// group across the whole league. Franchise Altering goes only to the top 6
-// players league-wide per stat, measured by how far above their position's
-// average they are (z-score).
+// group across the whole league. Franchise Altering goes only to 6 players
+// league-wide per stat: the fastest skill players/DBs (raw speed), the
+// strongest linemen and bigs (raw strength), and for skill whoever is
+// furthest above their position's average (z-score).
 
 import { skillOf } from '../data/roster.js';
 

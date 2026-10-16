@@ -178,6 +178,11 @@ export function buildDepthChart(players) {
       .sort((a, b) => valueOf(b) - valueOf(a))
       .map((p) => p.id);
   }
+  // pass rushers: the two best rushing linemen; the rest of DL stays interior-first
+  const dl = players.filter((p) => p.pos === 'DL');
+  const edges = [...dl].sort((a, b) => b.attrs.prs - a.attrs.prs).slice(0, 2);
+  depth.EDGE = edges.map((p) => p.id).concat(dl.filter((p) => !edges.includes(p)).sort((a, b) => b.attrs.prs - a.attrs.prs).map((p) => p.id));
+  depth.DL = dl.filter((p) => !edges.includes(p)).sort((a, b) => valueOf(b) - valueOf(a)).map((p) => p.id).concat(edges.map((p) => p.id));
   return depth;
 }
 

@@ -11,6 +11,7 @@ import { MID_X, fmtClock, clamp, lerp } from '../core/util.js';
 import { Camera } from '../render/camera.js';
 import { drawField, drawGoalposts, drawFieldDecals, drawScrimmageLines } from '../render/field.js';
 import { ready, image, setImageLoadListener } from '../render/images.js';
+import { teamArt } from '../data/realleague.js';
 import { Y_SQUASH } from '../render/camera.js';
 import { uniform, drawSprite, drawShadow, drawCarriedBall, drawFootball, viewFromFace } from '../render/pixelsprites.js';
 import { drawFieldArt, playCardSVG } from '../render/playart.js';
@@ -56,11 +57,10 @@ export class CoachScreen {
   }
 
   preloadArt() {
-    const g = this.game;
-    const home = g.teams.home;
+    const home = this.game.teams.home;
     if (!home.art) return;
-    image(`assets/teams/${home.id}/endzone.png`);
-    image(`assets/teams/${home.id}/midfield_96.png`);
+    image(teamArt(home, 'endzone.png'));
+    image(teamArt(home, 'midfield_96.png'));
     if (home.stadium) image(`assets/stadiums/${home.stadium.id}_day.png`);
   }
 
@@ -141,26 +141,32 @@ export class CoachScreen {
     const dpr = Math.min(3, window.devicePixelRatio || 1);
     const dw = Math.max(1, Math.round(r.width * dpr));
     const dh = Math.max(1, Math.round(r.height * dpr));
-    this.canvas.width = dw;
-    this.canvas.height = dh;
-    this.canvas.style.width = `${r.width}px`;
-    this.canvas.style.height = `${r.height}px`;
     this.dpr = dpr;
     this.artPx = Math.max(1, Math.round(dpr));
-    if (!this.lo) {
-      this.lo = document.createElement('canvas');
-      this.top = document.createElement('canvas');
-    }
+    const lw = Math.ceil(dw / this.artPx);
+    const lh = Math.ceil(dh / this.artPx);
+    const first = !this.lo;
+    if (first) this.lo = document.createElement('canvas');
     const oldH = this.lo.height;
-    this.lo.width = this.top.width = Math.ceil(dw / this.artPx);
-    this.lo.height = this.top.height = Math.ceil(dh / this.artPx);
+    // Assigning width/height clears a canvas, so only do it on a real change.
+    if (this.canvas.width !== dw || this.canvas.height !== dh) {
+      this.canvas.width = dw;
+      this.canvas.height = dh;
+      this.canvas.style.width = `${r.width}px`;
+      this.canvas.style.height = `${r.height}px`;
+    }
+    if (this.lo.width !== lw || this.lo.height !== lh) {
+      this.lo.width = lw;
+      this.lo.height = lh;
+    }
     this.loCtx = this.lo.getContext('2d');
-    this.topCtx = this.top.getContext('2d');
-    this.cam.resize(this.lo.width, this.lo.height);
+    this.cam.resize(lw, lh);
     // The stage grows/shrinks at the bottom (playbook hides during plays):
     // shift the camera so the field doesn't jump, then let it ease back.
-    if (oldH > 1 && this.cam.s > 0) this.cam.f -= (this.lo.height - oldH) / (2 * this.cam.s * Y_SQUASH);
-    this.dirty = true;
+    if (!first && oldH !== lh && this.cam.s > 0) this.cam.f -= (lh - oldH) / (2 * this.cam.s * Y_SQUASH);
+    // ResizeObserver runs before paint: redraw now so no blank frame shows.
+    this.dirty = false;
+    this.draw();
   }
 
   updateBug() {
@@ -211,7 +217,7 @@ export class CoachScreen {
     const home = g.teams.home;
     const url = home.art && home.stadium ? `assets/stadiums/${home.stadium.id}_day.png` : null;
     this.scene = url
-      ? { kind: 'stadium', url, t: 0, dur: 3.2, name: home.stadium.name }
+      ? { kind: 'stadium', url, t: 0, dur: 2.6, name: home.stadium.name }
       : { kind: 'field', los: 25, ltg: null, offTeam: g.teams.away, defTeam: g.teams.home, showLines: false };
     this.cam.set(MID_X, 50, 0.95, true);
     if (url) this.setTicker(home.stadium.name);
@@ -662,7 +668,10 @@ export class CoachScreen {
       this.showingSheet = calling;
       this.root.classList.toggle('live', !calling);
     }
-    if (this.scene && this.scene.kind === 'stadium') { this.scene.t += dt; this.dirty = true; }
+    if (this.scene && this.scene.kind === 'stadium' && this.scene.t < this.scene.dur) {
+      this.scene.t += dt;
+      this.dirty = true;
+    }
     if (this.mode === 'play' && this.scene.kind === 'sim') this.updatePlay(dt);
     if (this.mode === 'kick' && this.scene.kind === 'kick') this.updateKick(dt);
     this.updateCamera();
@@ -704,13 +713,15 @@ export class CoachScreen {
     drawField(ctx, this.cam, { offTeam: sc.offTeam, defTeam: sc.defTeam, homeTeam: g.teams.home, los: sc.los, ltg: sc.ltg, showLines: false });
     out.drawImage(this.lo, 0, 0, this.lo.width * k, this.lo.height * k);
     drawFieldDecals(out, this.cam, k, g.teams.home);
-    const top = this.topCtx;
-    top.clearRect(0, 0, this.top.width, this.top.height);
-    if (sc.showLines) drawScrimmageLines(top, this.cam, sc.los, sc.ltg);
-    if (sc.kind === 'sim') this.drawSim(top, sc);
-    else if (sc.kind === 'kick') sc.draw(top, this.cam, sc.uniK, sc.uniR, (c, x, y) => this.carrierMarker(c, x, y));
-    drawGoalposts(top, this.cam);
-    out.drawImage(this.top, 0, 0, this.top.width * k, this.top.height * k);
+    // Players and overlays: every coordinate is a whole low-res pixel, so
+    // drawing at an integer scale keeps them pixel-exact without a buffer.
+    out.setTransform(k, 0, 0, k, 0, 0);
+    out.imageSmoothingEnabled = false;
+    if (sc.showLines) drawScrimmageLines(out, this.cam, sc.los, sc.ltg);
+    if (sc.kind === 'sim') this.drawSim(out, sc);
+    else if (sc.kind === 'kick') sc.draw(out, this.cam, sc.uniK, sc.uniR, (c, x, y) => this.carrierMarker(c, x, y));
+    drawGoalposts(out, this.cam);
+    out.setTransform(1, 0, 0, 1, 0, 0);
   }
 
   // Pregame: slow pan across the home stadium. Returns false until the art

@@ -2,6 +2,8 @@
 // code asks `ready(url)` and falls back to procedural art until it's loaded.
 
 const cache = new Map();
+const failed = new Map(); // url -> time of failure
+const RETRY_MS = 30000;
 let onLoad = null;
 
 export function setImageLoadListener(fn) {
@@ -12,9 +14,15 @@ export function image(url) {
   if (!url) return null;
   let img = cache.get(url);
   if (!img) {
+    const f = failed.get(url);
+    if (f && Date.now() - f < RETRY_MS) return null;
     img = new Image();
     img.decoding = 'async';
     img.addEventListener('load', () => onLoad && onLoad(url));
+    img.addEventListener('error', () => {
+      cache.delete(url);
+      failed.set(url, Date.now());
+    });
     img.src = url;
     cache.set(url, img);
   }

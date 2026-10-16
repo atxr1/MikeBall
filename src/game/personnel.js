@@ -1,8 +1,21 @@
 // Picks which players take the field for a formation, from the depth chart.
 
-import { FORMATIONS, FRONTS, SLOT_DEPTH } from '../data/playbook.js';
+import { FORMATIONS, FRONTS, SLOT_DEPTH, FRONT_SLOT_DEPTH } from '../data/playbook.js';
 
-const FALLBACK = { RB: ['TE', 'WR'], TE: ['OL', 'WR'], WR: ['RB', 'TE', 'CB'], OL: ['DL', 'TE'], DL: ['LB', 'OL'], LB: ['S', 'DL'], CB: ['S', 'WR'], S: ['CB', 'LB'], QB: ['RB'], K: ['P'], P: ['K'] };
+const FALLBACK = {
+  EDGE: ['DL', 'LB'],
+  RB: ['TE', 'WR'],
+  TE: ['OL', 'WR'],
+  WR: ['RB', 'TE', 'CB'],
+  OL: ['DL', 'TE'],
+  DL: ['LB', 'OL'],
+  LB: ['S', 'DL'],
+  CB: ['S', 'WR'],
+  S: ['CB', 'LB'],
+  QB: ['RB'],
+  K: ['P'],
+  P: ['K'],
+};
 
 export function rosterIndex(roster) {
   if (!roster._byId) {
@@ -13,7 +26,8 @@ export function rosterIndex(roster) {
 
 function take(roster, pos, idx, used) {
   const byId = rosterIndex(roster);
-  const list = roster.depth[pos] || [];
+  // older/generated rosters without an EDGE list rush their best DL
+  const list = roster.depth[pos] || (pos === 'EDGE' ? roster.depth.DL : null) || [];
   for (let i = idx; i < list.length; i++) {
     const p = byId.get(list[i]);
     if (p && !used.has(p.id) && !p.injured) return p;
@@ -31,11 +45,11 @@ function take(roster, pos, idx, used) {
   return roster.players.find((p) => !used.has(p.id));
 }
 
-function fill(roster, slots) {
+function fill(roster, slots, overrides = {}) {
   const used = new Set();
   const out = {};
   for (const slot of slots) {
-    const [pos, idx] = SLOT_DEPTH[slot] || ['OL', 0];
+    const [pos, idx] = overrides[slot] || SLOT_DEPTH[slot] || ['OL', 0];
     const p = take(roster, pos, idx, used);
     used.add(p.id);
     out[slot] = p;
@@ -48,7 +62,7 @@ export function offenseLineup(roster, formationId) {
 }
 
 export function defenseLineup(roster, frontId) {
-  return fill(roster, FRONTS[frontId].slots);
+  return fill(roster, FRONTS[frontId].slots, FRONT_SLOT_DEPTH[frontId]);
 }
 
 export function starter(roster, pos, idx = 0) {

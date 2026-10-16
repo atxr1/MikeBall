@@ -119,21 +119,34 @@ function depthChart(ps) {
   D.OL = take([first('LT'), first('RT'), first('C'), first('LG'), first('RG')].filter(Boolean))
     .concat(take(ps.filter((p) => p.pos === 'OL' && p.pos_detail !== 'LS').sort(byDepth)))
     .concat(take(ps.filter((p) => p.pos === 'OL')));
-  // DL: two edge rushers, two interior, then the nose. 3-4 teams (a starting
-  // nose tackle, or fewer than two starting tackles) rush with their OLBs.
-  const is34 = d1(of('DL', 'NT')).length > 0 || d1(of('DL', 'DT')).length < 2;
+  // EDGE: the pass rushers (4-3 ends, or 3-4 outside linebackers).
+  // DL: interior first (4-3 tackles, or 3-4 ends), then the nose, then the
+  // rest of the line. A 3-4 team has a starting nose or fewer than two
+  // starting tackles. Rushing OLBs appear in EDGE and LB, never in DL.
+  const is34 = d1is34(ps);
   const prs = (a, b) => raw(b, 'prs') - raw(a, 'prs');
-  const edgeOLB = is34 ? d1(of('LB', 'OLB')).sort(prs).slice(0, 2) : [];
-  const edges = is34 ? edgeOLB : d1(of('DL', 'DE', 'EDGE')).sort(prs).slice(0, 2);
-  const interior = (is34 ? d1(of('DL', 'DE', 'DT', 'NT', 'EDGE')) : d1(of('DL', 'DT', 'NT')).concat(d1(of('DL', 'DE', 'EDGE')).filter((p) => !edges.includes(p))))
-    .filter((p) => !edges.includes(p))
-    .sort((a, b) => (a.pos_detail === 'NT') - (b.pos_detail === 'NT') || raw(b, 'rsd') + raw(b, 'prs') - raw(a, 'rsd') - raw(a, 'prs'));
-  const dlUsed = new Set();
-  const dl = [...edges, ...interior].filter((p) => !dlUsed.has(p.id) && dlUsed.add(p.id));
-  D.DL = dl.map((p) => p.id).concat(rest('DL').filter((p) => !dlUsed.has(p.id)).map((p) => p.id));
+  const ends = of('DL', 'DE', 'EDGE');
+  const tackles = of('DL', 'DT');
+  const noses = of('DL', 'NT');
+  let edgeIds;
+  let dlOrder;
+  if (is34) {
+    const olbs = of('LB', 'OLB').sort((a, b) => a.depth - b.depth || prs(a, b));
+    edgeIds = olbs.slice(0, 2).concat(olbs.slice(2).sort(prs), ends.sort(prs));
+    dlOrder = d1(ends.concat(tackles)).sort((a, b) => raw(b, 'rsd') + raw(b, 'prs') - raw(a, 'rsd') - raw(a, 'prs'))
+      .concat(d1(noses), ps.filter((p) => p.pos === 'DL').sort(byDepth));
+  } else {
+    edgeIds = d1(ends).sort(prs).concat(ends.filter((p) => p.depth !== 1).sort(byDepth));
+    dlOrder = d1(tackles).sort((a, b) => raw(b, 'rsd') - raw(a, 'rsd'))
+      .concat(d1(noses), tackles.filter((p) => p.depth !== 1).sort(byDepth), noses.sort(byDepth), ends.sort(byDepth));
+  }
+  const uniq = (list) => [...new Set(list.map((p) => p.id))];
+  D.EDGE = uniq(edgeIds);
+  D.DL = uniq(dlOrder.filter((p) => p.pos === 'DL'));
   // LB: middle linebackers first, then cover OLBs, pass-rush OLBs last
-  const lbOrder = (p) => (p.pos_detail === 'MLB' ? 0 : p.pos_detail === 'ILB' ? 1 : edgeOLB.includes(p) ? 3 : 2);
-  D.LB = ps.filter((p) => p.pos === 'LB').sort((a, b) => lbOrder(a) - lbOrder(b) || a.depth - b.depth || val(b) - val(a)).map((p) => p.id);
+  const rushers = new Set(is34 ? D.EDGE.slice(0, 2) : []);
+  const lbOrder = (p) => (p.pos_detail === 'MLB' ? 0 : p.pos_detail === 'ILB' ? 1 : rushers.has(p.id) ? 3 : 2);
+  D.LB = ps.filter((p) => p.pos === 'LB').sort((a, b) => a.depth - b.depth || lbOrder(a) - lbOrder(b) || val(b) - val(a)).map((p) => p.id);
   D.CB = take(d1(of('CB', 'CB')).sort(byDepth)).concat(take(d1(of('CB', 'NCB')))).concat(take(rest('CB')));
   D.S = take([d1(of('S', 'FS'))[0], d1(of('S', 'SS'))[0]].filter(Boolean)).concat(take(rest('S')));
   D.K = take(of('K').sort(byDepth));

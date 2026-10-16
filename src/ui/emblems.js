@@ -24,7 +24,9 @@ export function badgeRow(p, size = 26) {
 export function teamMarkSVG(team, size = 44) {
   if (team.art) {
     const n = size >= 52 ? 64 : size >= 22 ? 32 : 16;
-    return `<img class="px mark logo${team.logoDark ? ' logo-dark' : ''}" src="assets/teams/${team.id}/logo_${n}.png" width="${n}" height="${n}" alt="${team.city} ${team.name}">`;
+    // if the PNG can't load (e.g. offline before it was cached) show the monogram
+    const fallback = teamMarkURL(team);
+    return `<img class="px mark logo${team.logoDark ? ' logo-dark' : ''}" src="assets/teams/${team.id}/logo_${n}.png" width="${n}" height="${n}" alt="${team.city} ${team.name}" onerror="this.onerror=null;this.classList.remove('logo','logo-dark');this.src='${fallback}';this.width=${MARK_W * 2};this.height=${MARK_H * 2};">`;
   }
   const k = Math.max(1, Math.round(size / MARK_W));
   return `<img class="px mark" src="${teamMarkURL(team)}" width="${MARK_W * k}" height="${MARK_H * k}" alt="${team.city} ${team.name}">`;

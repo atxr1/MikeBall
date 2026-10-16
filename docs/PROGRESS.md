@@ -18,6 +18,9 @@ Newest first. Each session: what got done, what's broken, what's next.
   home team, like a real stadium) and midfield logo, drawn at full screen
   resolution so the scaled art stays crisp; pregame pan across the home
   stadium; portraits for each team's QB and two stars in the roster sheet.
+- Defensive fronts: new EDGE depth group. 4-man fronts start the pass
+  rushers at end (3-4 teams' OLBs like Watt/Highsmith); 3-4 fronts start the
+  real ends and nose with the rushers at OLB.
 - Franchise Altering badges: speed now goes to the fastest skill players and
   DBs and strength to the strongest linemen (raw value), so the six per stat
   are the players a fan would expect.
@@ -25,6 +28,11 @@ Newest first. Each session: what got done, what's broken, what's next.
   field, no redundant situation line, compact play cards, and the playbook
   tucks away during plays so the field takes the space (about 68% of the
   screen while calling, 86% during the play, up from 54%).
+- Reviewer fixes: no blank frame when the playbook hides/shows, the pregame
+  pan stops redrawing when done, logos precached for offline with a
+  monogram fallback, failed images retry later, players drawn straight to
+  the screen canvas (one less full-screen copy per frame), readable card
+  text.
 
 **Known issues**
 - Helmet logos aren't drawn on the player sprites yet (the decals are in

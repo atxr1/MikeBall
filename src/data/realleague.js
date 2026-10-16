@@ -51,7 +51,7 @@ export function fromLeagueJson(json) {
     }));
     const ids = new Set(players.map((p) => p.id));
     const depth = {};
-    for (const pos of POS_LIST) depth[pos] = (t.depth[pos] || []).filter((id) => ids.has(id));
+    for (const pos of [...POS_LIST, 'EDGE']) depth[pos] = (t.depth[pos] || []).filter((id) => ids.has(id));
     rosters[t.id] = { teamId: t.id, players, depth };
   }
   return { teams, rosters };
