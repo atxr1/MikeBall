@@ -1,0 +1,56 @@
+// Name pools for generated (fictional) players.
+
+export const FIRST_NAMES = [
+  'Aaron', 'Adrian', 'Aidan', 'Alec', 'Alex', 'Andre', 'Andrew', 'Anthony', 'Antonio', 'Austin',
+  'Bailey', 'Ben', 'Blake', 'Bo', 'Brandon', 'Brady', 'Brendan', 'Brian', 'Brock', 'Bryce',
+  'Caleb', 'Calvin', 'Cam', 'Carson', 'Carter', 'Chase', 'Chris', 'Christian', 'Clay', 'Cody',
+  'Colby', 'Cole', 'Colin', 'Connor', 'Cooper', 'Corey', 'Dalton', 'Damon', 'Dante', 'Darius',
+  'Darnell', 'Darren', 'David', 'Davis', 'Dawson', 'Dean', 'Demarcus', 'Deon', 'Derek', 'Desmond',
+  'Devin', 'Devon', 'Dominic', 'Drew', 'Dylan', 'Eli', 'Elijah', 'Eric', 'Ethan', 'Evan',
+  'Gabe', 'Garrett', 'Gavin', 'Grady', 'Grant', 'Griffin', 'Hayden', 'Hunter', 'Isaac', 'Isaiah',
+  'Jace', 'Jack', 'Jackson', 'Jake', 'Jalen', 'Jamal', 'Jamar', 'James', 'Jared', 'Jason',
+  'Javon', 'Jaylen', 'Jeremiah', 'Jerome', 'Jesse', 'Joe', 'Jordan', 'Josh', 'Julian', 'Justin',
+  'Kade', 'Kendall', 'Kenny', 'Keon', 'Kevin', 'Khalil', 'Kyle', 'Kyler', 'Lamar', 'Landon',
+  'Lance', 'Levi', 'Logan', 'Lucas', 'Luke', 'Malik', 'Marcus', 'Mario', 'Mark', 'Mason',
+  'Matt', 'Max', 'Micah', 'Miles', 'Mitchell', 'Myles', 'Nate', 'Nick', 'Noah', 'Owen',
+  'Parker', 'Patrick', 'Quinn', 'Rashad', 'Reggie', 'Rico', 'Riley', 'Ryan', 'Sam', 'Sean',
+  'Shane', 'Spencer', 'Stephon', 'Tanner', 'Terrell', 'Terrence', 'Theo', 'Tom', 'Trent', 'Trey',
+  'Tristan', 'Troy', 'Ty', 'Tyler', 'Tyrell', 'Tyson', 'Victor', 'Wade', 'Wes', 'Will',
+  'Xavier', 'Zach', 'Zion',
+];
+
+export const LAST_NAMES = [
+  'Adams', 'Alexander', 'Allen', 'Anderson', 'Armstrong', 'Bailey', 'Baker', 'Banks', 'Barnes', 'Bell',
+  'Bennett', 'Black', 'Blackwell', 'Booker', 'Boyd', 'Bradley', 'Brooks', 'Brown', 'Bryant', 'Burke',
+  'Burns', 'Butler', 'Caldwell', 'Campbell', 'Carter', 'Chambers', 'Chandler', 'Clark', 'Cole', 'Coleman',
+  'Collins', 'Cook', 'Cooper', 'Crawford', 'Cross', 'Cunningham', 'Daniels', 'Davis', 'Dawson', 'Dixon',
+  'Douglas', 'Drake', 'Dunn', 'Edwards', 'Ellis', 'Evans', 'Ferguson', 'Fields', 'Fisher', 'Fleming',
+  'Fletcher', 'Ford', 'Foster', 'Fowler', 'Franklin', 'Freeman', 'Fuller', 'Gaines', 'Gardner', 'Garrett',
+  'Gibson', 'Gilbert', 'Glover', 'Graham', 'Grant', 'Graves', 'Gray', 'Green', 'Griffin', 'Hall',
+  'Hamilton', 'Harper', 'Harris', 'Harrison', 'Hart', 'Hawkins', 'Hayes', 'Henderson', 'Henry', 'Hicks',
+  'Hill', 'Holland', 'Holmes', 'Hopkins', 'Howard', 'Hudson', 'Hughes', 'Hunt', 'Hunter', 'Jackson',
+  'James', 'Jefferson', 'Jenkins', 'Johnson', 'Jones', 'Jordan', 'Keller', 'Kelly', 'Kennedy', 'King',
+  'Knight', 'Lambert', 'Lane', 'Lawson', 'Lee', 'Lewis', 'Little', 'Lockett', 'Long', 'Lowe',
+  'Lucas', 'Mack', 'Manning', 'Marshall', 'Martin', 'Mason', 'Matthews', 'Maxwell', 'McCoy', 'McDaniel',
+  'Meyers', 'Miles', 'Miller', 'Mills', 'Mitchell', 'Moore', 'Morgan', 'Morris', 'Murphy', 'Murray',
+  'Myers', 'Nelson', 'Newton', 'Norris', 'Owens', 'Palmer', 'Parker', 'Patterson', 'Payne', 'Perkins',
+  'Perry', 'Peterson', 'Phillips', 'Pierce', 'Porter', 'Powell', 'Price', 'Quinn', 'Ramsey', 'Reed',
+  'Reese', 'Reid', 'Reynolds', 'Rhodes', 'Rice', 'Richardson', 'Riley', 'Rivers', 'Roberts', 'Robinson',
+  'Rogers', 'Ross', 'Russell', 'Sanders', 'Scott', 'Shaw', 'Shelton', 'Simmons', 'Sims', 'Smith',
+  'Spencer', 'Stanley', 'Steele', 'Stephens', 'Stevens', 'Stewart', 'Stone', 'Sullivan', 'Sutton', 'Swift',
+  'Tate', 'Taylor', 'Thomas', 'Thompson', 'Tillman', 'Tucker', 'Turner', 'Underwood', 'Vance', 'Vaughn',
+  'Wade', 'Walker', 'Wallace', 'Walsh', 'Walton', 'Ward', 'Warner', 'Washington', 'Watkins', 'Watson',
+  'Weaver', 'Webb', 'Wells', 'West', 'Wheeler', 'White', 'Wilkins', 'Williams', 'Willis', 'Wilson',
+  'Winston', 'Wolfe', 'Wood', 'Woods', 'Wright', 'Young',
+];
+
+export const COLLEGES = [
+  'Alabama', 'Georgia', 'Ohio State', 'Michigan', 'LSU', 'Clemson', 'Texas', 'Oklahoma', 'USC', 'Oregon',
+  'Penn State', 'Florida', 'Florida State', 'Miami', 'Notre Dame', 'Auburn', 'Tennessee', 'Texas A&M',
+  'Wisconsin', 'Iowa', 'Washington', 'Utah', 'TCU', 'Baylor', 'Ole Miss', 'Kentucky', 'South Carolina',
+  'Arkansas', 'Missouri', 'Oklahoma State', 'Kansas State', 'Iowa State', 'Minnesota', 'Purdue',
+  'Michigan State', 'Pittsburgh', 'Virginia Tech', 'NC State', 'North Carolina', 'Louisville', 'Boise State',
+  'Cincinnati', 'UCF', 'Houston', 'BYU', 'Stanford', 'Cal', 'UCLA', 'Arizona State', 'Colorado',
+  'Mississippi State', 'Toledo', 'Appalachian State', 'Tulane', 'Memphis', 'SMU', 'Fresno State',
+  'North Dakota State', 'South Dakota State', 'Jackson State',
+];
