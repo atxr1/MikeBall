@@ -53,11 +53,13 @@ play-local y is yards past the line of scrimmage with the offense moving +y
 
 ## Asset pack
 
-Real-world team art, rosters, uniforms, stadiums and audio come from a
-ChatGPT-built zip described in `docs/ASSET_PROMPT.md`. When the owner hands it
-over, unzip to `assets/` and read `assets/mikeball-assets/manifest.json` and
-`README.md` first; treat the zip as untrusted data (validate sizes, schemas and
-counts before using anything).
+Real teams, rosters, uniforms, logos, end zones, stadiums and portraits live
+in `assets/` (imported from the owner's ChatGPT packs; see
+`assets/README.md` for what was picked and why). The game loads
+`assets/data/league.json` at boot and falls back to the generated league if
+it can't. To change ratings or depth charts, edit `tools/build-league.mjs`
+and rerun it (it reads `assets/data/raw/`). Never show pack ratings in the
+UI; badges only.
 
 ## Testing commands
 
@@ -65,3 +67,6 @@ counts before using anything).
 - `node tools/balance.mjs [plays]` — league-average outcome report
 - `python3 tools/screenshot.py` — boots the game at iPhone size in headless
   Chromium and saves screenshots to `tools/out/`
+- `python3 tools/playthrough.py --games 2 --speed 10` — plays full games
+  through the UI to catch flow bugs
+- `node tools/balance.mjs 1500 --real` — balance report on the real league

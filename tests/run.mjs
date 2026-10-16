@@ -7,6 +7,8 @@ import { computeBadges, TIERS } from '../src/game/badges.js';
 import { Game } from '../src/game/rules.js';
 import { simulateGame } from '../src/game/autoplay.js';
 import { runBalance } from '../tools/balance.mjs';
+import { readFileSync, existsSync } from 'node:fs';
+import { fromLeagueJson } from '../src/data/realleague.js';
 
 let failed = 0;
 let passed = 0;
@@ -60,6 +62,41 @@ const avg = pts.reduce((x, y) => x + y, 0) / pts.length;
 check('all games finish with consistent quarter scores', ok);
 check('avg points per team 10-45 (15-min quarters)', between(avg, 10, 45), avg.toFixed(1));
 console.log(`  (avg ${avg.toFixed(1)} pts/team, ties ${ties}, scores ${pts.join(' ')})`);
+
+if (existsSync('assets/data/league.json')) {
+  console.log('real league (assets/data/league.json)');
+  const { teams, rosters } = fromLeagueJson(JSON.parse(readFileSync('assets/data/league.json', 'utf8')));
+  const rp = Object.values(rosters).flatMap((r) => r.players);
+  check('32 real teams', teams.length === 32 && Object.keys(rosters).length === 32);
+  check('every real team can field all starters', Object.values(rosters).every((r) => ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'K', 'P'].every((pos) => (r.depth[pos] || []).length >= ({ OL: 5, DL: 4, WR: 3, LB: 3, CB: 2, S: 2 }[pos] || 1))));
+  check('real ratings all 0-100', rp.every((p) => Object.values(p.attrs).every((v) => Number.isInteger(v) && v >= 0 && v <= 100)));
+  computeBadges(rp);
+  for (const stat of ['speed', 'strength', 'skill']) {
+    const fa = rp.filter((p) => p.badges[stat] === 'franchise').length;
+    check(`real franchise ${stat} count is 5-6`, fa >= 5 && fa <= 6, `got ${fa}`);
+  }
+  const rs = runBalance(1500, 99, rosters);
+  const rypc = rs.run.yds / rs.run.n;
+  const rcomp = rs.pass.comp / rs.pass.att;
+  check('real: yards per carry 3.0-6.0', between(rypc, 3.0, 6.0), rypc.toFixed(2));
+  check('real: completion 50-72%', between(rcomp, 0.5, 0.72), (rcomp * 100).toFixed(1));
+  const rpts = [];
+  let rok = true;
+  const byId = Object.fromEntries(teams.map((t) => [t.id, t]));
+  const ids = teams.map((t) => t.id);
+  for (let i = 0; i < 12; i++) {
+    const h = byId[ids[i * 2]];
+    const a = byId[ids[i * 2 + 1]];
+    const g = new Game({ homeTeam: h, awayTeam: a, homeRoster: rosters[h.id], awayRoster: rosters[a.id], userSide: null, qLen: 15, seed: 500 + i });
+    simulateGame(g);
+    if (!g.over) rok = false;
+    rpts.push(g.score.home, g.score.away);
+  }
+  const ravg = rpts.reduce((x, y) => x + y, 0) / rpts.length;
+  check('real: all games finish', rok);
+  check('real: avg points per team 10-45', between(ravg, 10, 45), ravg.toFixed(1));
+  console.log(`  (avg ${ravg.toFixed(1)} pts/team)`);
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

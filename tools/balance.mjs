@@ -8,8 +8,8 @@ import { simulatePlay } from '../src/sim/playsim.js';
 import { makeRng } from '../src/core/rng.js';
 import { HASH_L, HASH_R, MID_X } from '../src/core/util.js';
 
-export function runBalance(n = 2000, seed = 7) {
-  const league = generateLeague(2026);
+export function runBalance(n = 2000, seed = 7, leagueIn = null) {
+  const league = leagueIn || generateLeague(2026);
   const ids = Object.keys(league);
   const rng = makeRng(seed);
   const offPlays = OFFENSE_PLAYS.filter((p) => p.cat === 'run' || p.cat === 'pass');
@@ -81,7 +81,14 @@ const isMain = import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   const n = Number(process.argv[2] || 2000);
   const t0 = Date.now();
-  const s = runBalance(n);
+  let lg = null;
+  if (process.argv.includes('--real')) {
+    const { readFileSync } = await import('node:fs');
+    const { fromLeagueJson } = await import('../src/data/realleague.js');
+    lg = fromLeagueJson(JSON.parse(readFileSync('assets/data/league.json', 'utf8'))).rosters;
+    console.log('using real league');
+  }
+  const s = runBalance(n, 7, lg);
   const R = s.run;
   const P = s.pass;
   console.log(`plays: ${n}  (${((Date.now() - t0) / 1000).toFixed(1)}s, avg play ${(s.time / n).toFixed(1)}s)`);

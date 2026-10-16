@@ -11,7 +11,10 @@
 <body>
 <canvas id="c"></canvas>
 <script type="module">
-  import { TEAMS } from '../src/data/teams.js';
+  import { TEAMS, setTeams } from '../src/data/teams.js';
+  import { fromLeagueJson } from '../src/data/realleague.js';
+  const real = await fetch('../assets/data/league.json').then((r) => r.json()).then(fromLeagueJson);
+  setTeams(real.teams);
   import { uniform, drawSprite, drawShadow, drawCarriedBall, SW, SH } from '../src/render/pixelsprites.js';
   const teams = (new URLSearchParams(location.search).get('teams') || 'KC,BUF,MIN,PIT').split(',');
   const views = ['S', 'N', 'E', 'W'];

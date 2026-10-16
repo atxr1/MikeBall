@@ -25,6 +25,12 @@ export const STAT_LABEL = { speed: 'Speed', strength: 'Strength', skill: 'Skill'
 const CUTS = [0.4, 0.67, 0.87, 0.96]; // <40% bronze, <67% silver, <87% gold, <96% diamond, else master
 export const FRANCHISE_PER_STAT = 6;
 
+const FRANCHISE_POOL = {
+  speed: { positions: ['WR', 'RB', 'CB', 'S', 'TE', 'QB', 'LB'], by: 'value' },
+  strength: { positions: ['OL', 'DL', 'LB', 'TE', 'RB'], by: 'value' },
+  skill: { positions: null, by: 'z' },
+};
+
 const GROUP = { QB: 'QB', RB: 'RB', WR: 'WR', TE: 'TE', OL: 'OL', DL: 'DL', LB: 'LB', CB: 'CB', S: 'S', K: 'K', P: 'P' };
 
 export function statValue(p, stat) {
@@ -58,9 +64,13 @@ export function computeBadges(players) {
         z.set(p, (statValue(p, stat) - mean) / sd);
       });
     }
-    // Kickers and punters can't take Franchise Altering speed/strength.
-    const pool = players.filter((p) => stat === 'skill' || (p.pos !== 'K' && p.pos !== 'P'));
-    pool.sort((a, b) => z.get(b) - z.get(a));
+    // Franchise Altering: speed goes to the fastest skill players and DBs,
+    // strength to the strongest players in the trenches (raw value), and
+    // skill to whoever is furthest above their position's average.
+    const F = FRANCHISE_POOL[stat];
+    const pool = players.filter((p) => !F.positions || F.positions.includes(p.pos));
+    if (F.by === 'value') pool.sort((a, b) => statValue(b, stat) - statValue(a, stat) || z.get(b) - z.get(a));
+    else pool.sort((a, b) => z.get(b) - z.get(a));
     for (let i = 0; i < Math.min(FRANCHISE_PER_STAT, pool.length); i++) pool[i].badges[stat] = 'franchise';
   }
 }

@@ -7,6 +7,8 @@ import { drawText, drawTextOutlined, textWidth } from './pixelfont.js';
 import { disc, makeCanvas } from './pixeldraw.js';
 import { tone } from './pixelsprites.js';
 import { makeRng } from '../core/rng.js';
+import { ready } from './images.js';
+import { teamArt } from '../data/realleague.js';
 
 const TURF_A = '#3d8c3c';
 const TURF_B = '#367f36';
@@ -71,6 +73,10 @@ function tileRect(ctx, img, x, y, w, h, ox, oy) {
 
 export function drawField(ctx, cam, opts) {
   const { offTeam, defTeam, homeTeam, los, ltg, showLines = true } = opts;
+  // Real end zone and midfield art (home team at both ends, like a real
+  // stadium) are drawn later by drawFieldDecals at full screen resolution.
+  const ezArt = ready(teamArt(homeTeam, 'endzone.png'));
+  const midArt = ready(teamArt(homeTeam, 'midfield_96.png'));
   const s = cam.s;
   const W = cam.w;
   const H = cam.h;
@@ -106,8 +112,10 @@ export function drawField(ctx, cam, opts) {
   ctx.fillRect(x0 - 2, Y(110) - 2, x1 - x0 + 4, 2);
   ctx.fillRect(x0 - 2, Y(-10), x1 - x0 + 4, 2);
 
-  drawEndZone(ctx, cam, -10, 0, offTeam);
-  drawEndZone(ctx, cam, 100, 110, defTeam);
+  if (!ezArt) {
+    drawEndZone(ctx, cam, -10, 0, offTeam);
+    drawEndZone(ctx, cam, 100, 110, defTeam);
+  }
 
   // turf texture over everything green
   tileRect(ctx, noiseTile(), apronL, top, apronR - apronL, bot - top, X(0), Y(0));
@@ -147,8 +155,8 @@ export function drawField(ctx, cam, opts) {
     }
   }
 
-  // midfield mark
-  if (homeTeam && f0 < 54 && f1 > 46) {
+  // midfield mark (procedural fallback when there's no logo art)
+  if (homeTeam && !midArt && f0 < 54 && f1 > 46) {
     const cx = X(FIELD_W / 2);
     const cy = Y(50);
     const r = Math.round(s * 2.6);
@@ -160,20 +168,60 @@ export function drawField(ctx, cam, opts) {
     drawTextOutlined(ctx, homeTeam.abbr, cx - Math.round(tw / 2), cy - Math.round(3.5 * sc), sc, same ? '#ffffff' : homeTeam.colors.secondary, tone(homeTeam.colors.primary, -0.5));
   }
 
-  // line of scrimmage and line to gain
-  if (showLines && los != null) {
-    ctx.fillStyle = '#3d8bff';
-    ctx.fillRect(x0, Y(los), x1 - x0, 2);
-    ctx.fillStyle = '#1f4fa8';
-    ctx.fillRect(x0, Y(los) + 2, x1 - x0, 1);
-    if (ltg != null && ltg < 100) {
-      ctx.fillStyle = '#ffd23f';
-      ctx.fillRect(x0, Y(ltg), x1 - x0, 2);
-      ctx.fillStyle = '#a8801a';
-      ctx.fillRect(x0, Y(ltg) + 2, x1 - x0, 1);
+}
+
+// Line of scrimmage (blue) and line to gain (yellow), drawn over the decals
+// like a broadcast overlay.
+export function drawScrimmageLines(ctx, cam, los, ltg) {
+  if (los == null) return;
+  const x0 = Math.round(cam.sx(0));
+  const x1 = Math.round(cam.sx(FIELD_W));
+  const Y = (f) => Math.round(cam.sy(f));
+  ctx.fillStyle = '#3d8bff';
+  ctx.fillRect(x0, Y(los), x1 - x0, 2);
+  ctx.fillStyle = '#1f4fa8';
+  ctx.fillRect(x0, Y(los) + 2, x1 - x0, 1);
+  if (ltg != null && ltg < 100) {
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillRect(x0, Y(ltg), x1 - x0, 2);
+    ctx.fillStyle = '#a8801a';
+    ctx.fillRect(x0, Y(ltg) + 2, x1 - x0, 1);
+  }
+}
+
+// Full-resolution decals: end zones and the midfield logo. `out` is the
+// device-pixel canvas, `k` device pixels per low-res pixel. Scaling pixel art
+// by a non-integer at device resolution keeps every art pixel the same size
+// to within one device pixel, so it stays crisp.
+export function drawFieldDecals(out, cam, k, homeTeam) {
+  const ez = ready(teamArt(homeTeam, 'endzone.png'));
+  const mid = ready(teamArt(homeTeam, 'midfield_96.png'));
+  out.imageSmoothingEnabled = false;
+  const X = (x) => Math.round(cam.sx(x));
+  const Y = (f) => Math.round(cam.sy(f));
+  if (ez) {
+    const x0 = X(0);
+    const x1 = X(FIELD_W);
+    // far end zone: between the end line and the goal line
+    const fTop = Y(110);
+    const fBot = Y(100);
+    if (fBot > 0 && fTop < cam.h) out.drawImage(ez, x0 * k, fTop * k, (x1 - x0) * k, (fBot - fTop) * k);
+    // near end zone: below the 2-px goal line
+    const nTop = Y(0) + 2;
+    const nBot = Y(-10);
+    if (nBot > 0 && nTop < cam.h) out.drawImage(ez, x0 * k, nTop * k, (x1 - x0) * k, (nBot - nTop) * k);
+  }
+  if (mid) {
+    const [f0, f1] = cam.fRange();
+    if (f0 < 58 && f1 > 42) {
+      const w = Math.round(cam.s * 11); // about 11 yards across
+      const h = Math.round(w * Y_SQ);
+      out.drawImage(mid, (X(FIELD_W / 2) - w / 2) * k, (Y(50) - h / 2) * k, w * k, h * k);
     }
   }
 }
+
+const Y_SQ = 0.86;
 
 function drawEndZone(ctx, cam, fa, fb, team) {
   if (!team) return;

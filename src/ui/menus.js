@@ -126,7 +126,7 @@ export function finalScreen(app, game, opts) {
   const lineScore = h('table', { class: 'linescore' },
     h('thead', {}, h('tr', {}, h('th', {}, ''), ...qHead.map((q) => h('th', {}, q)), h('th', {}, 'T'))),
     h('tbody', {}, ...sides.map((s) => h('tr', {},
-      h('th', {}, h('span', { html: teamMarkSVG(T[s], 22) }), T[s].abbr),
+      h('th', {}, h('span', { html: teamMarkSVG(T[s], 16) }), T[s].abbr),
       ...qHead.map((_, i) => h('td', {}, String(game.qScores[s][i] || 0))),
       h('td', { class: 'total' }, String(game.score[s])),
     ))),

@@ -1,6 +1,9 @@
 // The 32 teams. Everything here is editable data: Owner mode (milestone 5)
-// lets the user change any name, city, abbreviation or color. No official
-// logos are used; each team gets a generated monogram.
+// lets the user change any name, city, abbreviation or color.
+//
+// This built-in list is the fallback. When assets/data/league.json loads,
+// setTeams() swaps in the real teams (with real uniforms and art) in place,
+// so every module that imported TEAMS sees them.
 //
 // colors.primary   main jersey / end zone color
 // colors.secondary trim, numbers, stripes
@@ -62,6 +65,11 @@ export const TEAMS = [
 
 export const DIVISIONS = ['East', 'North', 'South', 'West'];
 export const CONFERENCES = ['AFC', 'NFC'];
+
+export function setTeams(list) {
+  TEAMS.length = 0;
+  TEAMS.push(...list);
+}
 
 export function teamById(id) {
   return TEAMS.find((t) => t.id === id);

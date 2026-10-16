@@ -19,7 +19,13 @@ export function badgeRow(p, size = 26) {
   return ['speed', 'strength', 'skill'].map((st) => badgeSVG(p.badges[st], st, size)).join('');
 }
 
+// Team logo: the real pixel logo when the asset pack is loaded (16/32/64 px
+// art shown at its native size), otherwise the generated monogram.
 export function teamMarkSVG(team, size = 44) {
+  if (team.art) {
+    const n = size >= 52 ? 64 : size >= 22 ? 32 : 16;
+    return `<img class="px mark logo${team.logoDark ? ' logo-dark' : ''}" src="assets/teams/${team.id}/logo_${n}.png" width="${n}" height="${n}" alt="${team.city} ${team.name}">`;
+  }
   const k = Math.max(1, Math.round(size / MARK_W));
   return `<img class="px mark" src="${teamMarkURL(team)}" width="${MARK_W * k}" height="${MARK_H * k}" alt="${team.city} ${team.name}">`;
 }

@@ -9,7 +9,9 @@ import { fgDistance, maxFgRange } from '../game/kicks.js';
 import { makeRng } from '../core/rng.js';
 import { MID_X, fmtClock, clamp, lerp } from '../core/util.js';
 import { Camera } from '../render/camera.js';
-import { drawField, drawGoalposts } from '../render/field.js';
+import { drawField, drawGoalposts, drawFieldDecals, drawScrimmageLines } from '../render/field.js';
+import { ready, image, setImageLoadListener } from '../render/images.js';
+import { Y_SQUASH } from '../render/camera.js';
 import { uniform, drawSprite, drawShadow, drawCarriedBall, drawFootball, viewFromFace } from '../render/pixelsprites.js';
 import { drawFieldArt, playCardSVG } from '../render/playart.js';
 import { DT } from '../sim/playsim.js';
@@ -46,13 +48,25 @@ export class CoachScreen {
     this.uniCache = new Map();
     this.tmp = { view: 'N', pose: 'stand', frame: 0, num: 0, skin: 0 };
     this.build();
+    setImageLoadListener(() => { this.dirty = true; });
+    this.preloadArt();
     this.loop = this.loop.bind(this);
     this.raf = requestAnimationFrame(this.loop);
     this.showIntro();
   }
 
+  preloadArt() {
+    const g = this.game;
+    const home = g.teams.home;
+    if (!home.art) return;
+    image(`assets/teams/${home.id}/endzone.png`);
+    image(`assets/teams/${home.id}/midfield_96.png`);
+    if (home.stadium) image(`assets/stadiums/${home.stadium.id}_day.png`);
+  }
+
   destroy() {
     this.dead = true;
+    setImageLoadListener(null);
     cancelAnimationFrame(this.raf);
     this.ro && this.ro.disconnect();
     this.root.remove();
@@ -85,7 +99,7 @@ export class CoachScreen {
     this.el.banner = h('div', { class: 'banner', hidden: true }, h('strong', { class: 'banner-head' }), h('p', { class: 'banner-text' }));
     this.el.toast = h('div', { class: 'toast', hidden: true });
     this.el.tapHint = h('p', { class: 'tap-hint', hidden: true }, 'Tap to continue');
-    this.stage = h('div', { class: 'stage' }, this.canvas, this.el.toast, this.el.banner, this.el.tapHint);
+    this.stage = h('div', { class: 'stage' }, this.canvas, this.el.ticker, this.el.toast, this.el.banner, this.el.tapHint);
     this.stage.addEventListener('pointerdown', (e) => { this.tapStart = { x: e.clientX, y: e.clientY, t: performance.now() }; });
     this.stage.addEventListener('pointerup', (e) => {
       const s0 = this.tapStart;
@@ -94,7 +108,6 @@ export class CoachScreen {
       this.onStageTap();
     });
 
-    this.el.role = h('p', { class: 'role' });
     this.el.tabs = h('div', { class: 'tabs', role: 'tablist' });
     this.el.cards = h('div', { class: 'cards', role: 'listbox', 'aria-label': 'Plays' });
     this.el.timeout = h('button', { class: 'act', onclick: () => this.userTimeout() }, 'Timeout');
@@ -102,7 +115,7 @@ export class CoachScreen {
     this.el.menuBtn = h('button', { class: 'act', onclick: () => this.openMenu() }, 'Menu');
     this.el.go = h('button', { class: 'go', onclick: () => this.snap() }, 'Run play');
     this.el.sheet = h('section', { class: 'callsheet' },
-      h('div', { class: 'callhead' }, this.el.role, this.el.tabs),
+      h('div', { class: 'callhead' }, this.el.tabs),
       this.el.cards,
       h('div', { class: 'actions' }, this.el.timeout, this.el.rosterBtn, this.el.menuBtn, this.el.go),
     );
@@ -110,7 +123,6 @@ export class CoachScreen {
     this.root = h('div', { class: 'coach' },
       h('header', { class: 'bug' }, teamBlock('away'), teamBlock('home'),
         h('div', { class: 'bug-state' }, h('div', { class: 'bug-time' }, this.el.q, this.el.clock), this.el.dd)),
-      this.el.ticker,
       this.stage,
       this.el.sheet,
     );
@@ -135,11 +147,19 @@ export class CoachScreen {
     this.canvas.style.height = `${r.height}px`;
     this.dpr = dpr;
     this.artPx = Math.max(1, Math.round(dpr));
-    if (!this.lo) this.lo = document.createElement('canvas');
-    this.lo.width = Math.ceil(dw / this.artPx);
-    this.lo.height = Math.ceil(dh / this.artPx);
+    if (!this.lo) {
+      this.lo = document.createElement('canvas');
+      this.top = document.createElement('canvas');
+    }
+    const oldH = this.lo.height;
+    this.lo.width = this.top.width = Math.ceil(dw / this.artPx);
+    this.lo.height = this.top.height = Math.ceil(dh / this.artPx);
     this.loCtx = this.lo.getContext('2d');
+    this.topCtx = this.top.getContext('2d');
     this.cam.resize(this.lo.width, this.lo.height);
+    // The stage grows/shrinks at the bottom (playbook hides during plays):
+    // shift the camera so the field doesn't jump, then let it ease back.
+    if (oldH > 1 && this.cam.s > 0) this.cam.f -= (this.lo.height - oldH) / (2 * this.cam.s * Y_SQUASH);
     this.dirty = true;
   }
 
@@ -188,8 +208,13 @@ export class CoachScreen {
 
   showIntro() {
     const g = this.game;
-    this.scene = { kind: 'field', los: 25, ltg: null, offTeam: g.teams.away, defTeam: g.teams.home, showLines: false };
+    const home = g.teams.home;
+    const url = home.art && home.stadium ? `assets/stadiums/${home.stadium.id}_day.png` : null;
+    this.scene = url
+      ? { kind: 'stadium', url, t: 0, dur: 3.2, name: home.stadium.name }
+      : { kind: 'field', los: 25, ltg: null, offTeam: g.teams.away, defTeam: g.teams.home, showLines: false };
     this.cam.set(MID_X, 50, 0.95, true);
+    if (url) this.setTicker(home.stadium.name);
     this.setSheetEnabled(false);
     const recv = g.teams[g.firstReceiver];
     this.banner(`${g.teams.away.abbr} at ${g.teams.home.abbr}`, `${recv.city} won the toss and will receive.`, 2.6, () => this.advance());
@@ -258,9 +283,6 @@ export class CoachScreen {
       this.cat = this.suggestCat(userOff);
     }
     this.lastRole = userOff;
-    this.el.role.textContent = userOff
-      ? (this.twoPoint ? 'Two-point try. Call a play.' : `You have the ball. ${g.downText()}.`)
-      : (this.twoPoint ? 'Stop the two-point try.' : `You're on defense. ${g.downText()}.`);
     clear(this.el.tabs);
     for (const c of cats) {
       if (this.twoPoint && c.id === 'special') continue;
@@ -422,13 +444,13 @@ export class CoachScreen {
     clear(this.el.tabs);
     const t = g.teams[g.poss];
     if (p.special === 'punt' || p.special === 'fg') {
-      this.el.role.textContent = p.special === 'punt' ? `${t.name} are punting.` : `${t.name} are trying a field goal.`;
+      this.toast(p.special === 'punt' ? `${t.name} punt` : `${t.name} field goal try`);
       this.mode = 'idle';
       this.after(0.9, () => this.runSnap(p, null));
       return;
     }
     // Kneel or spike: defense call doesn't matter.
-    this.el.role.textContent = p.special === 'kneel' ? `${t.name} are taking a knee.` : `${t.name} are spiking it.`;
+    this.toast(p.special === 'kneel' ? `${t.name} take a knee` : `${t.name} spike it`);
     const d = cpuDefense(g, this.user);
     this.mode = 'idle';
     this.after(0.7, () => this.runSnap(p, d));
@@ -635,6 +657,12 @@ export class CoachScreen {
         for (const t of due) t.fn();
       }
     }
+    const calling = this.mode === 'call';
+    if (calling !== this.showingSheet) {
+      this.showingSheet = calling;
+      this.root.classList.toggle('live', !calling);
+    }
+    if (this.scene && this.scene.kind === 'stadium') { this.scene.t += dt; this.dirty = true; }
     if (this.mode === 'play' && this.scene.kind === 'sim') this.updatePlay(dt);
     if (this.mode === 'kick' && this.scene.kind === 'kick') this.updateKick(dt);
     this.updateCamera();
@@ -665,17 +693,56 @@ export class CoachScreen {
   draw() {
     const sc = this.scene;
     if (!sc || !this.loCtx) return;
-    const ctx = this.loCtx;
-    const g = this.game;
-    ctx.imageSmoothingEnabled = false;
-    drawField(ctx, this.cam, { offTeam: sc.offTeam, defTeam: sc.defTeam, homeTeam: g.teams.home, los: sc.los, ltg: sc.ltg, showLines: sc.showLines });
-    if (sc.kind === 'sim') this.drawSim(ctx, sc);
-    else if (sc.kind === 'kick') sc.draw(ctx, this.cam, sc.uniK, sc.uniR, (c, x, y) => this.carrierMarker(c, x, y));
-    drawGoalposts(ctx, this.cam);
     const out = this.ctx;
+    const k = this.artPx;
     out.setTransform(1, 0, 0, 1, 0, 0);
     out.imageSmoothingEnabled = false;
-    out.drawImage(this.lo, 0, 0, this.lo.width * this.artPx, this.lo.height * this.artPx);
+    if (sc.kind === 'stadium' && this.drawStadium(out, sc)) return;
+    const g = this.game;
+    const ctx = this.loCtx;
+    ctx.imageSmoothingEnabled = false;
+    drawField(ctx, this.cam, { offTeam: sc.offTeam, defTeam: sc.defTeam, homeTeam: g.teams.home, los: sc.los, ltg: sc.ltg, showLines: false });
+    out.drawImage(this.lo, 0, 0, this.lo.width * k, this.lo.height * k);
+    drawFieldDecals(out, this.cam, k, g.teams.home);
+    const top = this.topCtx;
+    top.clearRect(0, 0, this.top.width, this.top.height);
+    if (sc.showLines) drawScrimmageLines(top, this.cam, sc.los, sc.ltg);
+    if (sc.kind === 'sim') this.drawSim(top, sc);
+    else if (sc.kind === 'kick') sc.draw(top, this.cam, sc.uniK, sc.uniR, (c, x, y) => this.carrierMarker(c, x, y));
+    drawGoalposts(top, this.cam);
+    out.drawImage(this.top, 0, 0, this.top.width * k, this.top.height * k);
+  }
+
+  // Pregame: slow pan across the home stadium. Returns false until the art
+  // has loaded (the field is drawn instead).
+  drawStadium(out, sc) {
+    const img = ready(sc.url);
+    if (!img) return false;
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+    if (!sc.edge) {
+      // sample the sky (top row) and ground (bottom row) to fill around it
+      const c = document.createElement('canvas');
+      c.width = 1;
+      c.height = img.height;
+      const cx = c.getContext('2d');
+      cx.drawImage(img, img.width >> 1, 0, 1, img.height, 0, 0, 1, img.height);
+      const d = cx.getImageData(0, 0, 1, img.height).data;
+      const rgb = (i) => `rgb(${d[i]},${d[i + 1]},${d[i + 2]})`;
+      sc.edge = { sky: rgb(0), ground: rgb((img.height - 1) * 4) };
+    }
+    const scale = Math.max(W / img.width, (H * 0.58) / img.height);
+    const dw = Math.round(img.width * scale);
+    const dh = Math.round(img.height * scale);
+    const y = Math.round((H - dh) * 0.4);
+    out.fillStyle = sc.edge.sky;
+    out.fillRect(0, 0, W, y + 1);
+    out.fillStyle = sc.edge.ground;
+    out.fillRect(0, y + dh - 1, W, H - y - dh + 1);
+    const u = Math.min(1, sc.t / sc.dur);
+    const e = u * u * (3 - 2 * u);
+    out.drawImage(img, Math.round(-(dw - W) * (0.08 + 0.84 * e)), y, dw, dh);
+    return true;
   }
 
   poseFor(p, sim, live) {

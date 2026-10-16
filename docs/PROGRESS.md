@@ -2,6 +2,36 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
+## 2026-10-16 — Real NFL assets and a bigger field
+
+**Done**
+- Imported the owner's three ChatGPT asset packs into `assets/` (best
+  version of each family; see `assets/README.md`). Tools:
+  `tools/import_assets.py`, `tools/build-league.mjs`.
+- All 32 real teams, 1,689 real active players with real numbers, positions,
+  depth charts (3-4 vs 4-3 fronts detected), bios and skin tones. Pack
+  ratings were systematically off, so they're rank-mapped onto the sim's
+  tuned distributions; the sim balances the same as before.
+- Real home/away uniforms on the pixel players (facemask, helmet stripe or
+  none, pants stripes, collar, cleats); real pixel logos everywhere in the
+  UI (dark logos get a light outline); real end zones (both ends show the
+  home team, like a real stadium) and midfield logo, drawn at full screen
+  resolution so the scaled art stays crisp; pregame pan across the home
+  stadium; portraits for each team's QB and two stars in the roster sheet.
+- Franchise Altering badges: speed now goes to the fastest skill players and
+  DBs and strength to the strongest linemen (raw value), so the six per stat
+  are the players a fan would expect.
+- Slimmer coach view: smaller scoreboard, play-by-play overlaid on the
+  field, no redundant situation line, compact play cards, and the playbook
+  tucks away during plays so the field takes the space (about 68% of the
+  screen while calling, 86% during the play, up from 54%).
+
+**Known issues**
+- Helmet logos aren't drawn on the player sprites yet (the decals are in
+  `assets/teams/*/helmet_decal_*.png`).
+- Audio is imported but not wired in.
+- GitHub repo is public; it now contains official team logos.
+
 ## 2026-10-15 — Proportions and full special teams
 
 **Done**

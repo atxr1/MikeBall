@@ -56,10 +56,14 @@ export function paletteFor(uni, skin) {
     T: uni.trim,
     N: uni.num,
     H: uni.helmet, Hl: tone(uni.helmet, 0.45), Hd: tone(uni.helmet, -0.3),
-    S: uni.stripe,
+    S: uni.stripe || uni.helmet,
     P: uni.pants, Pl: tone(uni.pants, 0.15), Pd: tone(uni.pants, -0.25),
+    PS: uni.pantsStripe || null,
     O: uni.socks, Od: tone(uni.socks, -0.25),
     K, Kd: tone(K, -0.2),
+    M: uni.mask || MASK, Md: tone(uni.mask || MASK, -0.35),
+    C: uni.cleats || CLEAT, Cl: tone(uni.cleats || CLEAT, 0.25),
+    CO: uni.collar || null,
   };
 }
 
@@ -128,12 +132,12 @@ function helmetFront(p, c, y) {
   p.hline(6, 11, y + 4, c.K);
   p.px(7, y + 4, EYE); p.px(10, y + 4, EYE);
   // facemask bar
-  p.hline(6, 11, y + 5, MASK);
+  p.hline(6, 11, y + 5, c.M);
   // chin
   p.px(6, y + 6, c.Hd); p.px(11, y + 6, c.Hd);
   p.hline(7, 10, y + 6, c.K);
   p.px(8, y + 6, c.Kd); p.px(9, y + 6, c.Kd);
-  p.hline(7, 10, y + 7, MASK_D);
+  p.hline(7, 10, y + 7, c.Md);
 }
 
 function helmetBack(p, c, y) {
@@ -163,8 +167,8 @@ function helmetSide(p, c, y, ox) {
   p.px(x + 11, y + 3, EYE);
   p.px(x + 10, y + 5, c.Kd);
   // facemask
-  p.vline(x + 12, y + 3, y + 6, MASK_D);
-  p.hline(x + 11, x + 13, y + 5, MASK);
+  p.vline(x + 12, y + 3, y + 6, c.Md);
+  p.hline(x + 11, x + 13, y + 5, c.M);
 }
 
 function torsoFB(p, c, y, back) {
@@ -180,7 +184,7 @@ function torsoFB(p, c, y, back) {
   p.hline(5, 12, y + 6, c.Jd);
   // collar
   if (back) p.hline(7, 10, y, c.Jd);
-  else { p.hline(7, 10, y, c.Jd); p.px(8, y, c.Kd); p.px(9, y, c.Kd); }
+  else { p.hline(7, 10, y, c.CO || c.Jd); p.px(8, y, c.Kd); p.px(9, y, c.Kd); }
 }
 
 function armsFB(p, c, y, la, ra, pose) {
@@ -222,14 +226,15 @@ function legsFB(p, c, y, lUp, rUp) {
   p.rect(5, y, 8, 2, c.P);
   p.vline(5, y, y + 1, c.Pl);
   p.vline(12, y, y + 1, c.Pd);
+  if (c.PS) { p.vline(5, y, y + 3, c.PS); p.vline(12, y, y + 3, c.PS); }
   for (const [x, up, sx] of [[5, lUp, 6], [10, rUp, 10]]) {
     const ly = y + 2 - up;
     p.rect(x, ly, 3, 2, c.P);
     p.px(x + 2, ly + 1, c.Pd);
     p.rect(sx, ly + 2, 2, 3, c.O);
     p.px(sx + 1, ly + 3, c.Od);
-    p.rect(x, ly + 5, 3, 2, CLEAT);
-    p.px(x, ly + 5, CLEAT_L);
+    p.rect(x, ly + 5, 3, 2, c.C);
+    p.px(x, ly + 5, c.Cl);
   }
 }
 
@@ -256,6 +261,7 @@ function armSide(p, c, y, ox, swing, front) {
 function legsSide(p, c, y, frame) {
   p.rect(6, y, 6, 2, c.P);
   p.hline(6, 11, y + 1, c.Pd);
+  if (c.PS) p.hline(6, 11, y, c.PS);
   // [hipX, kneeX, kneeY, footX, footY] relative to y
   const poses = [
     [[9, 11, 4, 12, 6], [7, 5, 4, 3, 5]],
@@ -266,14 +272,14 @@ function legsSide(p, c, y, frame) {
   poses.forEach(([hx, kx, ky, fx, fy], i) => {
     p.limb(hx, y + 2, kx, y + ky, 2, i === 0 ? c.P : c.Pd);
     p.limb(kx, y + ky, fx, y + fy, 2, i === 0 ? c.O : c.Od);
-    p.rect(fx - 1, y + fy + 1, 4, 2, CLEAT);
-    p.px(fx + 2, y + fy + 2, CLEAT_L);
+    p.rect(fx - 1, y + fy + 1, 4, 2, c.C);
+    p.px(fx + 2, y + fy + 2, c.Cl);
   });
 }
 
 function lyingDown(p, c) {
   const y = 18;
-  p.rect(0, y + 2, 2, 3, CLEAT);
+  p.rect(0, y + 2, 2, 3, c.C);
   p.rect(1, y + 1, 3, 3, c.O);
   p.rect(4, y, 4, 4, c.P);
   p.rect(8, y - 1, 5, 5, c.J);
@@ -281,19 +287,19 @@ function lyingDown(p, c) {
   p.rect(9, y + 4, 3, 1, c.K);
   p.rect(13, y - 2, 4, 5, c.H);
   p.hline(14, 16, y - 2, c.S);
-  p.vline(17, y - 1, y + 2, MASK);
+  p.vline(17, y - 1, y + 2, c.M);
 }
 
 function diving(p, c) {
   const y = 12;
-  p.rect(0, y + 3, 2, 2, CLEAT);
+  p.rect(0, y + 3, 2, 2, c.C);
   p.rect(1, y + 2, 3, 2, c.O);
   p.rect(4, y + 1, 4, 3, c.P);
   p.rect(8, y, 5, 4, c.J);
   p.hline(8, 12, y, c.Jl);
   p.rect(12, y - 3, 4, 5, c.H);
   p.hline(13, 15, y - 3, c.S);
-  p.vline(16, y - 2, y + 1, MASK);
+  p.vline(16, y - 2, y + 1, c.M);
   p.hline(13, 17, y + 3, c.K);
 }
 
@@ -416,8 +422,18 @@ export function drawFootball(ctx, x, y, z, spin = 0) {
   ctx.fillRect(X, Y, 1, 1);
 }
 
-// Uniform colors for a team playing at home (dark) or away (white).
+// Uniform colors for a team playing at home (dark) or away (white). Real
+// teams carry their actual home/away kits; the fallback derives them.
 export function uniform(team, home) {
+  if (team.uniforms) {
+    const k = team.uniforms[home ? 'home' : 'away'];
+    const u = { ...k };
+    // numbers must read on the jersey
+    const readable = (col) => col && Math.abs(lum(col) - lum(u.jersey)) >= 0.35;
+    if (!readable(u.num)) u.num = readable(k.numOutline) ? k.numOutline : lum(u.jersey) > 0.5 ? '#14181f' : '#ffffff';
+    u.key = `${team.id}:${home ? 'h' : 'a'}:${Object.values(k).join('')}`;
+    return u;
+  }
   const c = team.colors;
   const darkOnWhite = (col) => (lum(col) > 0.82 ? '#1d2a44' : col);
   let u;

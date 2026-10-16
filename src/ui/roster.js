@@ -28,6 +28,7 @@ export function openRoster(host, team, roster, onClose) {
         const detail = h('div', { class: 'p-detail', hidden: true });
         const row = h('button', { class: 'p-row', 'aria-expanded': 'false' },
           h('span', { class: 'p-num' }, String(p.num)),
+          p.portrait ? h('img', { class: 'px p-face', src: `assets/portraits/${p.id}.png`, width: 32, height: 32, alt: '' }) : h('span', { class: 'p-face' }),
           h('span', { class: 'p-name' }, h('strong', {}, `${p.first} ${p.last}`), h('small', {}, `${POS_NAME[p.pos]}${i === 0 ? ', starter' : `, depth ${i + 1}`}`)),
           h('span', { class: 'p-badges', html: badgeRow(p, 24) }),
         );

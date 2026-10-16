@@ -1,7 +1,8 @@
 // App shell: league setup, screen routing, service worker.
 
 import { generateLeague } from './data/roster.js';
-import { TEAMS, teamById } from './data/teams.js';
+import { TEAMS, teamById, setTeams } from './data/teams.js';
+import { fromLeagueJson } from './data/realleague.js';
 import { computeBadges } from './game/badges.js';
 import { makeRng } from './core/rng.js';
 import { load, save } from './core/storage.js';
@@ -58,9 +59,26 @@ const app = {
   },
 };
 
+// Real teams and rosters from the asset pack; the generated league is the
+// fallback if the file can't be loaded (e.g. first launch while offline).
+async function loadLeague() {
+  try {
+    const res = await fetch('assets/data/league.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { teams, rosters } = fromLeagueJson(await res.json());
+    setTeams(teams);
+    app.realLeague = true;
+    return rosters;
+  } catch (err) {
+    console.warn('Using generated league:', err.message);
+    app.realLeague = false;
+    return generateLeague(LEAGUE_SEED);
+  }
+}
+
 async function boot() {
   injectDefs();
-  app.league = generateLeague(LEAGUE_SEED);
+  app.league = await loadLeague();
   computeBadges(Object.values(app.league).flatMap((r) => r.players));
   try {
     await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]);

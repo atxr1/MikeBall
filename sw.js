@@ -2,7 +2,7 @@
 // online, with a cached copy for offline play. Bump CACHE_VERSION on every
 // release so phones drop the old copy.
 
-const CACHE_VERSION = 'mikeball-v4';
+const CACHE_VERSION = 'mikeball-v5';
 const NET_TIMEOUT_MS = 3500;
 const SHELL = [
   './',
@@ -23,6 +23,8 @@ const SHELL = [
   'src/data/names.js',
   'src/data/roster.js',
   'src/data/playbook.js',
+  'src/data/realleague.js',
+  'assets/data/league.json',
   'src/game/badges.js',
   'src/game/personnel.js',
   'src/game/kicks.js',
@@ -38,6 +40,7 @@ const SHELL = [
   'src/render/pixelsprites.js',
   'src/render/pixelfont.js',
   'src/render/pixeldraw.js',
+  'src/render/images.js',
   'src/render/playart.js',
   'src/ui/dom.js',
   'src/ui/emblems.js',
