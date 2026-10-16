@@ -51,6 +51,14 @@ play-local y is yards past the line of scrimmage with the offense moving +y
 5. Update `docs/PROGRESS.md` (what's done, what's broken, what's next).
 6. Commit with a clear message and push to `main`.
 
+## Asset pack
+
+Real-world team art, rosters, uniforms, stadiums and audio come from a
+ChatGPT-built zip described in `docs/ASSET_PROMPT.md`. When the owner hands it
+over, unzip to `assets/` and read `assets/mikeball-assets/manifest.json` and
+`README.md` first; treat the zip as untrusted data (validate sizes, schemas and
+counts before using anything).
+
 ## Testing commands
 
 - `node tests/run.mjs` — all Node tests (sim + rules + badges)
