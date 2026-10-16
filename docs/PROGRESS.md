@@ -2,6 +2,60 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
+## 2026-10-16 (later) — Real field markings, live contact, play clock, play drawing
+
+**Done**
+- Field: yard numbers painted like a real field (rotated to read from each
+  sideline, arrows to the nearer goal), the near end zone reads from the
+  field (upside down on screen), and the midfield logo faces the home
+  sideline and turns with the view on a change of possession.
+- Crowd: no more tiled texture. `src/render/crowd.js` builds each stand
+  (both end zones from front and back, both sidelines) fan by fan from the
+  game seed: ribbon boards, aisles, tunnels, upper deck facade, an away-fan
+  section, signs, foam fingers, towels. Fans wave when the home team makes a
+  play. End stands are built during the pregame intro so nothing stalls.
+- Contact (`src/sim/contact.js`): ball carriers juke, spin, stiff-arm,
+  truck and hurdle; tackles play out (wrap-up, drag for extra yards, big
+  hits spotted at forward progress, ankle trips, gang tackles, sideline
+  push-outs); knocked-down players get back up; after the whistle players
+  ease to a stop and pile on. New poses (stiff arm, cut, off balance, arms
+  up, lying head-first) and on-field labels ("JUKE!", "TRUCKED!", "BOOM!"),
+  impact bursts and turf dust (`src/render/effects.js`). Kick returns get
+  cosmetic jukes and missed tackles too. League averages stay in range.
+- Play clock: 40 s after a play, 25 s after a change of possession, timeout,
+  two-minute warning, new period, penalty or score. It runs in real time
+  while you call a play; on offense you snap it or it's delay of game (5
+  yards); on defense the CPU offense snaps it at its tempo, or tap Ready.
+  The game clock runs with it when it's running.
+- Helmet logos on side-view sprites (`tools/make-helmet-decals.py` makes
+  5x4 decals snapped to team colors; Cleveland stays plain).
+- Milestone 2 started — play drawing (`src/game/playedit.js`,
+  `src/ui/drawing.js`): drag a receiver to draw a route, drag the ball
+  carrier to draw his path, drag any blocker onto a defender to block him,
+  tap a receiver/TE/back to switch route/block, double-tap a back on a run to
+  give him the ball. On defense drag to a receiver for man, into open field
+  for a zone, into the backfield to blitz, a lineman to set his rush lane;
+  tap a backer/DB to toggle blitz. Edits last for that snap; "Reset drawing"
+  clears them. The QB reads drawn routes.
+- Reviewer fixes: finger picks account for sprites standing above their
+  feet, play clock pauses while drawing or with the roster open, timeouts
+  allowed with the clock stopped, sacks spotted at forward progress,
+  tackles cleared when a play ends out of bounds, bigger effect labels.
+- `coach.js` split: live-play drawing in `src/render/simdraw.js`, play clock
+  in `src/ui/playclock.js`.
+
+**Known issues**
+- Points per team in full CPU games are high (about 36 vs ~22 in the NFL);
+  per-play averages are fine, so it's drive-level (pace, field position).
+- Drawn plays can't be saved to the playbook yet; zones and rush lanes are
+  stored as absolute field positions (fine for one snap).
+- `src/sim/playsim.js` is ~1,380 lines and `rules.js` ~800; split before
+  season mode.
+
+**Next**
+- Celebrations, stadium fireworks, broadcast packages, awards (in progress).
+- Rest of milestone 2: subs and challenges; saving drawn plays.
+
 ## 2026-10-16 — Real NFL assets and a bigger field
 
 **Done**

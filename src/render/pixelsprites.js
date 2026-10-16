@@ -8,12 +8,15 @@
 // slightly heroic, like broadcast pixel art, but true to the field.
 
 import { drawNumber } from './pixelfont.js';
+import { ready } from './images.js';
+import { teamArt } from '../data/realleague.js';
 
-export const SW = 18; // sprite canvas width
+export const SW = 24; // sprite canvas width (room for arms held out)
 export const SH = 27; // sprite canvas height (2 px headroom for raised arms)
-export const AX = 9; // anchor x (between the feet)
+export const AX = 12; // anchor x (between the feet)
 export const AY = 24; // anchor y (bottom row of the cleats)
 const TOP = 2; // headroom above the helmet
+const DX = 3; // left margin: body parts are drawn in 18-px-wide coordinates
 
 const SKIN = ['#f3cfae', '#e3b18c', '#c98d66', '#a8714b', '#7f5236', '#5c3a26'];
 const MASK = '#c3c9d2';
@@ -69,9 +72,9 @@ export function paletteFor(uni, skin) {
 
 // ------------------------------------------------------------------ painter
 class Painter {
-  constructor(ctx, dy = 0) { this.ctx = ctx; this.dy = dy; }
-  px(x, y, c) { if (!c) return; this.ctx.fillStyle = c; this.ctx.fillRect(x, y + this.dy, 1, 1); }
-  rect(x, y, w, h, c) { if (!c || w <= 0 || h <= 0) return; this.ctx.fillStyle = c; this.ctx.fillRect(x, y + this.dy, w, h); }
+  constructor(ctx, dy = 0, dx = 0) { this.ctx = ctx; this.dy = dy; this.dx = dx; }
+  px(x, y, c) { if (!c) return; this.ctx.fillStyle = c; this.ctx.fillRect(x + this.dx, y + this.dy, 1, 1); }
+  rect(x, y, w, h, c) { if (!c || w <= 0 || h <= 0) return; this.ctx.fillStyle = c; this.ctx.fillRect(x + this.dx, y + this.dy, w, h); }
   hline(x0, x1, y, c) { this.rect(Math.min(x0, x1), y, Math.abs(x1 - x0) + 1, 1, c); }
   vline(x, y0, y1, c) { this.rect(x, Math.min(y0, y1), 1, Math.abs(y1 - y0) + 1, c); }
   limb(x0, y0, x1, y1, w, c) {
@@ -303,46 +306,166 @@ function diving(p, c) {
   p.hline(13, 17, y + 3, c.K);
 }
 
+// Arms raised in a V (touchdown, celebration).
+function armsUpFB(p, c, y) {
+  for (const [sx, hx, shade] of [[3, 1, c.Jl], [13, 15, c.Jd]]) {
+    p.rect(sx, y + 1, 2, 2, c.J);
+    p.px(sx === 3 ? 3 : 14, y + 1, shade);
+    p.limb(sx, y + 1, hx, y - 4, 2, c.J);
+    p.rect(hx, y - 5, 2, 1, c.T);
+    p.rect(hx, y - 8, 2, 3, c.K);
+  }
+}
+
+// One arm held straight out to the left (stiff arm), or both (off balance).
+function armOutLeft(p, c, y) {
+  p.rect(3, y + 1, 2, 2, c.J);
+  p.px(3, y + 1, c.Jl);
+  p.rect(1, y + 2, 2, 2, c.J);
+  p.rect(0, y + 2, 1, 2, c.T);
+  p.rect(-1, y + 2, 1, 2, c.K);
+  p.rect(-2, y + 1, 1, 4, c.K);
+  p.px(-2, y + 4, c.Kd);
+}
+function armOutRight(p, c, y) {
+  p.rect(13, y + 1, 2, 2, c.J);
+  p.px(14, y + 1, c.Jd);
+  p.rect(15, y + 2, 2, 2, c.J);
+  p.rect(17, y + 2, 1, 2, c.T);
+  p.rect(18, y + 2, 1, 2, c.K);
+  p.rect(19, y + 1, 1, 4, c.K);
+  p.px(19, y + 4, c.Kd);
+}
+function armDownRight(p, c, y) {
+  p.rect(13, y + 1, 2, 2, c.J);
+  p.px(14, y + 1, c.Jd);
+  p.rect(13, y + 3, 2, 1, c.T);
+  p.rect(13, y + 4, 2, 3, c.K);
+}
+
+// Juke: weight on the right leg, left leg stepping out wide.
+function legsCut(p, c, y) {
+  p.rect(4, y, 8, 2, c.P);
+  p.vline(4, y, y + 1, c.Pl);
+  p.vline(11, y, y + 1, c.Pd);
+  p.limb(4, y + 2, 1, y + 4, 2, c.P);
+  p.rect(0, y + 5, 2, 2, c.O);
+  p.rect(-1, y + 7, 3, 2, c.C);
+  p.px(-1, y + 7, c.Cl);
+  p.limb(10, y + 2, 12, y + 4, 2, c.Pd);
+  p.rect(12, y + 5, 2, 2, c.Od);
+  p.rect(12, y + 7, 3, 2, c.C);
+}
+
+// Lying along the screen's vertical, seen from above: head up the screen
+// (fell forward) or toward the camera (knocked back).
+function lyingVertical(p, c, headUp) {
+  const rows = headUp
+    ? { helm: 10, pads: 14, pants: 18, socks: 20, cleat: 22 }
+    : { helm: 19, pads: 15, pants: 13, socks: 11, cleat: 10 };
+  p.rect(6, rows.helm, 6, 4, c.H);
+  p.rect(8, rows.helm, 2, 4, c.S);
+  p.px(6, rows.helm, c.Hl);
+  if (!headUp) p.hline(7, 10, rows.helm + 3, c.M);
+  p.rect(4, rows.pads, 10, 4, c.J);
+  p.hline(4, 13, headUp ? rows.pads : rows.pads + 3, c.Jl);
+  p.rect(1, rows.pads + 1, 3, 2, c.K);
+  p.rect(14, rows.pads + 1, 3, 2, c.K);
+  p.rect(5, rows.pants, 8, 2, c.P);
+  p.rect(5, rows.socks, 3, 2, c.O);
+  p.rect(10, rows.socks, 3, 2, c.O);
+  p.rect(5, rows.cleat, 3, 1, c.C);
+  p.rect(10, rows.cleat, 3, 1, c.C);
+}
+
 // ------------------------------------------------------------------ build
 const cache = new Map();
 
+// Poses: stand, run, carry, throw, push, down, dive, cheer (arms up),
+// stiffL / stiffR (arm out to that side of the screen; side views push it
+// forward), reel (off balance, both arms out), cutL / cutR (juke).
+
 export function spriteFor(uni, skin, view, pose, frame) {
-  const key = `${uni.key}|${skin}|${view}|${pose}|${frame}`;
+  // the helmet logo shows from the side; sprites made before it loads are
+  // replaced once it has (it's part of the cache key)
+  const decal = uni.decal && (view === 'E' || view === 'W') ? ready(uni.decal) : null;
+  const key = `${uni.key}|${skin}|${view}|${pose}|${frame}|${decal ? 1 : 0}`;
   let spr = cache.get(key);
   if (spr) return spr;
   const canvas = makeCanvas(SW, SH);
   const ctx = canvas.getContext('2d');
-  const p = new Painter(ctx, TOP);
+  const p = new Painter(ctx, TOP, DX);
   const c = paletteFor(uni, skin);
-  const mirror = view === 'W';
-  const v = mirror ? 'E' : view;
+  let v = view === 'W' ? 'E' : view;
+  // right-hand variants of FB poses are the left ones mirrored
+  let flipFB = false;
+  if ((pose === 'stiffR' || pose === 'cutR') && v !== 'E') {
+    flipFB = true;
+    pose = pose === 'stiffR' ? 'stiffL' : 'cutL';
+  }
+  const mirror = view === 'W' || flipFB;
   let numY = null;
+  let numDx = 0;
 
-  if (pose === 'down') lyingDown(p, c);
-  else if (pose === 'dive') diving(p, c);
+  if (pose === 'down') {
+    if (v === 'E') lyingDown(p, c);
+    else lyingVertical(p, c, v === 'N');
+  } else if (pose === 'dive') diving(p, c);
   else if (v === 'E') {
     const run = pose === 'run' || pose === 'carry';
-    const f = run ? frame % 4 : 1;
+    const cut = pose === 'cutL' || pose === 'cutR';
+    const f = run ? frame % 4 : cut ? 0 : 1;
     const bob = run && f % 2 === 0 ? 0 : 1;
-    const lean = run || pose === 'push' ? 1 : 0;
-    legsSide(p, c, 14, run ? f : 1);
-    armSide(p, c, 7 + bob, lean, run ? (f < 2 ? -1 : 1) : 0, false);
+    const lean = run || cut || pose === 'push' || pose === 'stiffL' || pose === 'stiffR' ? 1 : 0;
+    legsSide(p, c, 14, f);
+    if (pose === 'cheer') {
+      const sx = 8 + lean;
+      p.limb(sx, 8 + bob, sx - 1, 2 + bob, 2, c.Jd);
+      p.rect(sx - 1, -1 + bob, 2, 3, c.Kd);
+    } else armSide(p, c, 7 + bob, lean, run ? (f < 2 ? -1 : 1) : pose === 'reel' ? -2 : 0, false);
     torsoSide(p, c, 7 + bob, lean - 1);
     helmetSide(p, c, bob, lean - 1);
-    armSide(p, c, 7 + bob, lean, pose === 'push' ? 1 : run ? (f < 2 ? 1 : -1) : 0, true);
+    if (decal) ctx.drawImage(decal, DX + lean - 1 + 5, TOP + bob + 2);
+    if (pose === 'stiffL' || pose === 'stiffR') {
+      // arm locked out in front
+      const sx = 8 + lean - 1;
+      p.rect(sx, 8 + bob, 2, 2, c.J);
+      p.rect(sx + 2, 9 + bob, 2, 2, c.J);
+      p.rect(sx + 4, 9 + bob, 1, 2, c.T);
+      p.rect(sx + 5, 9 + bob, 1, 2, c.K);
+      p.rect(sx + 6, 8 + bob, 1, 4, c.K);
+    } else if (pose === 'cheer') {
+      const sx = 8 + lean;
+      p.limb(sx + 1, 8 + bob, sx + 2, 2 + bob, 2, c.J);
+      p.rect(sx + 2, -1 + bob, 2, 3, c.K);
+    } else armSide(p, c, 7 + bob, lean, pose === 'push' ? 1 : run ? (f < 2 ? 1 : -1) : pose === 'reel' ? 2 : 0, true);
   } else {
     const run = pose === 'run' || pose === 'carry';
     const f = frame % 4;
     const lUp = run && f === 0 ? 2 : 0;
     const rUp = run && f === 2 ? 2 : 0;
-    const bob = run && (f === 1 || f === 3) ? 1 : 0;
+    const bob = run && (f === 1 || f === 3) ? 1 : pose === 'cutL' ? 1 : 0;
     const back = v === 'N';
-    legsFB(p, c, 14, lUp, rUp);
-    torsoFB(p, c, 7 + bob, back);
-    if (pose === 'throw') throwArm(p, c, 7 + bob);
-    else armsFB(p, c, 7 + bob, run ? (f === 0 ? 1 : f === 2 ? -1 : 0) : 0, run ? (f === 0 ? -1 : f === 2 ? 1 : 0) : 0, pose);
-    if (back) helmetBack(p, c, bob);
-    else helmetFront(p, c, bob);
+    const up = pose === 'cutL' ? new Painter(ctx, TOP, DX - 1) : p;
+    if (pose === 'cutL') {
+      legsCut(p, c, 14);
+      numDx = -1;
+    } else legsFB(p, c, 14, lUp, rUp);
+    torsoFB(up, c, 7 + bob, back);
+    if (pose === 'throw') throwArm(up, c, 7 + bob);
+    else if (pose === 'cheer') armsUpFB(up, c, 7 + bob);
+    else if (pose === 'stiffL') {
+      armOutLeft(up, c, 7 + bob);
+      armDownRight(up, c, 7 + bob);
+    } else if (pose === 'reel') {
+      armOutLeft(up, c, 7 + bob - 2);
+      armOutRight(up, c, 7 + bob - 2);
+    } else if (pose === 'cutL') {
+      armOutLeft(up, c, 7 + bob - 1);
+      armDownRight(up, c, 7 + bob);
+    } else armsFB(up, c, 7 + bob, run ? (f === 0 ? 1 : f === 2 ? -1 : 0) : 0, run ? (f === 0 ? -1 : f === 2 ? 1 : 0) : 0, pose);
+    if (back) helmetBack(up, c, bob);
+    else helmetFront(up, c, bob);
     numY = TOP + 8 + bob;
   }
   outline(canvas);
@@ -353,8 +476,9 @@ export function spriteFor(uni, skin, view, pose, frame) {
     m.translate(SW, 0);
     m.scale(-1, 1);
     m.drawImage(canvas, 0, 0);
+    if (flipFB) numDx = -numDx;
   }
-  spr = { canvas: out, numY, view: v, numColor: c.N };
+  spr = { canvas: out, numY, numDx, view: v, numColor: c.N };
   cache.set(key, spr);
   return spr;
 }
@@ -378,7 +502,7 @@ export function drawSprite(ctx, uni, e, x, y) {
   const ox = Math.round(x) - AX;
   const oy = Math.round(y) - AY;
   ctx.drawImage(spr.canvas, ox, oy);
-  if (spr.numY != null && e.num != null) drawNumber(ctx, e.num, ox + 8.5, oy + spr.numY, spr.numColor);
+  if (spr.numY != null && e.num != null) drawNumber(ctx, e.num, ox + AX - 0.5 + spr.numDx, oy + spr.numY, spr.numColor);
 }
 
 // Ball tucked in the arms, drawn on top of a sprite.
@@ -432,6 +556,7 @@ export function uniform(team, home) {
     const readable = (col) => col && Math.abs(lum(col) - lum(u.jersey)) >= 0.35;
     if (!readable(u.num)) u.num = readable(k.numOutline) ? k.numOutline : lum(u.jersey) > 0.5 ? '#14181f' : '#ffffff';
     u.key = `${team.id}:${home ? 'h' : 'a'}:${Object.values(k).join('')}`;
+    u.decal = team.helmetLogo ? teamArt(team, 'helmet_5x4.png') : null;
     return u;
   }
   const c = team.colors;

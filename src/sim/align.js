@@ -174,9 +174,10 @@ export function alignDefense(play, offAlign, ballX) {
   const manSlots = [];
   for (const d of Object.values(out)) {
     const a = d.assign;
-    if (a.t === 'zone') a.zone = resolveZone(a.z, strength, ballX);
+    // drawn assignments come with their own zone spot or rush lane
+    if (a.t === 'zone' && !a.zone) a.zone = resolveZone(a.z, strength, ballX);
     if (a.t === 'blitz') {
-      a.gapX = gapX(a.gap, offAlign, sS);
+      if (a.gapX == null) a.gapX = gapX(a.gap, offAlign, sS);
       d.y = Math.min(d.y, 3.2);
       if (a.gap && a.gap.startsWith('edge')) d.x = clamp(a.gapX + Math.sign(a.gapX - ballX) * 1.5, 1, FIELD_W - 1);
     }
@@ -218,8 +219,20 @@ function gapX(gap, off, sS) {
 // Greedy man-coverage matching by alignment distance plus role fit.
 function assignMan(defs, recs, ballX) {
   const pairs = [];
+  const usedD = new Set();
+  const usedR = new Set();
+  // drawn matchups are fixed
   for (const d of defs) {
+    if (!d.assign.lock || !d.assign.man) continue;
+    const r = recs.find((x) => x.slot === d.assign.man);
+    if (!r || usedR.has(r)) { d.assign.man = null; continue; }
+    usedD.add(d);
+    usedR.add(r);
+  }
+  for (const d of defs) {
+    if (usedD.has(d)) continue;
     for (const r of recs) {
+      if (usedR.has(r)) continue;
       let cost = Math.abs(d.x - r.x) + Math.abs(d.y - r.y) * 0.25;
       if (d.pos === 'CB' && r.pos === 'RB') cost += 14;
       if (d.pos === 'CB' && r.pos === 'TE') cost += 5;
@@ -230,8 +243,6 @@ function assignMan(defs, recs, ballX) {
     }
   }
   pairs.sort((a, b) => a.cost - b.cost);
-  const usedD = new Set();
-  const usedR = new Set();
   for (const p of pairs) {
     if (usedD.has(p.d) || usedR.has(p.r)) continue;
     p.d.assign.man = p.r.slot;
@@ -247,7 +258,18 @@ function assignMan(defs, recs, ballX) {
 }
 
 // Absolute route points for a receiver. side: which sideline is "outside".
-export function routePoints(start, routeKey, side, ballX) {
+// A drawn route ('custom') carries its own points as [dx from the player's
+// start, depth past the line].
+export function routePoints(start, routeKey, side, ballX, custom = null) {
+  if (routeKey === 'custom' && custom && custom.length) {
+    const pts = custom.map(([dx, y]) => ({ x: clamp(start.x + dx, 1, FIELD_W - 1), y }));
+    const n = pts.length;
+    const a = n > 1 ? pts[n - 2] : { x: start.x, y: start.y };
+    const b = pts[n - 1];
+    // a route drawn back toward the line, or a tiny last leg, sits down there
+    const sit = b.y < a.y - 0.8 || Math.hypot(b.x - a.x, b.y - a.y) < 1.5;
+    return { pts, end: sit ? 'sit' : 'continue', name: 'Custom' };
+  }
   const route = ROUTES[routeKey];
   const s = side || (start.x < ballX ? 'L' : 'R');
   const out = s === 'L' ? -1 : 1;

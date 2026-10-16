@@ -194,6 +194,7 @@ const out = {
       div: t.division,
       colors: t.colors,
       logoDark: !!(logoMeta[t.id] && logoMeta[t.id].dark),
+      helmetLogo: existsSync(`assets/teams/${t.id}/helmet_5x4.png`),
       uniforms: { home: kit(uniforms[t.id].home), away: kit(uniforms[t.id].away) },
       stadium: st ? { id: st.id, name: st.name, roof: st.roof, surface: st.surface } : null,
       front: d1is34(ps) ? '34' : '43',

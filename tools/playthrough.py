@@ -9,7 +9,7 @@ import sys
 import time
 
 from screenshot import serve, VIEWPORT, OUT
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 
 def main():
@@ -44,16 +44,21 @@ def main():
                     dialogs += 1
                     continue
                 go = page.locator(".actions .go")
-                if go.count() and go.is_enabled():
-                    tabs = page.locator(".tab")
-                    if tabs.count():
-                        tabs.nth(snaps % tabs.count()).click()
-                    cards = page.locator(".card:not([disabled])")
-                    if cards.count():
-                        cards.nth((snaps * 7) % cards.count()).click()
-                    if page.locator(".actions .go").is_enabled():
-                        page.locator(".actions .go").click()
-                        snaps += 1
+                try:
+                    # the screen can change under us (CPU snaps on its own play
+                    # clock, the game ends), so keep every wait short
+                    if go.count() and go.is_enabled(timeout=1000):
+                        tabs = page.locator(".tab")
+                        if tabs.count():
+                            tabs.nth(snaps % tabs.count()).click(timeout=1000)
+                        cards = page.locator(".card:not([disabled])")
+                        if cards.count():
+                            cards.nth((snaps * 7) % cards.count()).click(timeout=1000)
+                        if go.is_enabled(timeout=1000):
+                            go.click(timeout=1000)
+                            snaps += 1
+                        continue
+                except PWTimeout:
                     continue
                 if page.locator(".banner:not([hidden])").count():
                     page.locator(".stage").click()

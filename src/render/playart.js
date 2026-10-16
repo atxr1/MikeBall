@@ -12,6 +12,7 @@ const RUN_COLOR = '#ffffff';
 const BLOCK_COLOR = 'rgba(255,255,255,0.75)';
 const RUSH_COLOR = '#FF5A4E';
 const MAN_COLOR = '#FF8C82';
+const DRAWN_BLOCK = '#ffd23f';
 
 export function zoneColor(z) {
   if (!z) return '#FFD23F';
@@ -68,6 +69,13 @@ export function drawFieldArt(ctx, cam, sim, side, los) {
         const pts = [start, ...p.pts].map(P);
         shadowed(pts, BLOCK_COLOR, {});
         PX.tBar(ctx, pts[pts.length - 2].x, pts[pts.length - 2].y, pts[pts.length - 1].x, pts[pts.length - 1].y, BLOCK_COLOR, 3);
+      } else if (j.target && sim.defBySlot && sim.defBySlot[j.target]) {
+        // drawn block on a specific defender
+        const t = sim.defBySlot[j.target];
+        const a = P(start);
+        const b = P({ x: t.sx, y: t.sy - 0.4 });
+        shadowed([a, b], DRAWN_BLOCK, { w: 2 });
+        PX.tBar(ctx, a.x, a.y, b.x, b.y, DRAWN_BLOCK, 4);
       } else if (j.t === 'zone' || j.t === 'stalk' || j.t === 'passpro' || j.t === 'draw' || j.t === 'screenOL') {
         const dir = j.t === 'zone' || j.t === 'stalk' ? (j.dir || 0) : 0;
         const fwd = j.t === 'zone' || j.t === 'stalk' ? 1.6 : -1.2;
@@ -96,6 +104,11 @@ export function drawFieldArt(ctx, cam, sim, side, los) {
       } else if (a.t === 'man' && d.target) {
         const t = P({ x: d.target.sx, y: d.target.sy + 0.6 });
         PX.line(ctx, start.x, start.y, t.x, t.y, MAN_COLOR, { dash: [3, 2] });
+      } else if (a.t === 'rush' && a.gapX != null) {
+        // drawn gap fit: through the lane, then at the quarterback
+        const pts = [start, P({ x: a.gapX, y: -0.3 }), P({ x: a.gapX + (qb.sx - a.gapX) * 0.4, y: -2.5 })];
+        shadowed(pts, RUSH_COLOR, { w: 2 });
+        PX.arrowHead(ctx, pts[1].x, pts[1].y, pts[2].x, pts[2].y, RUSH_COLOR, 4);
       } else if (a.t === 'rush') {
         const b = P({ x: d.sx + (qb.sx - d.sx) * 0.35, y: d.sy - 2.2 });
         shadowed([start, b], RUSH_COLOR, { w: 2 });

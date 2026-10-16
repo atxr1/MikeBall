@@ -9,7 +9,11 @@ import { simulateGame } from '../src/game/autoplay.js';
 import { runBalance } from '../tools/balance.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { fromLeagueJson } from '../src/data/realleague.js';
-import { defenseLineup } from '../src/game/personnel.js';
+import { defenseLineup, offenseLineup } from '../src/game/personnel.js';
+import { PlaySim } from '../src/sim/playsim.js';
+import { OFFENSE_PLAYS, DEFENSE_PLAYS } from '../src/data/playbook.js';
+import { makeRng } from '../src/core/rng.js';
+import { applyEdits, editFromStroke, editFromTap, editFromDoubleTap } from '../src/game/playedit.js';
 
 let failed = 0;
 let passed = 0;
@@ -63,6 +67,90 @@ const avg = pts.reduce((x, y) => x + y, 0) / pts.length;
 check('all games finish with consistent quarter scores', ok);
 check('avg points per team 10-45 (15-min quarters)', between(avg, 10, 45), avg.toFixed(1));
 console.log(`  (avg ${avg.toFixed(1)} pts/team, ties ${ties}, scores ${pts.join(' ')})`);
+
+console.log('play clock');
+{
+  const mk = () => new Game({ homeTeam: TEAMS[0], awayTeam: TEAMS[1], homeRoster: league[TEAMS[0].id], awayRoster: league[TEAMS[1].id], userSide: 'home', qLen: 15, seed: 5 });
+  const g = mk();
+  g.phase = 'play';
+  g.poss = 'home';
+  g.ballOn = 30;
+  g.ltg = 40;
+  g.finishNext();
+  check('40-second clock after a play', g.playClock === 40);
+  g.clockRunning = true;
+  const c0 = g.clock;
+  g.snap();
+  check('normal tempo runs 36 seconds off a running clock', Math.abs(c0 - g.clock - 36) < 1e-6, `${c0 - g.clock}`);
+  g.finishNext();
+  g.useTimeout('away');
+  check('25-second clock after a timeout, game clock stopped', g.playClock === 25 && !g.clockRunning);
+  g.resetPlayClock(40);
+  const ev = g.tickBetweenPlays(40);
+  check('delay of game when the play clock hits zero', ev.includes('delay'));
+  const before = g.ballOn;
+  g.delayOfGame();
+  check('delay of game: 5 yards back, 25-second clock', g.ballOn === before - 5 && g.playClock === 25 && g.down === 1);
+  g.quarter = 2;
+  g.clock = 125;
+  g.clockRunning = true;
+  g.resetPlayClock(40);
+  const ev2 = g.tickBetweenPlays(10);
+  check('two-minute warning stops the clock between plays', ev2.includes('twoMinute') && g.clock === 120 && !g.clockRunning && g.playClock === 25);
+  g.changePossession(50);
+  g.finishNext();
+  check('25-second clock after a change of possession', g.playClock === 25);
+}
+
+console.log('play drawing');
+{
+  const T0 = TEAMS[2].id;
+  const T1 = TEAMS[3].id;
+  const off = (id) => OFFENSE_PLAYS.find((p) => p.id === id);
+  const def = (id) => DEFENSE_PLAYS.find((p) => p.id === id);
+  const mk = (o, d, seed = 3) => new PlaySim({ offPlay: o, defPlay: d, offLineup: offenseLineup(league[T0], o.formation), defLineup: defenseLineup(league[T1], d.front), ballOn: 40, ballX: 26.67, rng: makeRng(seed) });
+  const o = off('slants');
+  const d = def('cov3_43') || DEFENSE_PLAYS.find((p) => p.cat === 'zone');
+  let sim = mk(o, d);
+  const x = sim.bySlot.X;
+  const stroke = [{ x: x.x, y: 4 }, { x: x.x, y: 9 }, { x: x.x + 6, y: 12 }];
+  const r1 = editFromStroke(sim, o, x, stroke);
+  check('drawing from a receiver makes a custom route', r1 && r1.assign.r === 'custom' && r1.assign.pts.length >= 2, JSON.stringify(r1));
+  sim = mk(applyEdits(o, { [r1.slot]: r1.assign }), d);
+  const last = sim.bySlot.X.pts[sim.bySlot.X.pts.length - 1];
+  check('the sim runs the drawn route', Math.abs(last.x - (x.x + 6)) < 0.6 && Math.abs(last.y - 12) < 0.6, JSON.stringify(last));
+  const lt = sim.bySlot.LT;
+  const foe = sim.defense.find((q) => q.pos === 'LB');
+  const r2 = editFromStroke(sim, o, lt, [{ x: (lt.x + foe.x) / 2, y: 1 }, { x: foe.x, y: foe.y }]);
+  sim = mk(applyEdits(o, { [r1.slot]: r1.assign, [r2.slot]: r2.assign }), d);
+  check('drawing a lineman onto a defender assigns that block', r2 && r2.assign.target === foe.slot && sim.bySlot.LT.target === sim.defBySlot[foe.slot]);
+  const tap = editFromTap(sim, o, o, sim.bySlot.Z);
+  check('tapping a receiver switches him to blocking', tap && tap.assign.t === 'passpro');
+  const tap2 = editFromTap(sim, applyEdits(o, { Z: tap.assign }), o, sim.bySlot.Z);
+  check('tapping again puts his route back', tap2 && tap2.assign.t === 'route' && tap2.assign.r === o.assign.Z.r);
+  // defense
+  const cb = sim.defense.find((q) => q.slot === 'CB_L');
+  const target = sim.bySlot.SL || sim.bySlot.Y;
+  const r3 = editFromStroke(sim, d, cb, [{ x: (cb.x + target.x) / 2, y: 3 }, { x: target.x, y: target.y }]);
+  const lb = sim.defense.find((q) => q.slot === 'MIKE');
+  const r4 = editFromStroke(sim, d, lb, [{ x: lb.x + 4, y: 7 }, { x: lb.x + 8, y: 9 }]);
+  const de = sim.defense.find((q) => q.slot === 'DE_L');
+  const r5 = editFromStroke(sim, d, de, [{ x: de.x + 2, y: 0.5 }, { x: de.x + 3, y: -1 }]);
+  const ed = applyEdits(d, { [r3.slot]: r3.assign, [r4.slot]: r4.assign, [r5.slot]: r5.assign });
+  sim = mk(o, ed);
+  check('drawing a DB to a receiver locks man coverage on him', r3.assign.t === 'man' && sim.defBySlot.CB_L.target === sim.bySlot[target.slot]);
+  check('drawing a backer into open field sets a zone there', r4.assign.t === 'zone' && Math.abs(sim.defBySlot.MIKE.assign.zone.x - (lb.x + 8)) < 0.2);
+  check('drawing a lineman sets his rush lane', r5.assign.t === 'rush' && r5.assign.gapX != null);
+  const res = sim.runToEnd();
+  check('an edited play runs to the end', !!res && sim.done);
+  // run play: double-tap the fullback to give him the ball
+  const pw = off('power_r');
+  sim = mk(pw, d);
+  const dbl = editFromDoubleTap(sim, pw, sim.bySlot.FB);
+  sim = mk(applyEdits(pw, dbl.edits), d, 9);
+  sim.runToEnd();
+  check('double-tapping the fullback hands him the ball', dbl && sim.carrier && sim.carrier.slot === 'FB', sim.carrier && sim.carrier.slot);
+}
 
 if (existsSync('assets/data/league.json')) {
   console.log('real league (assets/data/league.json)');

@@ -42,6 +42,13 @@ export class Game {
     this.clockRunning = false;
     this.shortRunoff = false;
     this.warned = false;
+    // Play clock (NFL Rule 4-6): 40 s from the end of a play, 25 s after an
+    // administrative stoppage (change of possession, timeout, two-minute
+    // warning, new period, penalty, a score).
+    this.playClock = 25;
+    this.pcStart = 25;
+    this.pcRunoff = 0;
+    this.pcShort = false;
     this.log = [];
     this.stats = new StatBook();
     this.ot = null;
@@ -128,6 +135,7 @@ export class Game {
   }
 
   addScore(side, pts) {
+    this.pcShort = true;
     this.score[side] += pts;
     const qi = Math.min(this.quarter, 5) - 1;
     while (this.qScores[side].length <= qi) { this.qScores.home.push(0); this.qScores.away.push(0); }
@@ -153,41 +161,85 @@ export class Game {
     return false;
   }
 
-  // ------------------------------------------------------------ snap
-  // Applies the time that ran off between plays. Returns {stop, events}.
-  snap() {
+  // ------------------------------------------------------------ play clock / snap
+  resetPlayClock(sec) {
+    this.playClock = sec;
+    this.pcStart = sec;
+    this.pcRunoff = 0;
+  }
+
+  // Play-clock reading when `side` snaps the ball at its tempo: hurry-up
+  // offenses snap early, teams milking the clock snap at the last second.
+  snapAt(side) {
+    return Math.max(1, this.pcStart - TEMPO_RUNOFF[this.tempoFor(side)]);
+  }
+
+  // Let `sec` seconds pass between plays. The play clock always runs; the
+  // game clock runs with it when it's running. Returns events:
+  // 'twoMinute', 'endQuarter', 'delay' (play clock hit zero).
+  tickBetweenPlays(sec) {
     const events = [];
-    if (this.clockRunning) {
-      let runoff = TEMPO_RUNOFF[this.tempoFor(this.poss)];
-      if (this.shortRunoff) runoff = Math.min(runoff, 9);
-      const before = this.clock;
-      const after = before - runoff;
-      if ((this.quarter === 2 || this.quarter === 4) && !this.warned && before > 120 && after <= 120) {
-        this.addTop(before - 120);
-        this.clock = 120;
-        this.warned = true;
-        this.clockRunning = false;
-        events.push('twoMinute');
-        this.addLog('Two-minute warning.', 'info');
-      } else if (after <= 0) {
-        this.addTop(before);
-        this.clock = 0;
-        this.clockRunning = false;
-        this.next = 'endQuarter';
-        return { stop: true, events: ['endQuarter'] };
-      } else {
-        this.clock = after;
-        this.addTop(runoff);
+    sec = Math.max(0, Math.min(sec, this.playClock));
+    this.playClock -= sec;
+    if (this.clockRunning && sec > 0) {
+      // after going out of bounds the clock restarts when the ball is set,
+      // so only part of the play clock runs off the game clock
+      const run = this.shortRunoff ? Math.max(0, Math.min(sec, 9 - this.pcRunoff)) : sec;
+      if (run > 0) {
+        this.pcRunoff += run;
+        const before = this.clock;
+        const after = before - run;
+        if ((this.quarter === 2 || this.quarter === 4) && !this.warned && before > 120 && after <= 120) {
+          this.addTop(before - 120);
+          this.clock = 120;
+          this.warned = true;
+          this.clockRunning = false;
+          this.resetPlayClock(25);
+          events.push('twoMinute');
+          this.addLog('Two-minute warning.', 'info');
+        } else if (after <= 0) {
+          this.addTop(before);
+          this.clock = 0;
+          this.clockRunning = false;
+          this.next = 'endQuarter';
+          events.push('endQuarter');
+        } else {
+          this.clock = after;
+          this.addTop(run);
+        }
       }
+    }
+    if (this.playClock <= 0 && !events.length) events.push('delay');
+    return events;
+  }
+
+  // The snap: runs the play clock (and the game clock, if running) down to
+  // `at`, by default the offense's tempo. Returns {stop, events}.
+  snap(at = this.snapAt(this.poss)) {
+    const events = [];
+    if (this.playClock > at) {
+      const ev = this.tickBetweenPlays(this.playClock - at);
+      if (ev.includes('endQuarter')) return { stop: true, events: ['endQuarter'] };
+      if (ev.includes('twoMinute')) events.push('twoMinute');
     }
     this.shortRunoff = false;
     return { stop: false, events };
+  }
+
+  // Play clock ran out before the snap: 5 yards, replay the down.
+  delayOfGame() {
+    const pen = { name: 'Delay of game', on: this.poss, yards: 5 };
+    this.enforce(pen);
+    this.clockRunning = this.clockRunning && !this.inLateWindow();
+    this.finishNext();
+    return pen;
   }
 
   useTimeout(side) {
     if (this.timeouts[side] <= 0 || this.over) return false;
     this.timeouts[side]--;
     this.clockRunning = false;
+    this.resetPlayClock(25);
     this.addLog(`Timeout ${this.teams[side].abbr} (${this.timeouts[side]} left).`, 'info', { side });
     return true;
   }
@@ -205,6 +257,7 @@ export class Game {
   }
 
   enforce(pen) {
+    this.pcShort = true;
     const team = this.teams[pen.on].abbr;
     this.stats.team[pen.on].penalties++;
     if (pen.on === this.poss) {
@@ -354,7 +407,10 @@ export class Game {
       if (this.inLateWindow()) this.clockRunning = false;
       else { this.clockRunning = true; this.shortRunoff = true; }
     } else this.clockRunning = !warned;
-    if (warned) out.flags.push('twoMinute');
+    if (warned) {
+      out.flags.push('twoMinute');
+      this.pcShort = true;
+    }
 
     this.addLog(entryText, 'play');
     return this.finishOut(out);
@@ -367,6 +423,8 @@ export class Game {
   }
 
   finishNext() {
+    this.resetPlayClock(this.pcShort ? 25 : 40);
+    this.pcShort = false;
     if (this.over) this.next = 'final';
     else if (this.phase === 'pat') this.next = 'pat';
     else if (this.clock <= 0) this.next = 'endQuarter';
@@ -433,6 +491,7 @@ export class Game {
     this.down = 1;
     this.ltg = Math.min(this.ballOn + 10, 100);
     this.clockRunning = false;
+    this.pcShort = true;
     this.phase = 'play';
     this.otPossession(this.poss);
   }
@@ -543,6 +602,7 @@ export class Game {
     this.down = 1;
     this.ltg = Math.min(this.ballOn + 10, 100);
     this.clockRunning = false;
+    this.pcShort = true;
     this.phase = 'play';
     this.otPossession(side);
   }
@@ -637,6 +697,7 @@ export class Game {
   // ------------------------------------------------------------ periods
   endQuarter() {
     const q = this.quarter;
+    this.pcShort = true;
     if (q === 1 || q === 3) {
       this.quarter++;
       this.clock = this.qLen * 60;

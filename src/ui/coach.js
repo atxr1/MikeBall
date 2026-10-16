@@ -10,10 +10,15 @@ import { makeRng } from '../core/rng.js';
 import { MID_X, fmtClock, clamp, lerp } from '../core/util.js';
 import { Camera } from '../render/camera.js';
 import { drawField, drawGoalposts, drawFieldDecals, drawScrimmageLines } from '../render/field.js';
+import { makeCrowd } from '../render/crowd.js';
+import { Effects } from '../render/effects.js';
 import { ready, image, setImageLoadListener } from '../render/images.js';
 import { teamArt } from '../data/realleague.js';
 import { Y_SQUASH } from '../render/camera.js';
-import { uniform, drawSprite, drawShadow, drawCarriedBall, drawFootball, viewFromFace } from '../render/pixelsprites.js';
+import { uniform, clearSpriteCache } from '../render/pixelsprites.js';
+import { drawSimPlayers, carrierMarker } from '../render/simdraw.js';
+import { PlayDrawing } from './drawing.js';
+import { playClockMethods } from './playclock.js';
 import { drawFieldArt, playCardSVG } from '../render/playart.js';
 import { DT } from '../sim/playsim.js';
 import { h, clear } from './dom.js';
@@ -47,7 +52,8 @@ export class CoachScreen {
     this.sel = null;
     this.cat = null;
     this.uniCache = new Map();
-    this.tmp = { view: 'N', pose: 'stand', frame: 0, num: 0, skin: 0 };
+    clearSpriteCache(); // sprites from the last game's uniforms
+    this.fx = new Effects();
     this.build();
     setImageLoadListener(() => { this.dirty = true; });
     this.preloadArt();
@@ -58,6 +64,10 @@ export class CoachScreen {
 
   preloadArt() {
     const home = this.game.teams.home;
+    for (const side of ['home', 'away']) {
+      const decal = this.uni(side).decal;
+      if (decal) image(decal);
+    }
     if (!home.art) return;
     image(teamArt(home, 'endzone.png'));
     image(teamArt(home, 'midfield_96.png'));
@@ -92,6 +102,7 @@ export class CoachScreen {
     };
     this.el.q = h('span', { class: 'bug-q' }, 'Q1');
     this.el.clock = h('span', { class: 'bug-clock' }, fmtClock(g.clock));
+    this.el.pc = h('span', { class: 'bug-pc', 'aria-label': 'Play clock' });
     this.el.dd = h('span', { class: 'bug-dd' }, '');
     this.el.ticker = h('p', { class: 'ticker', 'aria-live': 'polite' }, '');
 
@@ -122,11 +133,12 @@ export class CoachScreen {
 
     this.root = h('div', { class: 'coach' },
       h('header', { class: 'bug' }, teamBlock('away'), teamBlock('home'),
-        h('div', { class: 'bug-state' }, h('div', { class: 'bug-time' }, this.el.q, this.el.clock), this.el.dd)),
+        h('div', { class: 'bug-state' }, h('div', { class: 'bug-time' }, this.el.q, this.el.pc, this.el.clock), this.el.dd)),
       this.stage,
       this.el.sheet,
     );
     this.app.root.append(this.root);
+    this.drawing = new PlayDrawing(this);
     this.ctx = this.canvas.getContext('2d');
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(this.stage);
@@ -161,6 +173,13 @@ export class CoachScreen {
     }
     this.loCtx = this.lo.getContext('2d');
     this.cam.resize(lw, lh);
+    if (!this.crowd || this.crowd.w !== lw) {
+      const g = this.game;
+      const hype = this.crowd ? this.crowd.hype : 0;
+      this.crowd = makeCrowd(g.teams.home, g.teams.away, lw, this.opts.seed || 1);
+      this.crowdReady = false;
+      this.crowd.hype = hype;
+    }
     // The stage grows/shrinks at the bottom (playbook hides during plays):
     // shift the camera so the field doesn't jump, then let it ease back.
     if (!first && oldH !== lh && this.cam.s > 0) this.cam.f -= (lh - oldH) / (2 * this.cam.s * Y_SQUASH);
@@ -179,7 +198,7 @@ export class CoachScreen {
       e.blk.classList.toggle('has-ball', g.poss === side && g.phase !== 'kickoff' && !g.over);
     }
     this.el.q.textContent = g.over ? 'Final' : g.quarterText();
-    this.el.clock.textContent = g.over ? '' : fmtClock(g.clock);
+    this.updateClocks();
     let dd = '';
     if (!g.over) {
       if (g.phase === 'kickoff') dd = 'Kickoff';
@@ -209,7 +228,8 @@ export class CoachScreen {
   setSheetEnabled(on) {
     this.el.sheet.classList.toggle('locked', !on);
     this.el.go.disabled = !on;
-    this.el.timeout.disabled = !on || this.game.timeouts[this.user] <= 0 || !this.game.clockRunning;
+    // a timeout also saves you from a delay of game, so it's allowed with the clock stopped
+    this.el.timeout.disabled = !on || this.game.timeouts[this.user] <= 0 || this.twoPoint || this.game.phase === 'pat';
   }
 
   showIntro() {
@@ -266,10 +286,15 @@ export class CoachScreen {
   enterCall() {
     const g = this.game;
     this.mode = 'call';
+    this.drawing.clear();
     if (this.cat === 'special') this.sel = null;
-    this.updateBug();
     const userOff = g.poss === this.user;
     const cpuSide = other(this.user);
+    if (!this.twoPoint && g.phase !== 'pat' && cpuTimeout(g, cpuSide)) {
+      g.useTimeout(cpuSide);
+      this.toast(`Timeout, ${g.teams[cpuSide].abbr}`);
+    }
+    this.updateBug();
     if (userOff) {
       this.cpuPlay = cpuDefense(g, cpuSide);
     } else {
@@ -280,6 +305,7 @@ export class CoachScreen {
     }
     this.renderSheet(userOff);
     this.setSheetEnabled(true);
+    this.el.go.textContent = userOff ? 'Run play' : 'Ready';
   }
 
   renderSheet(userOff) {
@@ -361,8 +387,10 @@ export class CoachScreen {
   buildPreview() {
     const g = this.game;
     const userOff = g.poss === this.user;
-    let o = userOff ? this.sel : this.cpuPlay;
-    const d = userOff ? this.cpuPlay : this.sel;
+    this.drawing.sync(this.sel);
+    const mine = this.drawing.play();
+    let o = userOff ? mine : this.cpuPlay;
+    const d = userOff ? this.cpuPlay : mine;
     let artSide = userOff ? 'O' : 'D';
     if (o.cat === 'special' && (o.special === 'punt' || o.special === 'fg')) {
       o = offPlay('kneel');
@@ -400,25 +428,10 @@ export class CoachScreen {
   }
 
   // ------------------------------------------------------------------ snapping
-  snap() {
-    if (this.mode !== 'call' || this.paused || !this.sel || this.playDisabled(this.sel)) return;
-    const g = this.game;
-    const cpu = other(this.user);
-    this.setSheetEnabled(false);
-    if (!this.twoPoint && cpuTimeout(g, cpu)) {
-      g.useTimeout(cpu);
-      this.toast(`Timeout, ${g.teams[cpu].abbr}`);
-    }
-    const userOff = g.poss === this.user;
-    const o = userOff ? this.sel : this.cpuPlay;
-    const d = userOff ? this.cpuPlay : this.sel;
-    this.runSnap(o, d);
-  }
-
   runSnap(o, d) {
     const g = this.game;
     if (!this.twoPoint) {
-      const s = g.snap();
+      const s = g.snap(Math.min(g.playClock, g.snapAt(g.poss)));
       this.updateBug();
       if (s.stop) { this.mode = 'idle'; return this.advance(); }
       if (s.events.includes('twoMinute')) this.toast('Two-minute warning');
@@ -481,6 +494,7 @@ export class CoachScreen {
       sim.step();
       this.acc -= DT;
     }
+    if (sim.done) sim.settle(dt * this.speed);
     if (sim.done && !this.playEnded) {
       this.playEnded = true;
       this.after(0.75, () => this.finishPlay());
@@ -491,6 +505,7 @@ export class CoachScreen {
     const g = this.game;
     const r = this.scene.sim.result;
     let out;
+    this.cheer(r, g.offense);
     if (this.twoPoint) {
       out = g.applyTwoPoint(r);
       this.twoPoint = false;
@@ -507,6 +522,20 @@ export class CoachScreen {
       if (head === 'First down') this.toast('First down');
       this.after(0.5, () => this.advance());
     }
+  }
+
+  // The home crowd gets loud when the home team makes a play.
+  cheer(r, offSide) {
+    if (!this.crowd) return;
+    const homeO = offSide === 'home';
+    let h = 0;
+    if (r.td && !r.turnover) h = homeO ? 1 : 0;
+    else if (r.turnover) h = homeO ? 0 : 1;
+    else if (r.kind === 'sack') h = homeO ? 0 : 0.7;
+    else if (r.yards >= 20) h = homeO ? 0.7 : 0;
+    else if (r.yards >= 10) h = homeO ? 0.35 : 0;
+    else if (!homeO && r.yards <= 0) h = 0.3;
+    this.crowd.hype = Math.max(this.crowd.hype, h);
   }
 
   // ------------------------------------------------------------------ kicks
@@ -565,6 +594,13 @@ export class CoachScreen {
       this.updateBug();
       this.mode = 'idle';
       const head = out.headline;
+      if (this.crowd) {
+        const homeKick = sc.offTeam === this.game.teams.home;
+        const good = out.good || out.res?.good;
+        const td = out.res?.td || /touchdown/i.test(head || '');
+        if ((sc.type === 'fg' || sc.type === 'pat') && good && homeKick) this.crowd.hype = Math.max(this.crowd.hype, 0.6);
+        if (td) this.crowd.hype = Math.max(this.crowd.hype, homeKick ? 0 : 1);
+      }
       if (sc.type === 'fg' && out.res?.good) this.banner('Field goal', out.text, 1.8, () => this.advance());
       else if (sc.type === 'pat') this.banner(out.good ? 'Good' : 'No good', out.text, 1.4, () => this.advance());
       else if (head) this.banner(head, out.text, 2, () => this.advance());
@@ -668,11 +704,24 @@ export class CoachScreen {
       this.showingSheet = calling;
       this.root.classList.toggle('live', !calling);
     }
+    this.drawing.updateChip();
     if (this.scene && this.scene.kind === 'stadium' && this.scene.t < this.scene.dur) {
       this.scene.t += dt;
       this.dirty = true;
     }
+    this.crowdT = (this.crowdT || 0) + dt;
+    if (this.crowd && !this.crowdReady) this.crowdReady = this.crowd.prebuild();
+    if (this.crowd && this.crowd.hype > 0) {
+      this.crowd.hype = Math.max(0, this.crowd.hype - dt * 0.22);
+      this.dirty = true;
+    }
     if (this.mode === 'play' && this.scene.kind === 'sim') this.updatePlay(dt);
+    else if (this.mode === 'idle' && this.scene?.kind === 'sim' && this.scene.sim.done && (this.scene.sim.post?.t ?? 0) < 2.5) {
+      this.scene.sim.settle(dt * this.speed);
+      this.dirty = true;
+    }
+    if (this.fx.update(dt)) this.dirty = true;
+    this.tickPlayClock(dt);
     if (this.mode === 'kick' && this.scene.kind === 'kick') this.updateKick(dt);
     this.updateCamera();
     const moved = this.cam.update(dt, this.mode === 'play' ? 5 : 3.5);
@@ -710,16 +759,20 @@ export class CoachScreen {
     const g = this.game;
     const ctx = this.loCtx;
     ctx.imageSmoothingEnabled = false;
-    drawField(ctx, this.cam, { offTeam: sc.offTeam, defTeam: sc.defTeam, homeTeam: g.teams.home, los: sc.los, ltg: sc.ltg, showLines: false });
+    drawField(ctx, this.cam, { offTeam: sc.offTeam, defTeam: sc.defTeam, homeTeam: g.teams.home, los: sc.los, ltg: sc.ltg, showLines: false, crowd: this.crowd, t: this.crowdT || 0 });
     out.drawImage(this.lo, 0, 0, this.lo.width * k, this.lo.height * k);
-    drawFieldDecals(out, this.cam, k, g.teams.home);
+    drawFieldDecals(out, this.cam, k, g.teams.home, sc.offTeam);
     // Players and overlays: every coordinate is a whole low-res pixel, so
     // drawing at an integer scale keeps them pixel-exact without a buffer.
     out.setTransform(k, 0, 0, k, 0, 0);
     out.imageSmoothingEnabled = false;
     if (sc.showLines) drawScrimmageLines(out, this.cam, sc.los, sc.ltg);
     if (sc.kind === 'sim') this.drawSim(out, sc);
-    else if (sc.kind === 'kick') sc.draw(out, this.cam, sc.uniK, sc.uniR, (c, x, y) => this.carrierMarker(c, x, y));
+    else if (sc.kind === 'kick') {
+      sc.draw(out, this.cam, sc.uniK, sc.uniR, carrierMarker);
+      this.fx.pullList(sc, sc.fxEvents);
+      this.fx.draw(out, this.cam);
+    }
     drawGoalposts(out, this.cam);
     out.setTransform(1, 0, 0, 1, 0, 0);
   }
@@ -756,76 +809,18 @@ export class CoachScreen {
     return true;
   }
 
-  poseFor(p, sim, live) {
-    const e = this.tmp;
-    e.num = p.rec.num;
-    e.skin = p.rec.skinTone;
-    e.frame = 0;
-    if (p.down) { e.pose = 'down'; e.view = Math.cos(p.face) >= 0 ? 'E' : 'W'; return e; }
-    const speed = Math.hypot(p.vx, p.vy);
-    if (!live || sim.t < 0.05) {
-      e.pose = 'stand';
-      e.view = p.side === 'O' ? 'N' : 'S';
-      return e;
-    }
-    e.view = viewFromFace(p.face);
-    const holder = sim.ball.holder === p;
-    if (p === sim.qb && (p.pending || (sim.passer === p && sim.t - (sim.ball.t0 || 0) < 0.22 && sim.ball.state === 'air'))) {
-      e.pose = 'throw';
-      if (e.view === 'E' || e.view === 'W') e.view = 'N';
-      return e;
-    }
-    if (p.blk) { e.pose = 'push'; return e; }
-    if (speed > 0.7) {
-      e.pose = holder ? 'carry' : 'run';
-      e.frame = Math.floor(p.anim * 0.6) % 4;
-      return e;
-    }
-    e.pose = 'stand';
-    return e;
-  }
-
   drawSim(ctx, sc) {
-    const sim = sc.sim;
     const cam = this.cam;
-    if (this.mode === 'call' && sc.artSide) drawFieldArt(ctx, cam, sim, sc.artSide, sc.los);
-    const list = this.sortBuf || (this.sortBuf = []);
-    list.length = 0;
-    for (const p of sim.players) list.push(p);
-    list.sort((a, b) => b.y - a.y);
+    if (this.mode === 'call' && sc.artSide) drawFieldArt(ctx, cam, sc.sim, sc.artSide, sc.los);
     const live = this.mode === 'play' || this.mode === 'idle';
-    for (const p of list) {
-      const x = cam.sx(p.x);
-      const y = cam.sy(sc.los + p.y);
-      if (x < -20 || x > cam.w + 20 || y < -4 || y > cam.h + 30) continue;
-      drawShadow(ctx, x, y, p.down ? 16 : 10);
+    drawSimPlayers(ctx, cam, sc, live);
+    if (live) {
+      this.fx.pull(sc.sim, sc.los);
+      this.fx.draw(ctx, cam);
     }
-    const b = sim.ball;
-    for (const p of list) {
-      const x = cam.sx(p.x);
-      const y = cam.sy(sc.los + p.y);
-      if (x < -20 || x > cam.w + 20 || y < -4 || y > cam.h + 30) continue;
-      const e = this.poseFor(p, sim, live);
-      drawSprite(ctx, p.side === 'O' ? sc.offUni : sc.defUni, e, x, y);
-      const holder = b.holder === p && b.state === 'held';
-      if (holder && live && e.pose !== 'throw' && e.pose !== 'down') drawCarriedBall(ctx, e.view, x, y);
-      if (holder && live && sim.phase === 'run' && !p.down) this.carrierMarker(ctx, x, y);
-    }
-    if (b.state !== 'held') {
-      drawFootball(ctx, cam.sx(b.x), cam.sy(sc.los + b.y), b.z * cam.s * 0.9, sim.t * 12);
-    }
+    if (this.mode === 'call') this.drawing.drawStroke(ctx, cam, sc.los);
   }
 
-  carrierMarker(ctx, x, y) {
-    const X = Math.round(x);
-    const Y = Math.round(y) - 28;
-    ctx.fillStyle = '#2a2100';
-    ctx.fillRect(X - 3, Y - 1, 7, 2);
-    ctx.fillRect(X - 2, Y + 1, 5, 1);
-    ctx.fillRect(X - 1, Y + 2, 3, 1);
-    ctx.fillStyle = '#ffd23f';
-    ctx.fillRect(X - 2, Y - 1, 5, 1);
-    ctx.fillRect(X - 1, Y, 3, 1);
-    ctx.fillRect(X, Y + 1, 1, 1);
-  }
 }
+
+Object.assign(CoachScreen.prototype, playClockMethods);

@@ -2,11 +2,13 @@
 // online, with a cached copy for offline play. Bump CACHE_VERSION on every
 // release so phones drop the old copy.
 
-const CACHE_VERSION = 'mikeball-v6';
+const CACHE_VERSION = 'mikeball-v7';
 const NET_TIMEOUT_MS = 3500;
 const TEAM_IDS = 'BUF MIA NE NYJ BAL CIN CLE PIT HOU IND JAX TEN DEN KC LV LAC DAL NYG PHI WAS CHI DET GB MIN ATL CAR NO TB ARI LAR SF SEA'.split(' ');
 // Team logos are small and used on every screen, so they're cached up front.
 const LOGOS = TEAM_IDS.flatMap((t) => [16, 32, 64].map((n) => `assets/teams/${t}/logo_${n}.png`));
+// Helmet logos for the player sprites (Cleveland's helmet is plain).
+const DECALS = TEAM_IDS.filter((t) => t !== 'CLE').map((t) => `assets/teams/${t}/helmet_5x4.png`);
 const SHELL = [
   './',
   'index.html',
@@ -36,8 +38,10 @@ const SHELL = [
   'src/game/rules.js',
   'src/game/cpu.js',
   'src/game/autoplay.js',
+  'src/game/playedit.js',
   'src/sim/align.js',
   'src/sim/playsim.js',
+  'src/sim/contact.js',
   'src/render/camera.js',
   'src/render/field.js',
   'src/render/pixelsprites.js',
@@ -45,12 +49,17 @@ const SHELL = [
   'src/render/pixeldraw.js',
   'src/render/images.js',
   'src/render/playart.js',
+  'src/render/crowd.js',
+  'src/render/effects.js',
+  'src/render/simdraw.js',
   'src/ui/dom.js',
   'src/ui/emblems.js',
   'src/ui/roster.js',
   'src/ui/menus.js',
   'src/ui/coach.js',
   'src/ui/kickscene.js',
+  'src/ui/drawing.js',
+  'src/ui/playclock.js',
 ];
 
 self.addEventListener('install', (e) => {
@@ -58,7 +67,7 @@ self.addEventListener('install', (e) => {
   // old and new modules.
   e.waitUntil(
     caches.open(CACHE_VERSION)
-      .then((c) => c.addAll([...SHELL, ...LOGOS].map((u) => new Request(u, { cache: 'reload' }))))
+      .then((c) => c.addAll([...SHELL, ...LOGOS, ...DECALS].map((u) => new Request(u, { cache: 'reload' }))))
       .then(() => self.skipWaiting()),
   );
 });

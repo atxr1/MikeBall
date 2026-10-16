@@ -27,6 +27,7 @@ export function fromLeagueJson(json) {
       stadium: t.stadium,
       front: t.front,
       logoDark: !!t.logoDark,
+      helmetLogo: !!t.helmetLogo,
       art: true,
     });
     const players = t.players.map((p) => ({

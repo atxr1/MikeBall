@@ -7,6 +7,7 @@
 import { FIELD_W, clamp, dist } from '../core/util.js';
 import { FORMATIONS } from '../data/playbook.js';
 import { alignOffense, alignDefense, routePoints, pathPoints } from './align.js';
+import { contactMethods } from './contact.js';
 
 export const DT = 1 / 60;
 const HIST = 40;
@@ -22,7 +23,8 @@ function mkEnt(rec, side, slot, pos, x, y) {
     job: null, assign: null,
     blk: null, target: null, retarget: 0,
     freeT: 0, stunT: 0, stumbleT: 0, tackleCD: 0, moveCD: 0, jamT: 0,
-    down: false, downT: 0, anim: (x * 7.3 + y * 3.1) % 6, juke: 0,
+    down: false, downT: 0, upT: 0, anim: (x * 7.3 + y * 3.1) % 6, juke: 0,
+    move: null, diveT: 0, wrapOn: null, cheer: false,
     hist: new Float32Array(HIST * 2), hi: 0,
     wp: 0, pts: null, routeEnd: 'continue', released: false,
     readDelay: 0, ballReact: 0, paFooled: false, sat: false,
@@ -49,6 +51,7 @@ export class PlaySim {
     this.carrier = null;
     this.runT = null;
     this.turnover = false;
+    this.wrap = null;
     this.offense = [];
     this.defense = [];
     this.players = [];
@@ -81,6 +84,7 @@ export class PlaySim {
       this.defense.push(e);
     }
     this.bySlot = bySlot;
+    this.defBySlot = Object.fromEntries(this.defense.map((d) => [d.slot, d]));
     this.qb = bySlot.QB;
     this.players = [...this.offense, ...this.defense];
 
@@ -93,12 +97,12 @@ export class PlaySim {
     for (const p of this.offense) {
       const j = p.job;
       if (j.t === 'route') {
-        const rp = routePoints(p, j.r, j.side, ballX);
+        const rp = routePoints(p, j.r, j.side, ballX, j.pts);
         p.pts = rp.pts;
         p.routeEnd = rp.end;
         p.released = true;
       } else if (j.t === 'chkrel') {
-        const rp = routePoints(p, j.r, j.side, ballX);
+        const rp = routePoints(p, j.r, j.side, ballX, j.pts);
         p.pts = rp.pts;
         p.routeEnd = rp.end;
       } else if (j.t === 'carry' || j.t === 'pull' || j.t === 'pafake') {
@@ -117,7 +121,13 @@ export class PlaySim {
       }
     }
 
-    this.progression = (offPlay.progression || []).map((s) => bySlot[s]).filter(Boolean);
+    // Reads: the play's progression, minus anyone the coach turned into a
+    // blocker, plus anyone he drew a new route for.
+    const isRoute = (e) => e && (e.job.t === 'route' || e.job.t === 'chkrel');
+    const edited = new Set(offPlay.editedSlots || []);
+    const prog = (offPlay.progression || []).filter((s) => bySlot[s] && !(edited.has(s) && !isRoute(bySlot[s])));
+    for (const s of edited) if (isRoute(bySlot[s]) && !prog.includes(s)) prog.push(s);
+    this.progression = prog.map((s) => bySlot[s]);
     this.eligible = this.offense.filter((p) => p.pos === 'WR' || p.pos === 'TE' || p.pos === 'RB');
 
     // Ball: under center = in QB's hands; shotgun = snapped through the air.
@@ -145,12 +155,17 @@ export class PlaySim {
     const rushers = this.defense.filter((d) => d.y < 1.6);
     const blockers = this.offense.filter((p) => p.pos === 'OL');
     const taken = new Map();
+    // drawn blocking assignments first
+    for (const b of this.offense) {
+      const t = b.job.target && this.defBySlot[b.job.target];
+      if (t) { b.target = t; taken.set(t, b); }
+    }
     if (this.offPlay.cat === 'pass' || this.offPlay.cat === 'special') {
       // Greedy by lateral distance; one blocker per rusher first.
       const pairs = [];
       for (const b of blockers) for (const r of rushers) pairs.push({ b, r, c: Math.abs(b.x - r.x) });
       pairs.sort((a, b) => a.c - b.c);
-      const usedB = new Set();
+      const usedB = new Set([...taken.values()]);
       for (const { b, r, c } of pairs) {
         if (usedB.has(b) || taken.has(r) || c > 3.5) continue;
         b.target = r;
@@ -174,8 +189,11 @@ export class PlaySim {
       if (p.moveCD > 0) p.moveCD -= dt;
       if (p.juke > 0) p.juke -= dt;
       if (p.jamT > 0 && this.t > 0.05) p.jamT -= dt;
+      this.tickMove(p, dt);
       this.think(p, dt);
     }
+    this.updateWrap(dt);
+    if (this.done) return;
     this.updateEngagements(dt);
     this.integrate(dt);
     if (this.done) return;
@@ -233,11 +251,8 @@ export class PlaySim {
 
   // ---------------------------------------------------------------- think
   think(p, dt) {
-    if (p.down) {
-      p.downT += dt;
-      this.brake(p, dt, 14);
-      return;
-    }
+    if (p.down && this.stayDown(p, dt)) return;
+    if (this.wrap && (p === this.wrap.h || p.wrapOn)) return; // tackle in progress
     if (p.stumbleT > 0) {
       p.stumbleT -= dt;
       this.brake(p, dt, 9);
@@ -425,6 +440,8 @@ export class PlaySim {
     p.retarget -= dt;
     let tgt = p.target;
     const qb = this.qb;
+    const want = this.drawnTarget(p);
+    if (want && !(this.t > 0.6 && want.y > 4 && want.vy > 0)) tgt = p.target = want;
     if (tgt && (tgt.down || (tgt.blk && tgt.blk.b !== p) || (this.t > 0.6 && tgt.y > 4 && tgt.vy > 0))) tgt = p.target = null;
     if (!tgt && p.retarget <= 0) {
       p.retarget = 0.15;
@@ -480,6 +497,8 @@ export class PlaySim {
     if (p.job.t === 'stalk' && this.t < 0.5) return this.steer(p, p.x, p.sy + 2, 0.6, dt, 0.3);
     p.retarget -= dt;
     let tgt = p.target;
+    const want = this.drawnTarget(p);
+    if (want) tgt = p.target = want;
     if (tgt && (tgt.down || (tgt.blk && tgt.blk.b !== p))) tgt = p.target = null;
     if (!tgt && p.retarget <= 0) {
       p.retarget = 0.2;
@@ -493,6 +512,13 @@ export class PlaySim {
     }
     const dir = p.job.dir || 0;
     return this.steer(p, p.x + dir * 1.5, p.y + 2, 0.6, dt, 0.5);
+  }
+
+  // The defender the coach drew this blocker onto, while he's still blockable.
+  drawnTarget(p) {
+    const t = p.job.target && this.defBySlot[p.job.target];
+    if (!t || t.down || (t.blk && t.blk.b !== p)) return null;
+    return t;
   }
 
   runAim() {
@@ -968,33 +994,15 @@ export class PlaySim {
     const turn = Math.abs(Math.atan2(Math.sin(bestA - cur), Math.cos(bestA - cur)));
     const cutPenalty = turn > 0.8 ? 0.82 + p.a.agi / 600 : 1;
     if (p.secureT > 0) p.secureT -= dt;
-    this.steer(p, p.x + Math.cos(bestA) * 5, p.y + Math.sin(bestA) * 5, cutPenalty * 0.9 * (p.secureT > 0 ? 0.55 : 1), dt, 0);
-
-    // Moves: juke / spin on a closing defender in front.
-    if (p.moveCD <= 0) {
-      for (const o of foes) {
-        if (o.down || o.blk || o.stumbleT > 0) continue;
-        const dx = o.x - p.x;
-        const dy = o.y - p.y;
-        const d = Math.hypot(dx, dy);
-        if (d > 1.9 || d < 0.6) continue;
-        if (dy * g < -0.3) continue;
-        const pMove = 0.02 + ((p.a.elu + p.a.agi) / 200 - 0.55) * 0.5 - (o.a.awr - 65) / 500;
-        if (this.rng.chance(pMove)) {
-          o.stumbleT = 0.55;
-          p.juke = 0.35;
-          p.moveCD = 1.1;
-          this.events.push({ t: this.t, k: 'juke', who: p, on: o });
-        } else p.moveCD = 0.7;
-        break;
-      }
-    }
+    this.carrierSteer(p, bestA, cutPenalty * 0.9 * (p.secureT > 0 ? 0.55 : 1), dt);
+    this.carrierMoves(p, foes);
   }
 
   // ---------------------------------------------------------------- defense behaviors
   rush(p, dt, holder) {
     const qb = holder || this.qb;
-    if (p.assign.t === 'blitz' && this.t < 0.55 && p.y > 0.3) {
+    // blitzers (and linemen given a gap) attack their lane first
+    if ((p.assign.t === 'blitz' || p.assign.gapX != null) && this.t < 0.55 && p.y > 0.3) {
       return this.steer(p, p.assign.gapX, -0.3, 1, dt, 0);
     }
     let tx = qb.x;
@@ -1085,7 +1093,7 @@ export class PlaySim {
 
   // ---------------------------------------------------------------- engagements
   canBeBlocked(d) {
-    return !d.blk && d.freeT <= 0 && !d.down && d !== this.ball.holder;
+    return !d.blk && d.freeT <= 0 && !d.down && !d.wrapOn && d !== this.ball.holder;
   }
 
   engage(b, d) {
@@ -1209,6 +1217,7 @@ export class PlaySim {
       for (let j = i + 1; j < P.length; j++) {
         const b = P[j];
         if (b.down || (a.blk && a.blk === b.blk)) continue;
+        if (a.wrapOn === b || b.wrapOn === a || (a.wrapOn && a.wrapOn === b.wrapOn)) continue;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const d2 = dx * dx + dy * dy;
@@ -1247,71 +1256,7 @@ export class PlaySim {
       }
     }
 
-    // tackles
-    const h = this.ball.holder;
-    if (!h || this.ball.state !== 'held') return;
-    const foes = h.side === 'O' ? this.defense : this.offense;
-    for (const d of foes) {
-      if (d.down || d.stumbleT > 0 || d.tackleCD > 0) continue;
-      const dd = dist(d.x, d.y, h.x, h.y);
-      if (dd > (d.blk ? 0.85 : 1.2)) {
-        if (!d.blk && dd < 2.1 && (h.side !== 'O' || h.y > 1.5) && this.rng.chance(dt * 3.5)) {
-          const closing = ((h.x - d.x) * (d.vx - h.vx) + (h.y - d.y) * (d.vy - h.vy)) / dd;
-          if (closing > 0.3 && this.tryDive(d, h)) return;
-        }
-        continue;
-      }
-      if (d.blk && !this.rng.chance(0.35)) { d.tackleCD = 0.5; continue; }
-      if (this.tryTackle(d, h)) return;
-    }
-  }
-
-  tryTackle(d, h) {
-    const brk = h.a.str * 0.35 + h.a.elu * 0.35 + h.a.agi * 0.15 + h.a.car * 0.15;
-    const tk = d.a.tkl * 0.75 + d.a.str * 0.25;
-    let help = 0;
-    const foes = h.side === 'O' ? this.defense : this.offense;
-    for (const o of foes) if (o !== d && !o.down && !o.blk && dist(o.x, o.y, h.x, h.y) < 1.7) help++;
-    const sack = h === this.qb && this.phase === 'pre';
-    let p = 0.8 + (tk - brk) / 160 + help * 0.1 - (h.juke > 0 ? 0.25 : 0) - (d.blk ? 0.3 : 0) + (sack ? 0.06 : 0);
-    p = clamp(p, 0.2, 0.96);
-    if (this.rng.chance(p)) {
-      const fumbleP = sack ? 0.085 : 0.011 * (1.25 - h.a.car / 100);
-      if (this.rng.chance(fumbleP)) { this.fumble(h, sack ? 'strip sack' : 'fumble', d); return true; }
-      const g = h.side === 'O' ? 1 : -1;
-      const fall = clamp(h.vy * 0.12 * g, -0.3, 1.2) * g;
-      this.tackler = d;
-      if (help) this.assist = foes.find((o) => o !== d && !o.down && dist(o.x, o.y, h.x, h.y) < 1.7);
-      h.down = true;
-      d.down = this.rng.chance(0.6);
-      this.events.push({ t: this.t, k: sack ? 'sack' : 'tackle', who: d, on: h });
-      this.endPlay(sack ? 'sack' : 'tackle', { spotY: h.y + fall, spotX: h.x });
-      return true;
-    }
-    d.stumbleT = 0.5;
-    d.tackleCD = 0.6;
-    h.vx *= 0.78;
-    h.vy *= 0.78;
-    this.events.push({ t: this.t, k: 'broken', who: h, on: d });
-    return false;
-  }
-
-  tryDive(d, h) {
-    const p = clamp(0.4 + (d.a.tkl - 65) / 200 - (h.a.elu - 70) / 300 - (h.juke > 0 ? 0.2 : 0), 0.15, 0.7);
-    d.diveT = 0.5;
-    if (this.rng.chance(p)) {
-      const g = h.side === 'O' ? 1 : -1;
-      this.tackler = d;
-      h.down = true;
-      d.down = true;
-      this.events.push({ t: this.t, k: 'tackle', who: d, on: h, dive: true });
-      this.endPlay('tackle', { spotY: h.y + clamp(h.vy * 0.06 * g, -0.2, 0.6) * g, spotX: h.x });
-      return true;
-    }
-    d.stumbleT = 1.0;
-    d.tackleCD = 1.0;
-    this.events.push({ t: this.t, k: 'broken', who: h, on: d, dive: true });
-    return false;
+    this.checkTackles(dt);
   }
 
   fumble(h, why, by) {
@@ -1371,6 +1316,16 @@ export class PlaySim {
   endPlay(outcome, info) {
     if (this.done) return;
     this.done = true;
+    if (this.wrap) {
+      // a tackle in progress ended at a boundary: out of bounds or in the end zone
+      const w = this.wrap;
+      if (outcome === 'oob') {
+        this.tackler = this.tackler || w.ds[0];
+        if (w.kind === 'pushout') this.events.push({ t: this.t, k: 'pushedout', who: w.h, x: w.h.x, y: w.h.y });
+      }
+      for (const d of w.ds) d.wrapOn = null;
+      this.wrap = null;
+    }
     const offense = !this.turnover;
     let spotY = info.spotY;
     let kind = this.offPlay.cat === 'run' ? 'run' : 'pass';
@@ -1424,6 +1379,8 @@ export class PlaySim {
     this.result = res;
   }
 }
+
+Object.assign(PlaySim.prototype, contactMethods);
 
 const LOOKS = [[1.5, 1.4], [3.5, 1.0], [6, 0.6]];
 

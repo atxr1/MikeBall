@@ -1,6 +1,7 @@
 // Pixel-art field: dithered turf with mowing stripes, painted lines and
-// numbers, block-letter end zones, midfield mark, goalposts, sideline and
-// crowd. Drawn into the low-res buffer; offense always attacks up.
+// numbers, block-letter end zones, midfield mark, goalposts and sideline,
+// with the stands (crowd.js) around it. Drawn into the low-res buffer;
+// offense always attacks up.
 
 import { FIELD_W, HASH_L, HASH_R } from '../core/util.js';
 import { drawText, drawTextOutlined, textWidth } from './pixelfont.js';
@@ -10,6 +11,7 @@ import { makeRng } from '../core/rng.js';
 import { ready } from './images.js';
 import { Y_SQUASH } from './camera.js';
 import { teamArt } from '../data/realleague.js';
+import { drawCrowd } from './crowd.js';
 
 const TURF_A = '#3d8c3c';
 const TURF_B = '#367f36';
@@ -18,7 +20,6 @@ const LINE = '#f2f5ef';
 const TILE = 48;
 
 let turfNoise = null;
-const crowdCache = new Map();
 
 function noiseTile() {
   if (turfNoise) return turfNoise;
@@ -32,30 +33,6 @@ function noiseTile() {
     ctx.fillRect(x, y, 1, rng.chance(0.3) ? 2 : 1);
   }
   turfNoise = c;
-  return c;
-}
-
-function crowdTile(team) {
-  const key = team ? team.id + team.colors.primary + team.colors.secondary : 'none';
-  if (crowdCache.has(key)) return crowdCache.get(key);
-  const c = makeCanvas(TILE, TILE);
-  const ctx = c.getContext('2d');
-  const rng = makeRng(31);
-  ctx.fillStyle = '#20252f';
-  ctx.fillRect(0, 0, TILE, TILE);
-  const cols = team ? [team.colors.primary, team.colors.primary, team.colors.secondary, '#e8e2d6', '#c99a6e', '#7d5638', '#3a4150'] : ['#888'];
-  for (let row = 0; row < TILE; row += 4) {
-    ctx.fillStyle = '#2b313d';
-    ctx.fillRect(0, row + 3, TILE, 1);
-    for (let x = rng.int(0, 1); x < TILE; x += 3) {
-      if (rng.chance(0.12)) continue;
-      ctx.fillStyle = rng.pick(cols);
-      ctx.fillRect(x, row + 1, 2, 2);
-      ctx.fillStyle = rng.chance(0.5) ? '#d9a77c' : '#7a4f33';
-      ctx.fillRect(x, row, 2, 1);
-    }
-  }
-  crowdCache.set(key, c);
   return c;
 }
 
@@ -73,7 +50,7 @@ function tileRect(ctx, img, x, y, w, h, ox, oy) {
 }
 
 export function drawField(ctx, cam, opts) {
-  const { offTeam, defTeam, homeTeam, los, ltg, showLines = true } = opts;
+  const { offTeam, defTeam, homeTeam, los, ltg, showLines = true, crowd, t = 0 } = opts;
   // Real end zone and midfield art (home team at both ends, like a real
   // stadium) are drawn later by drawFieldDecals at full screen resolution.
   const ezArt = ready(teamArt(homeTeam, 'endzone.png'));
@@ -85,14 +62,21 @@ export function drawField(ctx, cam, opts) {
   const Y = (f) => Math.round(cam.sy(f));
   const [f0, f1] = cam.fRange();
 
-  // stands everywhere first
-  tileRect(ctx, crowdTile(homeTeam), 0, 0, W, H, X(0), Y(0));
-
   // sideline apron and wall
   const apronL = X(-7);
   const apronR = X(FIELD_W + 7);
   const top = Y(117);
   const bot = Y(-17);
+
+  // stands outside the wall; the home team attacks the north end, so each
+  // physical end keeps its own crowd when possession flips the view
+  if (crowd) {
+    const topEnd = offTeam && homeTeam && offTeam.id !== homeTeam.id ? 'S' : 'N';
+    drawCrowd(ctx, cam, crowd, { L: apronL - 2, R: apronR + 2, T: top - 2, B: bot + 2 }, topEnd, t);
+  } else {
+    ctx.fillStyle = '#1b1f28';
+    ctx.fillRect(0, 0, W, H);
+  }
   ctx.fillStyle = homeTeam ? tone(homeTeam.colors.primary, -0.35) : '#222';
   ctx.fillRect(apronL - 2, top - 2, apronR - apronL + 4, bot - top + 4);
   ctx.fillStyle = SIDELINE;
@@ -114,8 +98,8 @@ export function drawField(ctx, cam, opts) {
   ctx.fillRect(x0 - 2, Y(-10), x1 - x0 + 4, 2);
 
   if (!ezArt) {
-    drawEndZone(ctx, cam, -10, 0, offTeam);
-    drawEndZone(ctx, cam, 100, 110, defTeam);
+    drawEndZone(ctx, cam, -10, 0, offTeam, true);
+    drawEndZone(ctx, cam, 100, 110, defTeam, false);
   }
 
   // turf texture over everything green
@@ -140,19 +124,34 @@ export function drawField(ctx, cam, opts) {
     ctx.fillRect(x1 - 2 - hw, y, hw, 1);
   }
 
-  // yard numbers near each sideline; the yard line breaks around them
-  // real numbers are 6 ft tall
-  const ns = Math.max(1, Math.round((s * 0.86 * 2) / 7));
+  // Yard numbers as painted on a real field: 6 ft tall, tops 9 yards in from
+  // each sideline, rotated so they read from the nearest sideline (left side
+  // reads top-to-bottom, right side bottom-to-top), straddling the yard line
+  // with an arrow pointing to the nearer goal line.
+  const ns = Math.max(1, Math.round((s * 2) / 7));
+  const gap = 2;
   for (let f = 10; f <= 90; f += 10) {
     if (f < f0 - 3 || f > f1 + 3) continue;
     const label = String(f <= 50 ? f : 100 - f);
-    const len = textWidth(label, ns, 1);
-    const y = Y(f) - Math.round((7 * ns) / 2);
-    for (const cx of [X(12), X(FIELD_W - 12)]) {
-      const lx = cx - Math.round(len / 2);
-      ctx.fillStyle = Math.floor((f + 10) / 5) % 2 === 0 ? TURF_A : TURF_B;
-      ctx.fillRect(lx - 2, Y(f) - 1, len + 4, 3);
-      drawText(ctx, label, lx, y, ns, LINE, 0, 1);
+    const len = textWidth(label, ns, gap);
+    const yTop = Y(f) - Math.round(len / 2);
+    const xl = X(7);
+    const xr = X(FIELD_W - 9);
+    drawText(ctx, label, xl, yTop, ns, LINE, 1, gap);
+    drawText(ctx, label, xr, yTop, ns, LINE, -1, gap);
+    if (f !== 50) {
+      // arrow beside the number on the goal-line side, near its top edge
+      const down = f < 50; // nearer goal is below on screen
+      const ay = down ? yTop + len + ns * 2 : yTop - ns * 2;
+      const a = Math.max(2, ns + 1);
+      ctx.fillStyle = LINE;
+      for (const ax of [xl + 6 * ns - ns, xr + ns]) {
+        for (let i = 0; i < a; i++) {
+          const w = (a - i) * 2 - 1;
+          const yy = down ? ay + i : ay - i;
+          ctx.fillRect(ax - (a - i) + 1, yy, w, 1);
+        }
+      }
     }
   }
 
@@ -194,7 +193,10 @@ export function drawScrimmageLines(ctx, cam, los, ltg) {
 // device-pixel canvas, `k` device pixels per low-res pixel. Scaling pixel art
 // by a non-integer at device resolution keeps every art pixel the same size
 // to within one device pixel, so it stays crisp.
-export function drawFieldDecals(out, cam, k, homeTeam) {
+// End zone art reads from the field of play, so the near end zone is upside
+// down on screen. The midfield logo faces the home sideline (left when the
+// home team has the ball; the view turns around with possession).
+export function drawFieldDecals(out, cam, k, homeTeam, offTeam = homeTeam) {
   const ez = ready(teamArt(homeTeam, 'endzone.png'));
   const mid = ready(teamArt(homeTeam, 'midfield_96.png'));
   out.imageSmoothingEnabled = false;
@@ -210,19 +212,33 @@ export function drawFieldDecals(out, cam, k, homeTeam) {
     // near end zone: below the 2-px goal line
     const nTop = Y(0) + 2;
     const nBot = Y(-10);
-    if (nBot > 0 && nTop < cam.h) out.drawImage(ez, x0 * k, nTop * k, (x1 - x0) * k, (nBot - nTop) * k);
+    if (nBot > 0 && nTop < cam.h) {
+      const w = (x1 - x0) * k;
+      const h = (nBot - nTop) * k;
+      out.save();
+      out.translate(x0 * k + w / 2, nTop * k + h / 2);
+      out.rotate(Math.PI);
+      out.drawImage(ez, -w / 2, -h / 2, w, h);
+      out.restore();
+    }
   }
   if (mid) {
     const [f0, f1] = cam.fRange();
     if (f0 < 58 && f1 > 42) {
-      const w = Math.round(cam.s * 11); // about 11 yards across
-      const h = Math.round(w * Y_SQUASH);
-      out.drawImage(mid, (X(FIELD_W / 2) - w / 2) * k, (Y(50) - h / 2) * k, w * k, h * k);
+      const L = Math.round(cam.s * 11) * k; // about 11 yards across
+      const Lh = Math.round(L * (mid.height / mid.width));
+      const homeBall = !offTeam || !homeTeam || offTeam.id === homeTeam.id;
+      out.save();
+      out.translate(X(FIELD_W / 2) * k, Y(50) * k);
+      out.scale(1, Y_SQUASH);
+      out.rotate(homeBall ? Math.PI / 2 : -Math.PI / 2);
+      out.drawImage(mid, -L / 2, -Lh / 2, L, Lh);
+      out.restore();
     }
   }
 }
 
-function drawEndZone(ctx, cam, fa, fb, team) {
+function drawEndZone(ctx, cam, fa, fb, team, near) {
   if (!team) return;
   const x0 = Math.round(cam.sx(0));
   const x1 = Math.round(cam.sx(FIELD_W));
@@ -246,9 +262,16 @@ function drawEndZone(ctx, cam, fa, fb, team) {
   const ty = Math.round((yt + yb) / 2 - (7 * sc) / 2);
   const sec = team.colors.secondary;
   const fg = sec.toUpperCase() === base.toUpperCase() || Math.abs(lumOf(sec) - lumOf(base)) < 0.2 ? '#ffffff' : sec;
-  // drop shadow, outline, fill: painted block letters
+  // drop shadow, outline, fill: painted block letters (the near end zone
+  // reads from the field, so it's upside down on screen)
+  ctx.save();
+  if (near) {
+    ctx.translate(x0 + x1, yt + yb);
+    ctx.rotate(Math.PI);
+  }
   drawText(ctx, word, tx + sc, ty + sc, sc, tone(base, -0.55));
   drawTextOutlined(ctx, word, tx, ty, sc, fg, tone(base, -0.6));
+  ctx.restore();
 }
 
 function lumOf(hex) {

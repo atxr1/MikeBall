@@ -53,6 +53,7 @@ export class KickScene {
     this.type = opts.type;
     this.out = opts.out;
     this.rng = opts.rng;
+    this.fxEvents = []; // cosmetic moves/falls for the effects layer
     this.t = 0;
     this.done = false;
     this.players = [];
@@ -222,6 +223,7 @@ export class KickScene {
   }
 
   move(p, dt) {
+    if (p.down && p.upT && this.t >= p.upT) { p.down = false; p.upT = 0; }
     if (p.down) { p.vx = 0; p.vf = 0; return; }
     let spd = p.speed;
     if (p.eng) spd = Math.min(spd, 0.6);
@@ -311,12 +313,15 @@ export class KickScene {
       k.speed = Math.min(11, dist(k.x, k.f, k.tx, k.tf) / left + 1);
     }
     this.blockAndCover(r);
+    this.whiffs(r, u);
     if (u >= 1 && !R.ended) {
       R.ended = true;
       r.x = R.ex; r.f = R.ef;
       if (R.outcome === 'tackle') {
         r.down = true;
         if (this.tackler) { this.tackler.x = R.ex + 0.7; this.tackler.f = R.ef - 0.3; this.tackler.down = this.rng.chance(0.6); }
+        if (this.rng.chance(0.2)) this.fxEvents.push({ k: 'hit', x: r.x, f: r.f });
+        this.fxEvents.push({ k: 'fall', x: r.x, f: r.f });
       } else if (R.outcome === 'fumble') {
         r.down = true;
         r.carrying = false;
@@ -328,6 +333,26 @@ export class KickScene {
       }
       this.endAt(this.t + 1.0);
       for (const p of this.players) if (!p.down) p.speed = Math.min(p.speed, 2.5);
+    }
+  }
+
+  // Cover men who reach the returner but aren't the one who makes the
+  // tackle miss him: he jukes, spins or stiff-arms past, and they hit the
+  // turf. Cosmetic only; the return's result was decided by the rules.
+  whiffs(r, u) {
+    if (u > 0.85) return;
+    for (const k of this.players) {
+      if (k.side !== 'K' || k === this.tackler || k.down || k.eng || k.missed) continue;
+      if (dist(k.x, k.f, r.x, r.f) > 1.3) continue;
+      k.missed = true;
+      const roll = this.rng.next();
+      const move = roll < 0.45 ? 'juke' : roll < 0.75 ? 'spin' : 'stiff';
+      k.down = true;
+      k.upT = this.t + 1.1;
+      k.diveT = this.t + 0.3;
+      r.move = { k: move, t0: this.t, side: k.x < r.x ? 'L' : 'R', dir: k.x < r.x ? 1 : -1 };
+      this.fxEvents.push({ k: move, x: r.x, f: r.f });
+      this.fxEvents.push({ k: 'fall', x: k.x, f: k.f });
     }
   }
 
@@ -556,11 +581,23 @@ export class KickScene {
       e.num = p.rec.num;
       e.skin = p.rec.skinTone;
       e.frame = 0;
-      if (p.down) { e.pose = 'down'; e.view = Math.cos(p.face) >= 0 ? 'E' : 'W'; }
+      const mv = p.move && this.t - p.move.t0 < 0.4 ? p.move : null;
+      if (p.diveT && this.t < p.diveT) { e.pose = 'dive'; e.view = Math.cos(p.face) >= 0 ? 'E' : 'W'; }
+      else if (p.down) { e.pose = 'down'; e.view = Math.cos(p.face) >= 0 ? 'E' : 'W'; }
       else {
         e.view = sp > 0.6 ? viewFromFace(p.face) : p.side === 'K' ? 'N' : 'S';
         if (p.eng) e.pose = 'push';
-        else if (sp > 0.6) { e.pose = b.holder === p ? 'carry' : 'run'; e.frame = Math.floor(p.anim * 0.6) % 4; }
+        else if (mv && mv.k === 'spin') {
+          const order = ['N', 'E', 'S', 'W'];
+          e.view = order[(order.indexOf(e.view) + 1 + Math.floor(((this.t - mv.t0) / 0.4) * 4)) % 4];
+          e.pose = 'carry';
+          e.frame = Math.floor(p.anim * 0.6) % 4;
+        } else if (mv && mv.k === 'juke' && this.t - mv.t0 < 0.26) {
+          e.view = p.vf >= 0 ? 'N' : 'S';
+          e.pose = mv.dir < 0 ? 'cutL' : 'cutR';
+        } else if (mv && mv.k === 'stiff') {
+          e.pose = e.view === 'E' || e.view === 'W' ? 'stiffL' : mv.side === 'L' ? 'stiffL' : 'stiffR';
+        } else if (sp > 0.6) { e.pose = b.holder === p ? 'carry' : 'run'; e.frame = Math.floor(p.anim * 0.6) % 4; }
         else e.pose = 'stand';
       }
       drawSprite(ctx, p.side === 'K' ? uniK : uniR, e, x, y);
