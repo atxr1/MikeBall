@@ -31,6 +31,7 @@ export const kickMethods = {
   runKick(type, out, bx = MID_X) {
     const g = this.game;
     this.mode = 'kick';
+    this.pre.forget(); // different units on the field after a kick
     this.setSheetEnabled(false);
     let kSide;
     if (type === 'kickoff') kSide = out.kSide;

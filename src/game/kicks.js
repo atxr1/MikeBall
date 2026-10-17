@@ -53,6 +53,12 @@ export function kickSpread(kicker, op, clutch = 0) {
 // a long kick takes a harder swing, and a harder swing is less accurate
 const longKick = (distance) => 1 + Math.max(0, distance - 45) * 0.016;
 
+// Where a coach sends him out on an ordinary fourth down (anything up to
+// maxFgRange is for the last play of a half).
+export function comfortableFgRange(kicker) {
+  return Math.min(maxFgRange(kicker) - 7, 55);
+}
+
 export function maxFgRange(kicker) {
   return Math.floor(53 + kicker.attrs.kpw * 0.13);
 }

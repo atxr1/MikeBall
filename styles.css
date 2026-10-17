@@ -212,7 +212,7 @@ img.logo-dark { filter: drop-shadow(1px 0 0 #dfe6f2) drop-shadow(-1px 0 0 #dfe6f
 }
 .ticker:empty { display: none; }
 .toast {
-  position: absolute; top: 36px; left: 50%; transform: translateX(-50%); z-index: 3;
+  position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 3;
   background: #070c1c; box-shadow: var(--frame);
   padding: 8px 12px 6px; font: 400 20px/1 var(--px); white-space: nowrap;
 }

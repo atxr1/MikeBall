@@ -5,7 +5,7 @@ import { Game, other } from '../game/rules.js';
 import { makePlaySim } from '../game/autoplay.js';
 import { cpuOffense, cpuDefense, cpuPat, cpuOnside, cpuTimeout } from '../game/cpu.js';
 import { OFFENSE_PLAYS, DEFENSE_PLAYS, OFF_CATS, DEF_CATS, offPlay, FORMATIONS } from '../data/playbook.js';
-import { fgDistance, maxFgRange } from '../game/kicks.js';
+import { fgDistance, maxFgRange, comfortableFgRange } from '../game/kicks.js';
 import { makeRng } from '../core/rng.js';
 import { MID_X, fmtClock, lerp } from '../core/util.js';
 import { Camera } from '../render/camera.js';
@@ -376,7 +376,8 @@ export class CoachScreen {
     const g = this.game;
     if (userOff && this.cat === 'special') {
       const fg = plays.find((p) => p.special === 'fg');
-      if (fg && fgDistance(g.ballOn) <= maxFgRange(g.kicker(this.user)) - 2) return fg;
+      const late = (g.quarter === 2 || g.quarter >= 4) && g.clock <= 10;
+      if (fg && fgDistance(g.ballOn) <= (late ? maxFgRange(g.kicker(this.user)) - 2 : comfortableFgRange(g.kicker(this.user)))) return fg;
       return plays.find((p) => p.special === 'punt') || plays[0];
     }
     if (!userOff && this.cat === 'zone') return plays.find((p) => p.id === 'cov3_43') || plays[0];
@@ -395,15 +396,16 @@ export class CoachScreen {
     const special = o.cat === 'special' && (o.special === 'punt' || o.special === 'fg');
     // a kick: the huddles stay put (the kicking unit lines up when the kick
     // scene starts); nobody jumps into some other formation meanwhile
-    this.pre.holdHuddle = special;
+    this.pre.setHoldHuddle(special);
     if (special) {
       artSide = null;
-      if (this.pre.ctx && this.scene && this.scene.kind === 'sim') {
+      if (this.pre.ctx && !this.stageFresh && this.scene && this.scene.kind === 'sim') {
         this.scene.artSide = null;
         this.dirty = true;
         return;
       }
-      o = offPlay('dive'); // something to stand the huddles up with
+      // something to stand the huddles up with: the personnel already out there
+      o = this.liveO && this.liveO.cat !== 'special' && g.poss === this.lastSnapPoss ? this.liveO : offPlay('dive');
     }
     const sim = makePlaySim(g, o, d, makeRng(7));
     this.setSimScene(sim, artSide);
@@ -463,6 +465,7 @@ export class CoachScreen {
         this.lastSnapPoss = g.poss;
         this.lastSnapLos = los0;
         const sim = makePlaySim(g, o, d, null, { ballOn: los0, preFoul: { key: pen.key } });
+        this.pre.snapped(sim, g.poss); // the same men are out there for the next call
         this.setSimScene(sim, null);
         this.scene.los = los0;
         this.preFoulPen = pen;

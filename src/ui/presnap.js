@@ -87,12 +87,26 @@ export class PreSnap {
       const ang = (i / defN) * Math.PI * 2;
       place(this.actor(defT, p), ctx.prevPos && ctx.prevPos.get(p.rec.id), sim.ballX + Math.cos(ang) * 2.2, 5.5 + Math.sin(ang) * 1.4, 5.5);
     });
-    this.huddling = [...this.actors.values()].some((a) => a.toHuddle);
     // the officials start where they finished the last play
     if (ctx.prevCrew && sim.crew) this.copyCrew(ctx.prevCrew, sim.crew, shift);
     for (const a of this.actors.values()) this.target(a);
     // personnel changed since the last snap? substitutes come from the bench
     this.markSubs(sim, offT, defT, true);
+    this.huddling = [...this.actors.values()].some((a) => a.toHuddle);
+  }
+
+  // A kick call: the huddles stay (or re-form) until the kick scene takes
+  // over; another call lets them break again.
+  setHoldHuddle(on) {
+    if (on === !!this.holdHuddle) return;
+    this.holdHuddle = on;
+    if (!on || !this.ctx) return;
+    for (const a of this.actors.values()) {
+      if (!a.slot) continue;
+      a.toHuddle = dist(a.x, a.y, a.slot.x, a.slot.y) > 0.3;
+      if (a.toHuddle) a.state = 'move';
+    }
+    this.huddling = [...this.actors.values()].some((a) => a.toHuddle);
   }
 
   copyCrew(from, to, shift = 0) {
@@ -137,6 +151,7 @@ export class PreSnap {
           a.x = this.benchX(team);
           a.y = clamp(a.ty, -12, 14);
           a.sub = true;
+          a.toHuddle = false;
         }
       }
       if (initial) {
@@ -191,17 +206,27 @@ export class PreSnap {
     }
   }
 
-  // Remember who's on the field at the snap.
+  // Remember who's on the field at the snap (or at a flag that killed the
+  // play before it: they're still the men on the field).
   snapped(sim, offT) {
+    this.remember(sim, offT);
+    this.ctx = null;
+    this.actors.clear();
+    this.leaving.length = 0;
+    this.hold = null;
+  }
+
+  // After a kick the units on the field are different: start fresh.
+  forget() {
+    this.last = { O: null, D: null };
+  }
+
+  remember(sim, offT) {
     const defT = offT === 'home' ? 'away' : 'home';
     const rec = (list) => new Map(list.map((p) => [p.rec.id, p.rec]));
     const pos = (list) => new Map(list.map((p) => [p.rec.id, { x: p.x, y: p.y }]));
     this.last.O = { team: offT, ids: new Set(sim.offense.map((p) => p.rec.id)), recs: rec(sim.offense), pos: pos(sim.offense) };
     this.last.D = { team: defT, ids: new Set(sim.defense.map((p) => p.rec.id)), recs: rec(sim.defense), pos: pos(sim.defense) };
-    this.ctx = null;
-    this.actors.clear();
-    this.leaving.length = 0;
-    this.hold = null;
   }
 
   // ---------------------------------------------------------------- update
@@ -272,16 +297,17 @@ export class PreSnap {
       const offOff = this.leaving.every((l) => l.gone || l.side !== 'D');
       if (defenseSet && offOff && this.t - this.hold.t0 > 1.2) this.hold.released = true;
     }
-    this.placeUmpire(dt);
-    return moving || (this.hold && !this.hold.released);
+    const crewMoving = this.placeUmpire(dt);
+    return moving || crewMoving || (this.hold && !this.hold.released);
   }
 
   // The officials walk to their spots; the umpire stands over the ball
   // while he's holding it for the defense.
   placeUmpire(dt) {
     const crew = this.sim && this.sim.crew;
-    if (!crew) return;
+    if (!crew) return false;
     const holding = this.hold && !this.hold.released;
+    let moving = false;
     for (const o of crew.list) {
       const home = crew.home(o);
       const um = o.role === 'U';
@@ -290,6 +316,7 @@ export class PreSnap {
       const d = dist(o.x, o.y, tx, ty);
       const rest = o.watch ?? o.face;
       if (d < 0.05) { o.vx = 0; o.vy = 0; o.face = um && holding ? -Math.PI / 2 : rest; continue; }
+      moving = true;
       const spd = Math.min(5, d * 3 + 0.4);
       const step = Math.min(spd * dt, d);
       o.vx = ((tx - o.x) / d) * spd;
@@ -299,6 +326,7 @@ export class PreSnap {
       o.anim += spd * dt * 2.2;
       o.face = Math.atan2(o.vy, o.vx);
     }
+    return moving;
   }
 
   // Can the ball be snapped? The offense set for a second, nobody still

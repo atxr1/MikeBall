@@ -342,6 +342,17 @@ console.log('pre-snap: lining up and substitutions');
     pre3.holdHuddle = true;
     for (let i = 0; i < 300; i++) pre3.update(1 / 60);
     check('on a kick call the huddles stay put and the snap can go', [...pre3.actors.values()].every((a) => a.state !== 'set') && pre3.ready());
+    // a substitute coming on after a play that ended with him elsewhere
+    // (a flag before the snap) doesn't get stuck between bench and huddle
+    const pre4 = new PreSnap();
+    const s1 = makePlaySim(g, offPlay('dive'), defPlay('cov3_43'), makeRng(1));
+    pre4.begin(s1, { offTeam: 'home', homeSide: -1, hurry: false, twoMinute: false, fg: false, prevLos: 30, los: 30 });
+    pre4.snapped(s1, 'home');
+    const sF = makePlaySim(g, offPlay('slants'), defPlay('cov3_43'), makeRng(1));
+    const s3 = makePlaySim(g, offPlay('slants'), defPlay('cov3_43'), makeRng(2));
+    pre4.begin(s3, { offTeam: 'home', homeSide: -1, hurry: false, twoMinute: false, fg: false, prevPos: new Map(sF.players.map((p) => [p.rec.id, { x: p.x, y: p.y }])), prevLos: 30, los: 25 });
+    for (let i = 0; i < 60 * 20; i++) pre4.update(1 / 60);
+    check('substitutes and walk-backs together still get set', pre4.ready());
   }
   check('the CPU defense goes to nickel against three receivers', cpuMatchDefense(g, 'away', offPlay('slants'), defPlay('cov3_43')).front === 'nickel');
   check('and back to base against a heavy set', cpuMatchDefense(g, 'away', offPlay('gl_dive'), defPlay('cov3_nickel')).front === '43');

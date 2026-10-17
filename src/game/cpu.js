@@ -1,7 +1,7 @@
 // CPU coach: play calling, 4th downs, two-point tries, onside kicks, timeouts.
 
 import { OFFENSE_PLAYS, DEFENSE_PLAYS, FORMATIONS, offPlay, defPlay } from '../data/playbook.js';
-import { fgDistance, maxFgRange } from './kicks.js';
+import { fgDistance, maxFgRange, comfortableFgRange } from './kicks.js';
 
 const RUNS = OFFENSE_PLAYS.filter((p) => p.cat === 'run');
 const PASSES = OFFENSE_PLAYS.filter((p) => p.cat === 'pass');
@@ -20,9 +20,12 @@ export function cpuFourthDown(game, side) {
   const k = game.kicker(side);
   // a comfortable kick on an ordinary fourth down; anything he can reach
   // when it's the last chance
-  const range = Math.min(maxFgRange(k) - 7, 55);
   const reach = maxFgRange(k) - 2;
   const fgd = fgDistance(s.ballOn);
+  // the last play of a half: anything he can reach
+  const lastKick = s.clock <= 10 && (s.quarter === 2 || (s.quarter >= 4 && s.diff >= -3));
+  const range = lastKick ? reach : comfortableFgRange(k);
+  if (lastKick && fgd <= reach) return 'fg';
   const late = s.quarter >= 4 && s.clock <= 300;
   if (late && s.diff < 0) {
     if (s.diff >= -3 && fgd <= reach && s.clock <= 120) return 'fg';

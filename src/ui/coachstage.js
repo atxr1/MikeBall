@@ -33,7 +33,7 @@ export const stageMethods = {
         prevPos,
         prevCrew: same ? this.lastPlaySim.crew : null,
         twoMinute,
-        fg: false,
+        fg: !!this.pre.holdHuddle,
         prevLos: this.lastSnapLos ?? g.ballOn,
         los: g.ballOn,
       });
