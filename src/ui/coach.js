@@ -21,6 +21,7 @@ import { matchupUniforms } from '../render/pixelsprites.js';
 import { clearRigCache, rigFrame } from '../render/rig.js';
 import { drawSimPlayers, carrierMarker, clearOutfits } from '../render/simdraw.js';
 import { PlayDrawing } from './drawing.js';
+import { PassAim } from './passaim.js';
 import { Scorebug, titleCard, fitPixelCanvas, preloadBroadcast, netArt, loadLayouts } from './broadcast.js';
 import { broadcastFor } from '../data/broadcast.js';
 import { playClockMethods } from './playclock.js';
@@ -160,6 +161,8 @@ export class CoachScreen {
     this.scorebug = new Scorebug(this.broadcast.net, g.teams.home, g.teams.away);
     this.el.bug.append(this.scorebug.canvas);
     this.drawing = new PlayDrawing(this);
+    this.aim = new PassAim(this);
+    this.aim.attach(this.canvas);
     this.ctx = this.canvas.getContext('2d');
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(this.stage);
@@ -481,7 +484,12 @@ export class CoachScreen {
     this.liveD = d;
     this.setTicker(''); // last play's line goes away while this one runs
     if (g.poss === this.user) this.lastCpuDef = d;
-    const sim = makePlaySim(g, o, d, null, this.twoPoint ? { noFouls: true } : snapFoul ? { snapFoul } : null);
+    // Retro Bowl-style passing (Settings): you throw your own passes
+    const manualPass = !!this.app.settings.manualPass && g.poss === this.user && o.cat === 'pass';
+    const extra = { ...(this.twoPoint ? { noFouls: true } : snapFoul ? { snapFoul } : null), ...(manualPass ? { manualPass } : null) };
+    const sim = makePlaySim(g, o, d, null, extra);
+    if (manualPass) this.aim.hint();
+    this.aim.cancel();
     this.pre.snapped(sim, g.poss);
     this.lastSnapPoss = g.poss;
     this.lastSnapLos = g.ballOn;
@@ -654,6 +662,9 @@ export class CoachScreen {
       let x = b.x;
       let f = sc.los + b.y;
       if (b.state === 'air') { x = lerp(b.x, b.tx, 0.4); f = sc.los + lerp(b.y, b.ty, 0.4); }
+      // throwing it yourself: look downfield at the receivers (and the target)
+      const look = sim.opts.manualPass && sim.canUserThrow() ? this.aim.lookAt(sim) : null;
+      if (look) { x = lerp(x, look.x, 0.5); f = sc.los + look.y - 3; }
       this.cam.set(x, f + 3, 1.36);
     } else if (sc.kind === 'kick') {
       const p = sc.focus();
@@ -724,6 +735,7 @@ export class CoachScreen {
     if (live) {
       this.fx.pull(sc.sim, sc.los);
       this.fx.draw(ctx, cam);
+      if (this.mode === 'play') this.aim.draw(ctx, cam, sc.los);
     }
     if (this.mode === 'call') this.drawing.drawStroke(ctx, cam, sc.los);
   }

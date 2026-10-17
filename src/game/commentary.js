@@ -56,7 +56,7 @@ export function describe(r, ballX = MID_X) {
         if (r.why === 'thrown away') return `${nm(r.passer)} throws it away.`;
         if (r.why === 'broken up') return `${nm(r.passer)} pass to ${nm(r.target)} broken up by ${nm(r.defender)}.`;
         if (r.why === 'dropped') return `${nm(r.passer)} pass dropped by ${nm(r.target)}.`;
-        if (r.why === 'overthrown') return `${nm(r.passer)} overthrows ${nm(r.target)}.`;
+        if (r.why === 'overthrown') return r.target ? `${nm(r.passer)} overthrows ${nm(r.target)}.` : `${nm(r.passer)} pass falls incomplete.`;
         return `${nm(r.passer)} pass ${r.target ? `to ${nm(r.target)} ` : ''}incomplete.`;
       }
       if (r.fumble && r.fumble.lost) return `${nm(r.passer)} to ${nm(r.receiver)}, FUMBLE! Recovered by ${nm(r.fumble.recoveredBy)}.`;

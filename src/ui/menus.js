@@ -8,6 +8,7 @@ import { fmtClock } from '../core/util.js';
 import { SLOTS, slotById, broadcastFor } from '../data/broadcast.js';
 import { playerOfTheGame } from '../game/awards.js';
 import { titleCard, fitPixelCanvas } from './broadcast.js';
+import { openSettings } from './settings.js';
 
 export function titleScreen(app) {
   const s = app.settings;
@@ -39,14 +40,18 @@ export function titleScreen(app) {
     confBar.append(b);
   }
   render();
-  return h('div', { class: 'screen title-screen' },
+  const screen = h('div', { class: 'screen title-screen' },
     h('header', { class: 'title-head' },
-      h('h1', { class: 'wordmark' }, 'MikeBall'),
+      h('div', { class: 'title-row' },
+        h('h1', { class: 'wordmark' }, 'MikeBall'),
+        h('button', { class: 'act settings-btn', onclick: () => openSettings(screen, app) }, 'Settings'),
+      ),
       h('p', { class: 'lede' }, 'Own it. Build it. Coach it. Pick the team that’s yours.'),
     ),
     confBar,
     grid,
   );
+  return screen;
 }
 
 export function setupScreen(app, userId) {

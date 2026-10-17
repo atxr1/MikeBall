@@ -2,6 +2,29 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
+## 2026-10-17 (later) — Optional Retro Bowl-style passing
+
+**Done**
+- Settings (`src/ui/settings.js`): a sheet from the title screen's
+  Settings button or the in-game Menu. Saved with the app settings; takes
+  effect at the next snap.
+- Passing: Coach (default: the quarterback reads and throws on his own) or
+  Retro Bowl (`src/ui/passaim.js`): on your pass plays, put a finger down
+  anywhere on the field after the snap and pull back; a target appears the
+  opposite way like a slingshot, with the ball's arc drawn to it; let go to
+  throw. A short pull aims nothing. The camera looks downfield while the
+  passer has the ball. Whoever will be at the spot goes for it, and the
+  catch is decided by the same odds as every other throw (defenders near
+  the ball, the passer's accuracy under pressure). Aim out of bounds to
+  throw it away. If you never throw, he's sacked or throws it away after
+  about 7 seconds in the pocket.
+- Sim support (`src/sim/passing.js`): `opts.manualPass`, `userThrow(x, y)`,
+  `canUserThrow()`, `maxThrow()`. CPU games and autoplay never use it.
+
+**Known issues**
+- No manual control of the runner after the catch or of a scrambling
+  quarterback (Retro Bowl lets you steer and dive); the sim runs those.
+
 ## 2026-10-17 — Odds model, generative animation, officials and penalties, the pre-snap stage
 
 **Done**

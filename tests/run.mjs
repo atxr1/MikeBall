@@ -256,6 +256,39 @@ console.log('catch, tackle and kick odds');
   check('kickoffs: most are returned, some touchbacks, few short of the landing zone', ko.ret / 4000 > 0.6 && between(ko.touchback / 4000, 0.06, 0.32) && ko.short / 4000 < 0.04 && between(ko.start / 4000, 26, 35), `ret ${ko.ret / 40}% tb ${ko.touchback / 40}% short ${ko.short / 40}% start ${(ko.start / 4000).toFixed(1)}`);
 }
 
+console.log('Retro Bowl-style passing (optional)');
+{
+  const ids = Object.keys(league);
+  const mk = (seed, manual) => new PlaySim({ offPlay: offPlay('curl_flat'), defPlay: defPlay('cov3_43'), offLineup: offenseLineup(league[ids[0]], offPlay('curl_flat').formation), defLineup: defenseLineup(league[ids[1]], '43'), ballOn: 35, ballX: 26.67, rng: makeRng(seed), manualPass: manual, noFouls: true });
+  // left alone, he doesn't throw it on his own
+  let selfThrows = 0;
+  for (let i = 0; i < 20; i++) {
+    const sim = mk(100 + i, true);
+    while (!sim.done && sim.t < 5) sim.step();
+    if (sim.events.some((e) => e.k === 'throw')) selfThrows++;
+  }
+  check('with manual passing the quarterback waits for your throw', selfThrows === 0, `${selfThrows} threw`);
+  // aim at a receiver's spot: the ball goes there and he goes for it
+  let onTarget = 0;
+  let toHim = 0;
+  for (let i = 0; i < 20; i++) {
+    const sim = mk(200 + i, true);
+    while (!sim.done && !sim.canUserThrow()) sim.step();
+    while (!sim.done && sim.t < 1.7) sim.step();
+    if (!sim.canUserThrow()) continue;
+    const r = sim.bySlot.X || sim.progression[0];
+    const L = sim.leadPoint(sim.qb, r);
+    sim.userThrow(L.x, L.y);
+    while (!sim.done && sim.ball.state !== 'air') sim.step();
+    if (sim.ball.state === 'air' || sim.done) {
+      if (Math.hypot(sim.ball.tx - L.x, sim.ball.ty - L.y) < 3) onTarget++;
+      if (sim.ball.target === r) toHim++;
+    }
+  }
+  check('a throw goes where you aimed it, to the man who will be there', onTarget >= 15 && toHim >= 15, `${onTarget} on target, ${toHim} to him`);
+  check('without the setting, the sim ignores aimed throws', mk(5, false).userThrow(20, 10) === false);
+}
+
 console.log('fouls and penalties');
 {
   const g = new Game({ homeTeam: TEAMS[0], awayTeam: TEAMS[1], homeRoster: league[TEAMS[0].id], awayRoster: league[TEAMS[1].id], userSide: null, qLen: 15, seed: 8 });

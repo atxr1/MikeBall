@@ -8,6 +8,7 @@ import { offPlay } from '../data/playbook.js';
 import { h } from './dom.js';
 import { openRoster } from './roster.js';
 import { ready } from '../render/images.js';
+import { openSettings } from './settings.js';
 
 export const menuMethods = {
   dialog(title, text, buttons, { keepMode = false } = {}) {
@@ -39,8 +40,10 @@ export const menuMethods = {
     if (this.paused) return;
     this.paused = true;
     const wasEnabled = !this.el.go.disabled;
+    const resume = () => { this.paused = false; if (wasEnabled && this.mode === 'call') this.setSheetEnabled(true); };
     this.dialog('Menu', null, [
-      ['Resume', () => { this.paused = false; if (wasEnabled && this.mode === 'call') this.setSheetEnabled(true); }],
+      ['Resume', resume],
+      ['Settings', () => openSettings(this.root, this.app, resume)],
       ['Sim to the end', () => { this.paused = false; this.simToEnd(); }],
       ['Quit to title', () => this.app.showTitle()],
     ], { keepMode: true });

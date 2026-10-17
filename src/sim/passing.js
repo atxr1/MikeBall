@@ -5,6 +5,11 @@
 // there (src/sim/odds.js decides catch, drop, breakup or interception from
 // everyone around the ball).
 //
+// With opts.manualPass (the optional Retro Bowl-style control) the
+// quarterback still drops and moves in the pocket, but he doesn't read or
+// throw on his own: the player aims a spot with userThrow(x, y) and the ball
+// goes there, with the passer's own error on top.
+//
 // No DOM here; every random draw comes from the sim's seeded RNG.
 
 import { FIELD_W, clamp, dist } from '../core/util.js';
@@ -28,6 +33,18 @@ export const passingMethods = {
       p.qbState = play.pa ? 'fake' : 'drop';
       p.decT = 0;
     }
+    // Wind-up: the ball isn't out yet, so the QB can still be hit. (A
+    // player aiming his own throws can let it go during the drop.)
+    if (p.pending) {
+      if (this.t >= p.pending.at) {
+        const pd = p.pending;
+        p.pending = null;
+        if (pd.away) this.throwAwayNow(p);
+        else if (pd.aim) this.throwAt(p, pd.aim);
+        else this.throwNow(p, pd.r);
+      }
+      return this.brake(p, dt, 8);
+    }
     if (p.qbState === 'fake') {
       const rb = this.bySlot.RB;
       this.steer(p, (p.x + rb.x) / 2, p.y - 0.3, 0.5, dt, 0.3);
@@ -42,16 +59,6 @@ export const passingMethods = {
       }
       return;
     }
-    // Wind-up: the ball isn't out yet, so the QB can still be hit.
-    if (p.pending) {
-      if (this.t >= p.pending.at) {
-        const pd = p.pending;
-        p.pending = null;
-        if (pd.away) this.throwAwayNow(p);
-        else this.throwNow(p, pd.r);
-      }
-      return this.brake(p, dt, 8);
-    }
     // Set in the pocket: read and decide.
     const tSet = this.t - p.setT;
     const pressure = this.pressureOn(p);
@@ -65,6 +72,12 @@ export const passingMethods = {
     }
     this.steer(p, clamp(mx, this.ballX - 5, this.ballX + 5), Math.min(my, -1.2), 0.45, dt, 0.4);
 
+    // the player throws it (userThrow); if he never does, the passer gets
+    // rid of it eventually
+    if (this.opts.manualPass) {
+      if (tSet > 7) this.throwAway(p);
+      return;
+    }
     if (play.screen) {
       if (this.t >= play.screen) this.throwTo(p, this.bySlot.RB, pressure);
       return;
@@ -225,13 +238,51 @@ export const passingMethods = {
     qb.pending = { away: true, at: this.t + 0.14 };
   },
 
-  throwNow(qb, r) {
-    if (!r) return this.throwAwayNow(qb);
-    const L = this.leadPoint(qb, r);
+  // The player's throw (manual passing): aim at a spot. Returns false if
+  // the ball can't be thrown now (not his yet, already gone, the play's over).
+  userThrow(x, y) {
+    const qb = this.qb;
+    if (!this.opts.manualPass || this.done || this.phase !== 'pre' || !qb || this.ball.holder !== qb) return false;
+    if (qb.pending || qb.qbState === undefined || qb.qbState === 'fake') return false;
+    qb.pending = { aim: { x, y }, at: this.t + 0.08 };
+    return true;
+  },
+
+  // Can the player throw right now? (for the aiming UI)
+  canUserThrow() {
+    const qb = this.qb;
+    return !!(this.opts.manualPass && !this.done && this.phase === 'pre' && qb && this.ball.holder === qb && !qb.pending && qb.qbState && qb.qbState !== 'fake' && !this.scramble);
+  },
+
+  // The farthest he can put it in the air.
+  maxThrow(qb = this.qb) {
+    return 42 + (qb ? qb.a.thp : 80) * 0.2;
+  },
+
+  // A throw to a spot: whoever will be nearest it when the ball gets there
+  // goes for it.
+  throwAt(qb, aim) {
+    const spd = this.ballSpeed(qb);
+    const d0 = dist(qb.x, qb.y, aim.x, aim.y);
+    const T = d0 / spd + 0.12 + (d0 > 25 ? (d0 - 25) * 0.012 : 0);
+    let r = null;
+    let rd = 5;
+    for (const o of this.offense) {
+      if (o.down || o.blk || (o.pos !== 'WR' && o.pos !== 'TE' && o.pos !== 'RB')) continue;
+      const P = o.pts ? this.routeAhead(o, T) : { x: o.x + o.vx * T, y: o.y + o.vy * T };
+      const dd = dist(P.x, P.y, aim.x, aim.y);
+      if (dd < rd) { rd = dd; r = o; }
+    }
+    return this.throwNow(qb, r, { x: aim.x, y: aim.y, T });
+  },
+
+  throwNow(qb, r, aimed = null) {
+    if (!r && !aimed) return this.throwAwayNow(qb);
+    const L = aimed || this.leadPoint(qb, r);
     const d = dist(qb.x, qb.y, L.x, L.y);
     // a good passer puts it on the receiver's far side from the closest
     // defender (back shoulder, low and away)
-    const cover = this.nearestFree(this.defense, L.x, L.y);
+    const cover = aimed ? null : this.nearestFree(this.defense, L.x, L.y);
     if (cover) {
       const cd = dist(cover.x, cover.y, L.x, L.y);
       if (cd < 2.6) {
@@ -345,6 +396,7 @@ export const passingMethods = {
       if (this.strayPick(ball)) return;
       return this.incomplete(L.y > (b.target ? b.target.y : 0) ? 'overthrown' : 'incomplete', null);
     }
+    if (!b.target) b.target = r; // a throw to a spot: he's the one who went for it
     const odds = catchOdds(this, r, ball);
     let sep = 99;
     for (const d of this.defense) if (!d.down && !d.blk) sep = Math.min(sep, dist(d.x, d.y, L.x, L.y));
