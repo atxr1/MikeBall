@@ -17,7 +17,7 @@ import { ScoreShow } from '../render/scoreshow.js';
 import { image, setImageLoadListener } from '../render/images.js';
 import { teamArt } from '../data/realleague.js';
 import { Y_SQUASH } from '../render/camera.js';
-import { uniform } from '../render/pixelsprites.js';
+import { matchupUniforms } from '../render/pixelsprites.js';
 import { clearRigCache, rigFrame } from '../render/rig.js';
 import { drawSimPlayers, carrierMarker, clearOutfits } from '../render/simdraw.js';
 import { PlayDrawing } from './drawing.js';
@@ -393,13 +393,21 @@ export class CoachScreen {
     const d = userOff ? this.cpuPlay : mine;
     let artSide = userOff ? 'O' : 'D';
     const special = o.cat === 'special' && (o.special === 'punt' || o.special === 'fg');
+    // a kick: the huddles stay put (the kicking unit lines up when the kick
+    // scene starts); nobody jumps into some other formation meanwhile
+    this.pre.holdHuddle = special;
     if (special) {
-      o = offPlay('kneel');
       artSide = null;
+      if (this.pre.ctx && this.scene && this.scene.kind === 'sim') {
+        this.scene.artSide = null;
+        this.dirty = true;
+        return;
+      }
+      o = offPlay('dive'); // something to stand the huddles up with
     }
     const sim = makePlaySim(g, o, d, makeRng(7));
     this.setSimScene(sim, artSide);
-    this.stagePreview(sim, special);
+    this.stagePreview(sim);
     this.cam.set(lerp(g.ballX, MID_X, 0.6), g.ballOn + 6, 1.42, !this.previewShown);
     this.previewShown = true;
   }
@@ -426,7 +434,11 @@ export class CoachScreen {
   }
 
   uni(side) {
-    if (!this.uniCache.has(side)) this.uniCache.set(side, uniform(this.game.teams[side], side === 'home'));
+    if (!this.uniCache.has(side)) {
+      const m = matchupUniforms(this.game.teams.home, this.game.teams.away);
+      this.uniCache.set('home', m.home);
+      this.uniCache.set('away', m.away);
+    }
     return this.uniCache.get(side);
   }
 
@@ -560,7 +572,8 @@ export class CoachScreen {
     this.syncHomeScore();
     this.mode = 'idle';
     this.updateBug();
-    this.setTicker(out.text);
+    // the flag first, so it's never the part that gets cut off
+    this.setTicker(out.penalty ? `Flag: ${out.penalty.text} — ${out.text.split(' — FLAG: ')[0]}` : out.text);
     if (out.flags && out.flags.includes('twoMinute')) this.twoMinuteCard();
     const head = out.headline;
     if (out.penalty) this.penaltyBanner(out.penalty, () => this.advance(), out.kind !== 'penalty' ? head : null);

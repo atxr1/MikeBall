@@ -287,10 +287,6 @@ export class Game {
       // the clock does what it would have done after the play (Rule 4-3-2)
       const wouldRun = !r.incomplete && !r.outOfBounds && !r.turnover && !r.td && !r.safety && !warned;
       this.clockAfterFoul(wouldRun);
-      if (pen.on === this.poss && !r.incomplete) {
-        const ro = this.runoff(pen.on, wouldRun);
-        if (ro) pen.text += ` ${ro}-second runoff.`;
-      }
       out.penalty = pen;
       out.text = `${out.text} — FLAG: ${pen.text}`;
       out.kind = 'penalty';
@@ -370,6 +366,14 @@ export class Game {
       this.stats.team[def].penYds += y;
       const dist = y < pen.yards ? 'Half the distance to the goal' : `${y} yards`;
       pen.text = `${pen.name}, ${this.teams[def].abbr}. ${dist} from the end of the play, automatic first down.`;
+      if (pen.late) {
+        // and the late hit after the whistle, from there
+        const y2 = Math.min(pen.late.yards, Math.floor((100 - newBall) / 2));
+        newBall = Math.min(99, newBall + y2);
+        this.stats.team[def].penalties++;
+        this.stats.team[def].penYds += y2;
+        pen.text += ` ${pen.late.name}, ${this.teams[def].abbr}. ${y2 < pen.late.yards ? 'Half the distance to the goal' : `${y2} more yards`}.`;
+      }
       out.penalty = pen;
       out.text = `${out.text} — FLAG: ${pen.text}`;
       this.addLog(`FLAG: ${pen.text}`, 'penalty');
@@ -399,7 +403,7 @@ export class Game {
 
     // Clock status after the play
     if (r.incomplete) this.clockRunning = false;
-    else if (pen && pen.mode === 'after') this.clockAfterFoul(!r.outOfBounds && !warned);
+    else if (pen && pen.mode === 'after' && !r.outOfBounds) this.clockAfterFoul(!warned);
     else if (r.outOfBounds) {
       if (this.inLateWindow()) this.clockRunning = false;
       else { this.clockRunning = true; this.shortRunoff = true; }

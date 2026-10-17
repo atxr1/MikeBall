@@ -176,21 +176,34 @@ export function drawFlags(ctx, cam, sim, los, landed) {
     const x = Math.round(cam.sx(f.x));
     const gy = Math.round(cam.sy(los + f.y));
     if (f.landed) {
-      ctx.fillStyle = 'rgba(10,30,12,0.4)';
-      ctx.fillRect(x - 2, gy + 1, 5, 1);
-      ctx.fillStyle = '#f7d117';
-      ctx.fillRect(x - 2, gy - 1, 4, 2);
+      // the flag on the turf: a crumpled yellow cloth, outlined so it reads
+      // on the grass at phone size
+      ctx.fillStyle = 'rgba(10,30,12,0.45)';
+      ctx.fillRect(x - 3, gy + 2, 8, 1);
+      ctx.fillStyle = '#3a2c00';
+      ctx.fillRect(x - 4, gy - 2, 8, 4);
+      ctx.fillRect(x + 3, gy - 1, 2, 3);
+      ctx.fillStyle = '#ffd81a';
+      ctx.fillRect(x - 3, gy - 1, 6, 2);
+      ctx.fillRect(x + 3, gy, 1, 1);
+      ctx.fillStyle = '#fff3a0';
+      ctx.fillRect(x - 3, gy - 1, 2, 1);
+      ctx.fillStyle = '#c9a400';
       ctx.fillRect(x + 1, gy, 2, 1);
-      ctx.fillStyle = '#b89600';
-      ctx.fillRect(x - 2, gy, 1, 1);
     } else {
+      // in the air, tumbling, with its weighted knot
       const y = gy - Math.round(f.z * cam.s * 0.9);
+      const flip = Math.floor((f.z * 7) % 2);
       ctx.fillStyle = 'rgba(10,30,12,0.35)';
-      ctx.fillRect(x - 1, gy, 3, 1);
-      ctx.fillStyle = '#f7d117';
-      ctx.fillRect(x - 1, y - 1, 3, 3);
-      ctx.fillStyle = '#b89600';
-      ctx.fillRect(x, y + 2, 1, 1);
+      ctx.fillRect(x - 2, gy, 5, 1);
+      ctx.fillStyle = '#3a2c00';
+      ctx.fillRect(x - 3, y - 2, 6, 5);
+      ctx.fillStyle = '#ffd81a';
+      ctx.fillRect(x - 2, y - 1, 4, 3);
+      ctx.fillStyle = flip ? '#fff3a0' : '#c9a400';
+      ctx.fillRect(x - 2, y - 1, 2, 1);
+      ctx.fillStyle = '#3a2c00';
+      ctx.fillRect(x + 2, y + 2 + flip, 2, 2);
     }
   }
 }

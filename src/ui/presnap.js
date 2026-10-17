@@ -48,8 +48,9 @@ export class PreSnap {
     return `${team}:${rec.id}`;
   }
 
-  // A new call: everyone starts in the huddles (or, no-huddle, where the
-  // last play left them), then breaks.
+  // A new call: everyone walks back to the huddles from where the last
+  // play left them (or, no-huddle, lines up straight from there), then
+  // breaks. Officials walk back to their spots too.
   begin(sim, ctx) {
     this.t = 0;
     this.sim = sim;
@@ -62,32 +63,44 @@ export class PreSnap {
     const defT = offT === 'home' ? 'away' : 'home';
     const offN = sim.offense.length;
     const defN = sim.defense.length;
+    const shift = (ctx.prevLos ?? ctx.los) - ctx.los;
+    const place = (a, prev, hx, hy, cy) => {
+      a.huddle = { x: sim.ballX, y: cy };
+      if (ctx.hurry && prev) { a.x = prev.x; a.y = prev.y + shift; return; }
+      a.slot = { x: hx, y: hy }; // his spot in the huddle ring
+      if (!prev) { a.x = hx; a.y = hy; return; }
+      // from where the play ended (pulled in if he finished far downfield,
+      // off the screen anyway)
+      let x = clamp(prev.x, -1, FIELD_W + 1);
+      let y = prev.y + shift;
+      const d = dist(x, y, hx, hy);
+      if (d > 14) { x = hx + ((x - hx) * 14) / d; y = hy + ((y - hy) * 14) / d; }
+      a.x = x; a.y = y;
+      a.toHuddle = d > 0.3;
+    };
     sim.offense.forEach((p, i) => {
-      const prev = ctx.prevPos && ctx.prevPos.get(p.rec.id);
-      const a = this.actor(offT, p);
-      if (ctx.hurry && prev) { a.x = prev.x; a.y = prev.y + (ctx.prevLos - ctx.los); }
-      else {
-        // huddle: a ring seven yards back, facing in
-        const ang = (i / offN) * Math.PI * 2;
-        a.x = sim.ballX + Math.cos(ang) * 1.9;
-        a.y = -7.5 + Math.sin(ang) * 1.3;
-      }
-      a.huddle = { x: sim.ballX, y: -7.5 };
+      // huddle: a ring seven yards back, facing in
+      const ang = (i / offN) * Math.PI * 2;
+      place(this.actor(offT, p), ctx.prevPos && ctx.prevPos.get(p.rec.id), sim.ballX + Math.cos(ang) * 1.9, -7.5 + Math.sin(ang) * 1.3, -7.5);
     });
     sim.defense.forEach((p, i) => {
-      const prev = ctx.prevPos && ctx.prevPos.get(p.rec.id);
-      const a = this.actor(defT, p);
-      if (ctx.hurry && prev) { a.x = prev.x; a.y = prev.y + (ctx.prevLos - ctx.los); }
-      else {
-        const ang = (i / defN) * Math.PI * 2;
-        a.x = sim.ballX + Math.cos(ang) * 2.2;
-        a.y = 5.5 + Math.sin(ang) * 1.4;
-      }
-      a.huddle = { x: sim.ballX, y: 5.5 };
+      const ang = (i / defN) * Math.PI * 2;
+      place(this.actor(defT, p), ctx.prevPos && ctx.prevPos.get(p.rec.id), sim.ballX + Math.cos(ang) * 2.2, 5.5 + Math.sin(ang) * 1.4, 5.5);
     });
+    this.huddling = [...this.actors.values()].some((a) => a.toHuddle);
+    // the officials start where they finished the last play
+    if (ctx.prevCrew && sim.crew) this.copyCrew(ctx.prevCrew, sim.crew, shift);
     for (const a of this.actors.values()) this.target(a);
     // personnel changed since the last snap? substitutes come from the bench
     this.markSubs(sim, offT, defT, true);
+  }
+
+  copyCrew(from, to, shift = 0) {
+    for (const o of to.list) {
+      const f = from.by[o.role];
+      if (!f) continue;
+      o.x = f.x; o.y = f.y + shift; o.face = f.face; o.anim = f.anim || 0;
+    }
   }
 
   actor(team, p) {
@@ -148,6 +161,8 @@ export class PreSnap {
   // The play changed while calling it: new spots, maybe new personnel.
   sync(sim) {
     if (!this.ctx) return;
+    // the officials are the same men, wherever they've got to
+    if (this.sim && this.sim.crew && sim.crew && this.sim !== sim) this.copyCrew(this.sim.crew, sim.crew);
     this.sim = sim;
     const offT = this.ctx.offTeam;
     const defT = offT === 'home' ? 'away' : 'home';
@@ -194,11 +209,34 @@ export class PreSnap {
     if (!this.ctx) return false;
     this.t += dt;
     let moving = false;
-    const broke = this.t >= this.breakAt;
+    if (this.huddling) {
+      // walking back to the huddles; they break a moment after the last man's in
+      let out = false;
+      for (const a of this.actors.values()) {
+        if (!a.toHuddle) continue;
+        out = true;
+        moving = true;
+        const d = dist(a.x, a.y, a.slot.x, a.slot.y);
+        if (d < 0.08) { a.toHuddle = false; a.x = a.slot.x; a.y = a.slot.y; a.vx = 0; a.vy = 0; continue; }
+        const spd = Math.min(JOG * 0.95, d * 3 + 0.6);
+        const step = Math.min(spd * dt, d);
+        a.vx = ((a.slot.x - a.x) / d) * spd;
+        a.vy = ((a.slot.y - a.y) / d) * spd;
+        a.x += ((a.slot.x - a.x) / d) * step;
+        a.y += ((a.slot.y - a.y) / d) * step;
+        a.ph += (Math.PI * 2 * spd * dt) / 3.4;
+        a.face = Math.atan2(a.vy, a.vx);
+      }
+      if (!out) { this.huddling = false; this.breakAt = Math.max(this.breakAt, this.t + 0.6); }
+    }
+    const broke = this.t >= this.breakAt && !this.huddling && !this.holdHuddle;
     for (const a of this.actors.values()) {
       let tx = a.tx;
       let ty = a.ty;
-      if (!broke && !a.sub) { a.vx = 0; a.vy = 0; continue; }
+      if (!broke && !a.sub) {
+        if (!a.toHuddle) { a.vx = 0; a.vy = 0; }
+        continue;
+      }
       const d = dist(a.x, a.y, tx, ty);
       if (d < 0.08) {
         if (a.state !== 'set') { a.state = 'set'; a.setAt = this.t; a.x = tx; a.y = ty; a.vx = 0; a.vy = 0; }
@@ -238,30 +276,35 @@ export class PreSnap {
     return moving || (this.hold && !this.hold.released);
   }
 
+  // The officials walk to their spots; the umpire stands over the ball
+  // while he's holding it for the defense.
   placeUmpire(dt) {
     const crew = this.sim && this.sim.crew;
     if (!crew) return;
-    const u = crew.by.U;
-    const home = crew.home(u);
     const holding = this.hold && !this.hold.released;
-    const tx = holding ? this.sim.ballX + 0.4 : home.x;
-    const ty = holding ? 1.0 : home.y;
-    const d = dist(u.x, u.y, tx, ty);
-    if (d < 0.05) { u.vx = 0; u.vy = 0; u.face = holding ? -Math.PI / 2 : Math.PI / 2; return; }
-    const spd = Math.min(5, d * 3 + 0.4);
-    const step = Math.min(spd * dt, d);
-    u.vx = ((tx - u.x) / d) * spd;
-    u.vy = ((ty - u.y) / d) * spd;
-    u.x += ((tx - u.x) / d) * step;
-    u.y += ((ty - u.y) / d) * step;
-    u.anim += spd * dt * 2.2;
-    u.face = Math.atan2(u.vy, u.vx);
+    for (const o of crew.list) {
+      const home = crew.home(o);
+      const um = o.role === 'U';
+      const tx = um && holding ? this.sim.ballX + 0.4 : home.x;
+      const ty = um && holding ? 1.0 : home.y;
+      const d = dist(o.x, o.y, tx, ty);
+      const rest = o.watch ?? o.face;
+      if (d < 0.05) { o.vx = 0; o.vy = 0; o.face = um && holding ? -Math.PI / 2 : rest; continue; }
+      const spd = Math.min(5, d * 3 + 0.4);
+      const step = Math.min(spd * dt, d);
+      o.vx = ((tx - o.x) / d) * spd;
+      o.vy = ((ty - o.y) / d) * spd;
+      o.x += ((tx - o.x) / d) * step;
+      o.y += ((ty - o.y) / d) * step;
+      o.anim += spd * dt * 2.2;
+      o.face = Math.atan2(o.vy, o.vx);
+    }
   }
 
   // Can the ball be snapped? The offense set for a second, nobody still
   // jogging off, and the umpire out of the way.
   ready() {
-    if (!this.ctx) return true;
+    if (!this.ctx || this.holdHuddle) return true; // kicks don't wait on the stage
     if (this.hold && !this.hold.released) return false;
     for (const a of this.actors.values()) {
       if (a.state !== 'set') return false;

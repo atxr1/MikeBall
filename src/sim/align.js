@@ -200,6 +200,22 @@ export function alignDefense(play, offAlign, ballX) {
     }
   }
 
+  // nobody lines up on top of a teammate: the deeper man steps back and
+  // toward the middle of the field
+  const list = Object.values(out);
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i];
+        const b = list[j];
+        if (Math.hypot(a.x - b.x, a.y - b.y) >= 1.0) continue;
+        const m = a.y >= b.y ? a : b;
+        m.y += 1.0;
+        m.x = clamp(m.x + (m.x < ballX ? 0.8 : -0.8), 0.8, FIELD_W - 0.8);
+      }
+    }
+  }
+
   return { players: out, strength };
 }
 

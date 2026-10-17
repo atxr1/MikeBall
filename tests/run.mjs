@@ -316,6 +316,33 @@ console.log('pre-snap: lining up and substitutions');
   const sim3 = makePlaySim(g, offPlay('dive'), defPlay('cov3_43'), makeRng(1));
   pre.begin(sim3, { offTeam: 'home', homeSide: -1, hurry: false, twoMinute: true, fg: false, prevLos: 30, los: 30 });
   check('inside the two-minute warning the umpire does not hold the ball', !pre.hold);
+  {
+    // after a play: they walk back to the huddle from where it ended
+    const pre2 = new PreSnap();
+    const sim5 = makePlaySim(g, offPlay('dive'), defPlay('cov3_43'), makeRng(1));
+    const prevPos = new Map(sim5.players.map((p) => [p.rec.id, { x: p.x + 3, y: p.y + 6 }]));
+    pre2.begin(sim5, { offTeam: 'home', homeSide: -1, hurry: false, twoMinute: false, fg: false, prevPos, prevLos: 30, los: 30 });
+    const qb = sim5.qb;
+    const a = pre2.actors.get(pre2.key('home', qb.rec));
+    const startOK = Math.abs(a.x - (qb.x + 3)) < 1e-6 && Math.abs(a.y - (qb.y + 6)) < 1e-6;
+    let maxStep = 0;
+    let px = a.x;
+    let py = a.y;
+    for (let i = 0; i < 900; i++) { pre2.update(1 / 60); maxStep = Math.max(maxStep, Math.hypot(a.x - px, a.y - py)); px = a.x; py = a.y; }
+    check('after a play nobody pops into the huddle: they walk back, then line up', startOK && maxStep < 0.2 && pre2.ready(), `start ${startOK} step ${maxStep.toFixed(2)}`);
+    // changing the call: the officials stay where they are
+    const u = sim5.crew.by.U;
+    u.x += 2.5;
+    const sim6 = makePlaySim(g, offPlay('slants'), defPlay('cov3_43'), makeRng(1));
+    pre2.sync(sim6);
+    check('changing the play doesn\'t move the officials', Math.abs(sim6.crew.by.U.x - u.x) < 1e-6);
+    // a kick call: the huddles hold, and the kick doesn't wait on them
+    const pre3 = new PreSnap();
+    pre3.begin(makePlaySim(g, offPlay('dive'), defPlay('cov3_43'), makeRng(1)), { offTeam: 'home', homeSide: -1, hurry: false, twoMinute: false, fg: false, prevLos: 30, los: 30 });
+    pre3.holdHuddle = true;
+    for (let i = 0; i < 300; i++) pre3.update(1 / 60);
+    check('on a kick call the huddles stay put and the snap can go', [...pre3.actors.values()].every((a) => a.state !== 'set') && pre3.ready());
+  }
   check('the CPU defense goes to nickel against three receivers', cpuMatchDefense(g, 'away', offPlay('slants'), defPlay('cov3_43')).front === 'nickel');
   check('and back to base against a heavy set', cpuMatchDefense(g, 'away', offPlay('gl_dive'), defPlay('cov3_nickel')).front === '43');
   const crew = sim3.crew;

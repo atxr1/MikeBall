@@ -42,14 +42,29 @@ export class Crew {
     const deep = Math.min(20, s.goalY + 1.5);
     switch (o.role) {
       case 'R': return { x: clamp(bx + 4, 6, FIELD_W - 6), y: -11.5 };
-      case 'U': return this.umpDef ? { x: clamp(bx - 1, 6, FIELD_W - 6), y: 5 } : { x: clamp(bx - 4.5, 6, FIELD_W - 6), y: -10.5 };
+      case 'U': return this.umpDef ? this.clear({ x: clamp(bx - 1, 6, FIELD_W - 6), y: 6 }, 'U') : { x: clamp(bx - 4.5, 6, FIELD_W - 6), y: -10.5 };
       case 'DJ': return { x: this.sideX(this.chainX, 1.0), y: 0 };
       case 'LJ': return { x: this.sideX(-this.chainX, 1.0), y: 0 };
       case 'SJ': return { x: this.sideX(this.chainX, -2.5), y: deep };
       case 'FJ': return { x: this.sideX(-this.chainX, -2.5), y: deep };
-      case 'BJ': return { x: MID_X, y: Math.min(25, s.goalY + 6) };
+      case 'BJ': return this.clear({ x: MID_X, y: Math.min(25, s.goalY + 6) }, 'BJ');
       default: return { x: bx, y: -10 };
     }
+  }
+
+  // A spot in the defense's area, stepped aside from any defender lined up
+  // on it (the officials stand clear of the players).
+  // Worked out where everyone lines up, then kept through the play.
+  clear(h, role) {
+    const s = this.sim;
+    const memo = this._clear || (this._clear = {});
+    if (s.t > 0 && memo[role] != null) return { x: h.x + memo[role], y: h.y };
+    let dx = 0;
+    for (const d of s.defense) {
+      if (Math.abs(d.x - h.x) < 1.4 && Math.abs(d.y - h.y) < 1.4) { dx = d.x <= h.x ? 1.6 : -1.6; break; }
+    }
+    memo[role] = dx;
+    return { x: h.x + dx, y: h.y };
   }
 
   // x just outside (off > 0) or inside (off < 0) the sideline on side s

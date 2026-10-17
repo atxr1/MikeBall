@@ -17,13 +17,24 @@ export const penaltyMethods = {
   },
 
   // Rule 4-3-2: after a foul the clock starts again as if it hadn't
-  // happened — except late in each half, where it waits for the snap.
-  clockAfterFoul(wasRunning) {
+  // happened — except late in each half, where it waits for the snap, and
+  // after an offense's foul before the snap in the fourth quarter or
+  // overtime (4-3-2(e), so it can't burn clock with false starts). After
+  // the two-minute warning a defensive foul before the snap lets the
+  // offense choose; a team that's ahead takes the running clock.
+  clockAfterFoul(wasRunning, preSnapBy = null) {
+    if (preSnapBy === this.poss && this.quarter >= 4) { this.clockRunning = false; return; }
+    if (preSnapBy && preSnapBy !== this.poss && this.inLateWindow() && this.score[this.poss] > this.score[preSnapBy]) {
+      this.clockRunning = wasRunning;
+      return;
+    }
     this.clockRunning = wasRunning && !this.inLateWindow();
   },
 
   // Rule 4-7-1: inside the last two minutes of a half, an offensive foul
-  // that stops a running clock costs 10 more seconds. Returns the runoff.
+  // between plays that stops a running clock (false start, delay of game)
+  // costs 10 more seconds. Fouls during a play don't (the 10 seconds after
+  // any offensive foul is the college rule). Returns the runoff.
   // (The offense could take a timeout instead; not modeled.)
   // The clock then starts on the ready-for-play signal. Call it after
   // clockAfterFoul.
@@ -40,7 +51,7 @@ export const penaltyMethods = {
     const was = this.clockRunning;
     const pen = { name: 'Delay of game', key: 'delay', on: this.poss, yards: 5, signal: 'delay' };
     this.enforce(pen);
-    this.clockAfterFoul(was);
+    this.clockAfterFoul(was, this.poss);
     const ro = this.runoff(this.poss, was);
     if (ro) pen.text += ` ${ro}-second runoff.`;
     this.finishNext();
@@ -65,7 +76,7 @@ export const penaltyMethods = {
     if (pen.key === 'offside') return { ...pen, live: true };
     const was = this.clockRunning;
     this.enforce(pen);
-    this.clockAfterFoul(was);
+    this.clockAfterFoul(was, pen.on);
     const ro = this.runoff(pen.on, was);
     if (ro) pen.text += ` ${ro}-second runoff.`;
     return pen;
@@ -96,7 +107,7 @@ export const penaltyMethods = {
       if (pen.auto1st || this.ballOn >= this.ltg) {
         this.down = 1;
         this.ltg = Math.min(this.ballOn + 10, 100);
-        pen.text = `${pen.name}, ${team}. ${dist}, automatic first down.`;
+        pen.text = `${pen.name}, ${team}. ${dist}, ${pen.auto1st ? 'automatic first down' : 'first down'}.`;
       } else pen.text = `${pen.name}, ${team}. ${dist}, replay ${ordinal(this.down)} down.`;
     }
     this.addLog(`FLAG: ${pen.text}`, 'penalty');
@@ -117,7 +128,7 @@ export const penaltyMethods = {
     const res = this.choosePlayFoul(r, all.filter((f) => !f.deadBall));
     if (!late || r.td || r.safety || r.turnover) return res;
     const lp = { name: late.name, on: other(this.poss), yards: late.yards, auto1st: true, player: late.player, signal: late.signal, key: late.key };
-    if (res && (res.mode === 'replace' || res.mode === 'offset')) return { ...res, late: lp };
+    if (res && (res.mode === 'replace' || res.mode === 'offset' || res.mode === 'after')) return { ...res, late: lp };
     return { mode: 'after', ...lp, deadBall: true, declinedLive: res && res.mode === 'declined' ? res : null };
   },
 

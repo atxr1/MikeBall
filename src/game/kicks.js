@@ -54,7 +54,7 @@ export function kickSpread(kicker, op, clutch = 0) {
 const longKick = (distance) => 1 + Math.max(0, distance - 45) * 0.016;
 
 export function maxFgRange(kicker) {
-  return Math.floor(52 + kicker.attrs.kpw * 0.12);
+  return Math.floor(53 + kicker.attrs.kpw * 0.13);
 }
 
 export function blockChance(distance, op, ctx = {}) {
@@ -127,19 +127,20 @@ export function kickoff(kicker, returner, rng, { onside = false, fromYard = 35 }
   // The 2025 kickoff: the kicker aims for the landing zone (the receiving
   // 20 to the goal line). Into the end zone and downed (or out the back):
   // touchback at the 35. Lands in the zone and rolls in, downed: the 20.
-  // Short of the zone, or out of bounds: the receiving team's 40.
-  const distance = 61 + (a.kpw - 78) * 0.3 + rng.normal(0, 4.5);
+  // Short of the zone, or out of bounds: the receiving team's 40. The same
+  // zones apply to a free kick after a safety, from the 20 (usually punted,
+  // so it carries farther).
+  let distance = 61 + (a.kpw - 78) * 0.3 + rng.normal(0, 4.5) + (fromYard < 35 ? 6 : 0);
+  if (rng.chance(0.022)) distance -= rng.float(12, 22); // mishit
   const landing = clamp(100 - fromYard - distance, -9, 45); // yards from receiving goal line
   if (rng.chance(0.006)) return { type: 'oob', ballOn: 40, landing, returnYds: 0 };
-  if (fromYard === 35) {
-    if (landing > 20) return { type: 'short', ballOn: 40, landing, returnYds: 0 };
-    if (landing < 0) {
-      // the returner can bring it out, but deep in the end zone he takes the 35
-      const out = landing > -8 && rng.chance(clamp(0.45 + landing * 0.07, 0.04, 0.45));
-      if (!out) return { type: 'touchback', ballOn: 35, landing, returnYds: 0 };
-    } else if (landing < 2.5 && rng.chance(0.2)) {
-      return { type: 'touchback', ballOn: 20, landing, returnYds: 0, rolled: true };
-    }
+  if (landing > 20) return { type: 'short', ballOn: 40, landing, returnYds: 0 };
+  if (landing < 0) {
+    // the returner can bring it out, but deep in the end zone he takes the 35
+    const out = landing > -8 && rng.chance(clamp(0.45 + landing * 0.07, 0.04, 0.45));
+    if (!out) return { type: 'touchback', ballOn: 35, landing, returnYds: 0 };
+  } else if (landing < 2.5 && rng.chance(0.2)) {
+    return { type: 'touchback', ballOn: 20, landing, returnYds: 0, rolled: true };
   }
   if (rng.chance(0.004)) return { type: 'fumble', kickingRecovers: true, ballOn: clamp(Math.round(landing + 20), 1, 99), landing, returnYds: 20 };
   const r = returner.attrs;
@@ -170,21 +171,21 @@ export function punt(punter, returner, ballOn, rng, ctx = {}) {
   }
   const room = 100 - ballOn;
   // from midfield in, he pooches it short of the goal line instead
-  const aim = room < 54 ? room - 10 : 45.5 + (a.kpw - 78) * 0.25;
+  const aim = room < 54 ? room - 9 : 47.5 + (a.kpw - 78) * 0.25;
   const gross = clamp(rng.normal(aim - (op.snap !== 'good' ? 6 : 0), room < 54 ? 4.5 : 5.5), 25, 70);
   // hang: a big leg hangs it longer; a line drive that goes far comes down sooner
   const hang = clamp(4.3 + (a.kpw - 78) * 0.012 - (gross - 45.5) * 0.02 + rng.normal(0, 0.25) - (op.snap !== 'good' ? 0.4 : 0), 3.2, 5.2);
   const landing = ballOn + gross; // punting team frame
   if (landing >= 100) {
     // Some punts are downed inside the 5 instead of reaching the end zone.
-    if (landing < 104 && rng.chance(0.35)) {
+    if (landing < 103 && rng.chance(0.15)) {
       const spot = clamp(rng.int(95, 99), 1, 99);
       return { type: 'downed', ballOn: 100 - spot, gross: Math.round(spot - ballOn), returnYds: 0, landing: spot, hang, op };
     }
     return { type: 'touchback', ballOn: 20, gross: Math.round(100 - ballOn), returnYds: 0, landing: 100, hang, op };
   }
   // angled for the sideline: out of bounds where it crosses
-  if (rng.chance(landing > 75 ? 0.1 : 0.04)) {
+  if (rng.chance(landing > 75 ? 0.14 : 0.06)) {
     const spot = clamp(Math.round(landing - rng.float(0, 4)), 1, 99);
     return { type: 'oob', ballOn: 100 - spot, gross: Math.round(spot - ballOn), returnYds: 0, landing: spot, hang, op };
   }
@@ -201,8 +202,8 @@ export function punt(punter, returner, ballOn, rng, ctx = {}) {
   const deep = landing > 88;
   // inside the 20 the returner often lets it bounce: the coverage downs it,
   // or it rolls into the end zone
-  if (landing >= 82 && rng.chance(0.38 + (landing - 82) * 0.02)) {
-    const end = landing + rng.normal(3, 4);
+  if (landing >= 82 && rng.chance(0.2 + (landing - 82) * 0.015)) {
+    const end = landing + rng.normal(4.5, 5);
     if (end >= 100) return { type: 'touchback', ballOn: 20, gross: Math.round(100 - ballOn), returnYds: 0, landing: 100, hang, op };
     const spot = clamp(Math.round(end), 1, 99);
     return { type: 'downed', ballOn: 100 - spot, gross: Math.round(spot - ballOn), returnYds: 0, landing: spot, hang, gap, op };

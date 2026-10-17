@@ -55,11 +55,14 @@ export function openRoster(host, team, roster, onClose, { editable = false, onCh
       const ids = roster.depth[pos] || [];
       if (positions.length > 1) list.append(h('h3', { class: 'depth-head' }, POS_NAME[pos]));
       const box = h('div', { class: 'depth-box' });
+      let k = 0; // healthy players so far: the injured don't take a spot
       ids.forEach((id, i) => {
         const p = byId.get(id);
         if (!p) return;
-        const spot = (SPOT_NAMES[pos] || [])[i];
-        const role = spot ? spot : i === 0 ? 'Starter' : `Reserve ${i + 1 - (SPOT_NAMES[pos] || []).length}`;
+        const hurt = !!p.injured;
+        const spot = hurt ? null : (SPOT_NAMES[pos] || [])[k];
+        const role = hurt ? (p.injured === 'ir' ? 'Injured reserve' : 'Injured: out') : spot ? spot : k === 0 ? 'Starter' : `Reserve ${k + 1 - (SPOT_NAMES[pos] || []).length}`;
+        if (!hurt) k++;
         const detail = h('div', { class: 'p-detail', hidden: true });
         const row = h('button', { class: 'p-row', 'aria-expanded': 'false' },
           h('span', { class: 'p-num' }, String(p.num)),
@@ -74,7 +77,7 @@ export function openRoster(host, team, roster, onClose, { editable = false, onCh
           if (!open && !detail.firstChild) fillDetail(detail, p);
           detail.hidden = open;
         });
-        const item = h('div', { class: `p-item${spot ? ' on-field' : ''}`, 'data-i': String(i) });
+        const item = h('div', { class: `p-item${spot ? ' on-field' : ''}${hurt ? ' hurt' : ''}`, 'data-i': String(i) });
         if (editable) {
           const grip = h('span', { class: 'grip', role: 'button', tabindex: '0', 'aria-label': `Move ${p.first} ${p.last} on the depth chart (arrow keys)` }, h('i'), h('i'), h('i'));
           grip.addEventListener('keydown', (e) => {

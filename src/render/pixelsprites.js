@@ -79,6 +79,32 @@ export function uniform(team, home) {
   return u;
 }
 
+// How far apart two jersey colors look (0 same, ~1 black vs white).
+function apart(a, b) {
+  const [r1, g1, b1] = hex(a);
+  const [r2, g2, b2] = hex(b);
+  return Math.hypot(r1 - r2, g1 - g2, b1 - b2) / 441;
+}
+
+// Both teams' kits for a game. The home team picks (Dallas wears white at
+// home); the visitors wear whichever of their kits stands apart from it,
+// or white if neither does.
+export function matchupUniforms(homeTeam, awayTeam) {
+  const home = uniform(homeTeam, true);
+  let away = uniform(awayTeam, false);
+  if (apart(home.jersey, away.jersey) < 0.3) {
+    const alt = uniform(awayTeam, true);
+    if (apart(home.jersey, alt.jersey) > apart(home.jersey, away.jersey)) away = alt;
+    if (apart(home.jersey, away.jersey) < 0.3 && lum(home.jersey) < 0.6) {
+      // a white set in their colors
+      const c = awayTeam.colors;
+      const ink = lum(c.primary) > 0.75 ? '#1d2a44' : c.primary;
+      away = { ...away, jersey: '#f2f3f5', num: ink, trim: ink, collar: ink, key: `${away.key}:white` };
+    }
+  }
+  return { home, away };
+}
+
 function pickStripe(c) {
   const opts = [c.secondary, c.primary, '#ffffff'];
   return opts.find((o) => Math.abs(lum(o) - lum(c.helmet)) > 0.18) || c.secondary;

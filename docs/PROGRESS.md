@@ -64,6 +64,17 @@ Newest first. Each session: what got done, what's broken, what's next.
   inside the 20, or pooched from midfield. Long field goals are harder.
 - Spoilers gone: no "JUKE!"/"BOOM!" labels, no result text before a kick or
   play finishes; the result line appears after.
+- Playtest and rules-check fixes: players walk back to the huddle from
+  where the play ended (no pop), officials keep their places when the call
+  changes and walk back to their spots, punt/FG calls keep the huddles in
+  place instead of showing a kneel formation, no 12-men flag on your
+  defense from the clock spinning while a sub jogs off, uniform clash
+  check (Dallas wears white at home, visitors wear color), injured players
+  marked in the depth chart, bigger flags, flag text first in the ticker,
+  defenders never stacked on one spot. Rules: the 10-second runoff only
+  for fouls between plays, the fourth-quarter clock rule for offensive
+  pre-snap fouls, safety kicks use the landing zone, CPU only tries
+  comfortable field goals.
 - Module split: `src/sim/passing.js`, `offense.js`, `defense.js`,
   `src/game/kicking.js`, `src/ui/coachkicks.js`, `coachmenus.js`.
 - Dev tools: `tools/rig.html` (rig sheet), `tools/anim.html` (frames of a
@@ -76,7 +87,12 @@ Newest first. Each session: what got done, what's broken, what's next.
 - A dead-ball foul after a touchdown or turnover isn't enforced on the
   kickoff (it can't currently happen: late hits are only checked after a
   tackle or a runner going out of bounds).
-- The offense can't take a timeout to avoid a 10-second runoff.
+- The offense can't take a timeout to avoid a 10-second runoff, and the
+  defense can't decline one.
+- Onside kicks are allowed any time (the 2026 rule; in 2025 only a
+  trailing team could declare one).
+- There's no accept/decline prompt: both teams' choices are made for them
+  (the better option).
 - `rec._style` and `rec._byId` are cached on roster records; strip them
   before saving rosters (season mode).
 - The sidelines are only on screen on wide plays and kicks.

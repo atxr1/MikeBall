@@ -17,14 +17,8 @@ export const stageMethods = {
 
   // A new preview sim for the call: start the stage on the first one of
   // this call, follow it on later ones (the coach changed the play).
-  stagePreview(sim, special) {
+  stagePreview(sim) {
     const g = this.game;
-    if (special) {
-      this.pre.reset();
-      this.pre.ctx = null;
-      this.stageFresh = false;
-      return;
-    }
     if (this.stageFresh || !this.pre.ctx) {
       this.stageFresh = false;
       const tempo = g.tempoFor(g.poss);
@@ -37,6 +31,7 @@ export const stageMethods = {
         homeSide: g.poss === 'home' ? -1 : 1,
         hurry: tempo === 'hurry' && !!same,
         prevPos,
+        prevCrew: same ? this.lastPlaySim.crew : null,
         twoMinute,
         fg: false,
         prevLos: this.lastSnapLos ?? g.ballOn,
@@ -47,7 +42,8 @@ export const stageMethods = {
   },
 
   // A player with an ineligible number (anything outside 0–49 and 80–89,
-  // Rule 7-5-1) lined up at an eligible spot reports to the referee.
+  // Rule 5-1-2) lined up at an eligible spot reports to the referee
+  // (5-3-1), every play.
   reportEligible(sim) {
     if (!this.reported) this.reported = new Set();
     for (const p of sim.offense) {

@@ -51,7 +51,7 @@ export const playClockMethods = {
     if (this.mode === 'set') {
       // the clock spins down to the snap once everyone's set; until then
       // (lining up, subs, the umpire over the ball) it runs in real time
-      if (!this.pre.ready()) sec = dt;
+      if (!this.pre.ready() || this.pre.extraDefenders() > 0) sec = dt; // a sub still jogging off: no rushing him
       else sec = Math.min(Math.max(0, g.playClock - this.snapTarget), this.setRate * dt);
     }
     const ev = g.tickBetweenPlays(sec);

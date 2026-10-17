@@ -18,11 +18,14 @@ export function cpuCanKneelOut(game, side) {
 export function cpuFourthDown(game, side) {
   const s = game.situation(side);
   const k = game.kicker(side);
-  const range = maxFgRange(k) - 2;
+  // a comfortable kick on an ordinary fourth down; anything he can reach
+  // when it's the last chance
+  const range = Math.min(maxFgRange(k) - 7, 55);
+  const reach = maxFgRange(k) - 2;
   const fgd = fgDistance(s.ballOn);
   const late = s.quarter >= 4 && s.clock <= 300;
   if (late && s.diff < 0) {
-    if (s.diff >= -3 && fgd <= range && s.clock <= 120) return 'fg';
+    if (s.diff >= -3 && fgd <= reach && s.clock <= 120) return 'fg';
     if (s.diff < -3 || s.clock <= 120) return 'go';
   }
   if (s.ballOn >= 60) {
