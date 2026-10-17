@@ -39,6 +39,7 @@ export const menuMethods = {
   openMenu() {
     if (this.paused) return;
     this.paused = true;
+    this.aim.cancel(); // a pull held through the menu doesn't throw on resume
     const wasEnabled = !this.el.go.disabled;
     const resume = () => { this.paused = false; if (wasEnabled && this.mode === 'call') this.setSheetEnabled(true); };
     this.dialog('Menu', null, [

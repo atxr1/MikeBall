@@ -4,14 +4,15 @@
 
 import { h } from './dom.js';
 
+// app.settings.passing: 'coach' (default) or 'retro'
 const PASSING = [
   {
-    val: false,
+    val: 'coach',
     label: 'Coach',
     note: 'You call the plays; your quarterback reads the field and throws on his own.',
   },
   {
-    val: true,
+    val: 'retro',
     label: 'Retro Bowl',
     note: 'You throw your own passes. After the snap, pull back anywhere on the field to aim (the target goes the opposite way, like a slingshot) and let go to throw. Whoever gets to the spot goes up for it; your passer’s accuracy still counts.',
   },
@@ -21,14 +22,14 @@ export function openSettings(host, app, onClose) {
   const note = h('p', { class: 'setting-note' });
   const seg = h('div', { class: 'segment', role: 'radiogroup', 'aria-label': 'Passing' });
   const render = () => {
-    const on = !!app.settings.manualPass;
-    for (const b of seg.children) b.setAttribute('aria-checked', String((b.dataset.val === 'true') === on));
-    note.textContent = PASSING.find((p) => p.val === on).note;
+    const cur = app.settings.passing === 'retro' ? 'retro' : 'coach';
+    for (const b of seg.children) b.setAttribute('aria-checked', String(b.dataset.val === cur));
+    note.textContent = PASSING.find((p) => p.val === cur).note;
   };
   for (const p of PASSING) {
     const b = h('button', { role: 'radio', 'data-val': String(p.val) }, p.label);
     b.addEventListener('click', () => {
-      app.settings.manualPass = p.val;
+      app.settings.passing = p.val;
       app.saveSettings();
       render();
     });

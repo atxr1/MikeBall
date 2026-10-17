@@ -18,7 +18,7 @@ Newest first. Each session: what got done, what's broken, what's next.
   the ball, the passer's accuracy under pressure). Aim out of bounds to
   throw it away. If you never throw, he's sacked or throws it away after
   about 7 seconds in the pocket.
-- Sim support (`src/sim/passing.js`): `opts.manualPass`, `userThrow(x, y)`,
+- Sim support (`src/sim/passing.js`): `opts.manualPass` (from `settings.passing === 'retro'`), `userThrow(x, y)`,
   `canUserThrow()`, `maxThrow()`. CPU games and autoplay never use it.
 
 **Known issues**

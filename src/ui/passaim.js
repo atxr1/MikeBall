@@ -18,7 +18,7 @@ export class PassAim {
   constructor(host) {
     this.host = host;
     this.drag = null;
-    this.target = null;
+    this.lockX = null;
   }
 
   attach(el) {
@@ -27,6 +27,7 @@ export class PassAim {
     el.addEventListener('pointermove', (e) => this.move(e));
     el.addEventListener('pointerup', (e) => this.up(e));
     el.addEventListener('pointercancel', () => this.cancel());
+    el.addEventListener('lostpointercapture', (e) => { if (this.drag && e.pointerId === this.drag.id) this.cancel(); });
   }
 
   // The live play, if it's one the player throws himself.
@@ -34,17 +35,30 @@ export class PassAim {
     const h = this.host;
     const sc = h.scene;
     if (h.mode !== 'play' || h.paused || !sc || sc.kind !== 'sim') return null;
-    return sc.sim.opts.manualPass ? sc.sim : null;
+    const sim = sc.sim;
+    return sim.opts.manualPass && !sim.done && sim.phase === 'pre' ? sim : null;
+  }
+
+  // Where the pull aims right now, from wherever the passer is now: the
+  // ring on screen is exactly where the ball will go. Null if he can't
+  // throw yet (the snap's still coming back, the fake) or the pull is short.
+  current() {
+    const d = this.drag;
+    const sim = this.sim();
+    if (!d || !d.aiming || !sim || !sim.canUserThrow()) return null;
+    return this.aimFor(sim, d.dx, d.dy);
   }
 
   aiming() {
-    return !!(this.drag && this.drag.aiming && this.target);
+    return !!this.current();
   }
 
+  // A finger can go down from the snap on (Retro Bowl players pull back
+  // right away); the target shows once the ball's in his hands.
   down(e) {
     const sim = this.sim();
-    if (!sim || this.drag || !sim.canUserThrow()) return;
-    this.drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, aiming: false };
+    if (!sim || this.drag) return;
+    this.drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0, aiming: false };
     try { this.el.setPointerCapture(e.pointerId); } catch { /* not supported */ }
     e.preventDefault();
   }
@@ -52,14 +66,10 @@ export class PassAim {
   move(e) {
     const d = this.drag;
     if (!d || e.pointerId !== d.id) return;
-    const sim = this.sim();
-    if (!sim || !sim.canUserThrow()) { this.cancel(); return; }
-    const dx = e.clientX - d.sx;
-    const dy = e.clientY - d.sy;
-    d.aiming = Math.hypot(dx, dy) >= DEAD_PX;
-    d.dx = dx;
-    d.dy = dy;
-    this.target = d.aiming ? this.aimFor(sim, dx, dy) : null;
+    if (!this.sim()) { this.cancel(); return; }
+    d.dx = e.clientX - d.sx;
+    d.dy = e.clientY - d.sy;
+    d.aiming = Math.hypot(d.dx, d.dy) >= DEAD_PX;
     this.host.dirty = true;
   }
 
@@ -67,19 +77,24 @@ export class PassAim {
     const d = this.drag;
     if (!d || e.pointerId !== d.id) return;
     const sim = this.sim();
-    // aim from where the passer is now, at the moment he lets it go
-    const t = sim && d.aiming ? this.aimFor(sim, d.dx, d.dy) : null;
+    const t = this.current();
     this.cancel();
     if (t && sim.userThrow(t.x, t.y)) this.host.dirty = true;
   }
 
   cancel() {
-    if (this.drag && this.el) {
-      try { this.el.releasePointerCapture(this.drag.id); } catch { /* already released */ }
-    }
+    const d = this.drag;
     this.drag = null;
-    this.target = null;
+    if (d && this.el) {
+      try { this.el.releasePointerCapture(d.id); } catch { /* already released */ }
+    }
     this.host.dirty = true;
+  }
+
+  // A new play: nothing held over from the last one.
+  reset() {
+    this.cancel();
+    this.lockX = null;
   }
 
   // Finger pull (CSS px) → a spot on the field, play-local yards.
@@ -96,21 +111,32 @@ export class PassAim {
     return { x: clamp(qb.x + ax, -4, FIELD_W + 4), y: qb.y + ay };
   }
 
-  // Where the camera should look while the passer has it: downfield, and
-  // toward the target while aiming.
+  // Where the camera should look while the passer has it: a steady view
+  // downfield (it doesn't chase the ring under your thumb), moving only if
+  // the target would go off the screen.
   lookAt(sim) {
     const qb = sim.qb;
     if (!qb) return null;
-    const y = this.target ? qb.y + (this.target.y - qb.y) * 0.55 : qb.y + 11;
-    const x = this.target ? qb.x + (this.target.x - qb.x) * 0.4 : qb.x;
+    const cam = this.host.cam;
+    let y = 4; // yards past the line: the passer low on screen, the routes above
+    let x = this.lockX ?? qb.x;
+    this.lockX = x;
+    const t = this.current();
+    if (t) {
+      const halfF = cam.h / 2 / (cam.s * Y_SQUASH) - 5;
+      const halfX = cam.w / 2 / cam.s - 3;
+      if (t.y > y + halfF) y = t.y - halfF;
+      if (t.x > x + halfX) x = t.x - halfX;
+      if (t.x < x - halfX) x = t.x + halfX;
+    }
     return { x, y };
   }
 
   // The target on the turf and the ball's arc to it.
   draw(ctx, cam, los) {
     const sim = this.sim();
-    const t = this.target;
-    if (!sim || !t || !this.aiming() || !sim.canUserThrow()) return;
+    const t = this.current();
+    if (!t) return;
     const qb = sim.qb;
     const R = Math.round;
     const d = Math.hypot(t.x - qb.x, t.y - qb.y);
@@ -135,7 +161,7 @@ export class PassAim {
     const cy = R(cam.sy(los + t.y));
     const rx = Math.max(6, R(cam.s * 1.5));
     const ry = Math.max(5, R(cam.s * 1.5 * Y_SQUASH));
-    const out = t.x < 0 || t.x > FIELD_W;
+    const out = t.x < 0 || t.x > FIELD_W || t.y > sim.goalY + 10; // thrown away
     const col = out ? '#ff6f5e' : '#ffe24a';
     const pts = 36;
     ctx.fillStyle = 'rgba(8,12,24,0.6)';

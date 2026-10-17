@@ -601,6 +601,8 @@ export class PlaySim {
     let kind = this.offPlay.cat === 'run' ? 'run' : 'pass';
     if (this.scramble) kind = 'scramble';
     if (outcome === 'sack') kind = 'sack';
+    // brought down (or stripped, whoever recovered) before he threw it
+    if (kind === 'pass' && !this.passer && !this.receiver && outcome !== 'incomplete' && outcome !== 'spike' && outcome !== 'td') kind = 'sack';
     if (outcome === 'kneel') kind = 'kneel';
     if (outcome === 'spike') kind = 'spike';
 
