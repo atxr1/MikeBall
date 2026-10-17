@@ -1,4 +1,5 @@
-// Game rules state machine: downs, clock, scoring, kicks, penalties, overtime.
+// Game rules state machine: downs, clock, scoring, kicks, penalties, overtime
+// (kickoffs, punts and field goals in ./kicking.js, flags in ./penalties.js).
 // No DOM. The coach screen drives it like this:
 //
 //   game.next === 'call'      -> both sides pick plays, then:
@@ -16,6 +17,8 @@ import * as K from './kicks.js';
 import { StatBook } from './stats.js';
 import { describe, nm } from './commentary.js';
 import { starter, rosterIndex } from './personnel.js';
+import { penaltyMethods } from './penalties.js';
+import { kickingMethods } from './kicking.js';
 
 export const other = (s) => (s === 'home' ? 'away' : 'home');
 const TEMPO_RUNOFF = { hurry: 13, normal: 36, milk: 39 };
@@ -115,6 +118,27 @@ export class Game {
     const r = this.rosters[side];
     const cands = [starter(r, 'WR', 3), starter(r, 'RB', 1), starter(r, 'CB', 2), starter(r, 'WR', 2)].filter(Boolean);
     return cands.sort((a, b) => b.attrs.spd + b.attrs.elu * 0.3 - (a.attrs.spd + a.attrs.elu * 0.3))[0];
+  }
+
+  // Who's on the field for a kick, for the kick odds (src/game/kicks.js).
+  kickCtx(side) {
+    const opp = other(side);
+    const avg = (list, k) => (list.length ? list.reduce((t, p) => t + p.attrs[k], 0) / list.length : 70);
+    const rushers = [0, 1, 2].map((i) => starter(this.rosters[opp], 'DL', i)).concat([0, 1].map((i) => starter(this.rosters[opp], 'EDGE', i))).filter(Boolean);
+    const line = [0, 1, 2, 3, 4].map((i) => starter(this.rosters[side], 'OL', i)).filter(Boolean);
+    const cover = [starter(this.rosters[side], 'CB', 2), starter(this.rosters[side], 'CB', 3), starter(this.rosters[side], 'WR', 4), starter(this.rosters[side], 'S', 2)].filter(Boolean);
+    const jam = [starter(this.rosters[opp], 'CB', 2), starter(this.rosters[opp], 'CB', 3)].filter(Boolean);
+    const diff = Math.abs(this.score.home - this.score.away);
+    const late = this.quarter >= 4 && this.clock <= 120 ? 1 : this.quarter >= 4 && this.clock <= 300 ? 0.5 : 0;
+    return {
+      ballX: this.ballX,
+      rush: avg(rushers, 'prs'),
+      pro: avg(line, 'pbk'),
+      holder: this.punter(side),
+      clutch: diff <= 3 ? late : diff <= 7 ? late * 0.4 : 0,
+      gunner: cover.sort((a, b) => b.attrs.spd - a.attrs.spd)[0] || null,
+      jammer: jam.sort((a, b) => b.attrs.mcv - a.attrs.mcv)[0] || null,
+    };
   }
 
   tempoFor(side) {
@@ -227,14 +251,6 @@ export class Game {
   }
 
   // Play clock ran out before the snap: 5 yards, replay the down.
-  delayOfGame() {
-    const pen = { name: 'Delay of game', on: this.poss, yards: 5 };
-    this.enforce(pen);
-    this.clockRunning = this.clockRunning && !this.inLateWindow();
-    this.finishNext();
-    return pen;
-  }
-
   useTimeout(side) {
     if (this.timeouts[side] <= 0 || this.over) return false;
     this.timeouts[side]--;
@@ -242,60 +258,6 @@ export class Game {
     this.resetPlayClock(25);
     this.addLog(`Timeout ${this.teams[side].abbr} (${this.timeouts[side]} left).`, 'info', { side });
     return true;
-  }
-
-  // Pre-snap fouls. Returns null or a penalty summary (play does not run).
-  preSnapPenalty() {
-    const r = this.rng;
-    let pen = null;
-    if (r.chance(0.009)) pen = { name: 'False start', on: this.poss, yards: 5 };
-    else if (r.chance(0.008)) pen = { name: 'Offside', on: this.defense, yards: 5 };
-    if (!pen) return null;
-    this.enforce(pen);
-    this.clockRunning = false;
-    return pen;
-  }
-
-  enforce(pen) {
-    this.pcShort = true;
-    const team = this.teams[pen.on].abbr;
-    this.stats.team[pen.on].penalties++;
-    if (pen.on === this.poss) {
-      const y = Math.min(pen.yards, Math.floor(this.ballOn / 2));
-      this.ballOn -= y;
-      this.stats.team[pen.on].penYds += y;
-      pen.text = `${pen.name}, ${team}. ${y} yards, replay ${ordinal(this.down)} down.`;
-    } else {
-      let newBall;
-      if (pen.spot != null) newBall = Math.min(99, this.ballOn + pen.spot);
-      else newBall = this.ballOn + Math.min(pen.yards, Math.floor((100 - this.ballOn) / 2));
-      this.stats.team[pen.on].penYds += newBall - this.ballOn;
-      this.ballOn = newBall;
-      if (pen.auto1st || this.ballOn >= this.ltg) {
-        this.down = 1;
-        this.ltg = Math.min(this.ballOn + 10, 100);
-        pen.text = `${pen.name}, ${team}. Automatic first down.`;
-      } else pen.text = `${pen.name}, ${team}. ${pen.yards} yards, replay ${ordinal(this.down)} down.`;
-    }
-    this.addLog(`FLAG: ${pen.text}`, 'penalty');
-  }
-
-  rollPlayPenalty(r) {
-    const rng = this.rng;
-    if (r.kind === 'kneel' || r.kind === 'spike') return null;
-    if ((r.kind === 'run' || r.kind === 'scramble' || (r.kind === 'pass' && !r.incomplete)) && !r.turnover && r.yards > 0 && rng.chance(0.022)) {
-      return { name: 'Offensive holding', on: this.poss, yards: 10 };
-    }
-    if (r.kind === 'pass' && r.incomplete && (r.airYards || 0) >= 6 && r.why !== 'thrown away' && rng.chance(0.035)) {
-      return { name: 'Defensive pass interference', on: this.defense, yards: 0, spot: Math.max(1, r.airYards), auto1st: true };
-    }
-    if ((r.kind === 'sack' || (r.kind === 'pass' && r.incomplete)) && !r.turnover && rng.chance(0.008)) {
-      return { name: 'Defensive holding', on: this.defense, yards: 5, auto1st: true };
-    }
-    if (r.kind === 'sack' && !r.turnover && rng.chance(0.012)) {
-      return { name: 'Roughing the passer', on: this.defense, yards: 15, auto1st: true };
-    }
-    return null;
   }
 
   // ------------------------------------------------------------ plays
@@ -309,17 +271,38 @@ export class Game {
     const warned = this.runClock(playTime);
     const out = { text: describe(r, ballXBefore), kind: 'play', yards: 0, flags: [] };
 
-    // Penalties that wipe out the play
-    const pen = this.rollPlayPenalty(r);
-    if (pen) {
-      this.enforce(pen);
-      this.clockRunning = false;
+    // Penalties that wipe out the play (or are added to the end of it)
+    const pen = this.choosePenalty(r);
+    if (pen && (pen.mode === 'replace' || pen.mode === 'offset')) {
+      if (pen.mode === 'offset') {
+        pen.text = `Offsetting fouls. Replay ${ordinal(this.down)} down.`;
+        this.pcShort = true;
+        this.addLog(`FLAG: ${pen.text}`, 'penalty');
+      } else this.enforce(pen);
+      if (pen.late) {
+        // and the late hit after the whistle, from there
+        this.enforce(pen.late);
+        pen.text += ` ${pen.late.text}`;
+      }
+      // the clock does what it would have done after the play (Rule 4-3-2)
+      const wouldRun = !r.incomplete && !r.outOfBounds && !r.turnover && !r.td && !r.safety && !warned;
+      this.clockAfterFoul(wouldRun);
+      if (pen.on === this.poss && !r.incomplete) {
+        const ro = this.runoff(pen.on, wouldRun);
+        if (ro) pen.text += ` ${ro}-second runoff.`;
+      }
       out.penalty = pen;
       out.text = `${out.text} — FLAG: ${pen.text}`;
       out.kind = 'penalty';
       out.headline = 'Flag';
       this.finishNext();
       return out;
+    }
+    const dec = pen && pen.mode === 'declined' ? pen : pen && pen.declinedLive;
+    if (dec) {
+      out.declined = dec;
+      out.text = `${out.text} ${dec.name} on ${this.teams[dec.on].abbr}, declined.`;
+      this.addLog(`FLAG: ${dec.name} on ${this.teams[dec.on].abbr}, declined.`, 'penalty');
     }
 
     this.recordStats(r, off, def);
@@ -377,14 +360,27 @@ export class Game {
     }
 
     // Normal play
-    const newBall = clamp(startBall + Math.round(r.spotY), 1, 99);
+    let newBall = clamp(startBall + Math.round(r.spotY), 1, 99);
+    this.stats.team[off].yards += newBall - startBall;
+    if (pen && pen.mode === 'after') {
+      // 15 more from the end of the play, and a fresh set of downs
+      const y = Math.min(pen.yards, Math.floor((100 - newBall) / 2));
+      newBall = Math.min(99, newBall + y);
+      this.stats.team[def].penalties++;
+      this.stats.team[def].penYds += y;
+      const dist = y < pen.yards ? 'Half the distance to the goal' : `${y} yards`;
+      pen.text = `${pen.name}, ${this.teams[def].abbr}. ${dist} from the end of the play, automatic first down.`;
+      out.penalty = pen;
+      out.text = `${out.text} — FLAG: ${pen.text}`;
+      this.addLog(`FLAG: ${pen.text}`, 'penalty');
+      this.pcShort = true;
+    }
     out.yards = newBall - startBall;
-    this.stats.team[off].yards += out.yards;
     if (!r.incomplete) this.ballX = clamp(r.spotX, HASH_L, HASH_R);
     this.ballOn = newBall;
     const thirdDown = this.down === 3;
     if (thirdDown) this.stats.team[off].thirdAtt++;
-    if (this.ballOn >= this.ltg) {
+    if (this.ballOn >= this.ltg || (pen && pen.mode === 'after')) {
       this.down = 1;
       this.ltg = Math.min(this.ballOn + 10, 100);
       out.kind = 'firstDown';
@@ -403,6 +399,7 @@ export class Game {
 
     // Clock status after the play
     if (r.incomplete) this.clockRunning = false;
+    else if (pen && pen.mode === 'after') this.clockAfterFoul(!r.outOfBounds && !warned);
     else if (r.outOfBounds) {
       if (this.inLateWindow()) this.clockRunning = false;
       else { this.clockRunning = true; this.shortRunoff = true; }
@@ -514,14 +511,14 @@ export class Game {
   extraPoint() {
     const side = this.patSide;
     const k = this.kicker(side);
-    const res = K.extraPoint(k, this.rng);
+    const res = K.extraPoint(k, this.rng, this.kickCtx(side));
     const l = this.stats.line(k, side);
     l.kick.xpa++;
-    const text = res.good ? `${nm(k)} extra point is GOOD.` : `${nm(k)} extra point is NO GOOD (${res.miss}).`;
+    const text = res.good ? `${nm(k)} extra point is GOOD.` : res.blocked ? `${nm(k)} extra point is BLOCKED.` : `${nm(k)} extra point is NO GOOD (${res.miss}).`;
     if (res.good) { l.kick.xpm++; this.addScore(side, 1); }
     this.addLog(text, 'score');
     this.afterTry(side);
-    return { text, side, good: res.good, kind: 'pat', headline: res.good ? 'Good!' : 'No good', next: this.next, anim: { type: 'fg', distance: 33, good: res.good, miss: res.miss } };
+    return { text, side, good: res.good, kind: 'pat', headline: res.good ? 'Good!' : 'No good', next: this.next, anim: { type: 'fg', distance: 33, good: res.good, miss: res.miss, angle: res.angle, op: res.op, doink: res.doink }, res };
   }
 
   // r: PlaySim result run from the 2.
@@ -547,54 +544,6 @@ export class Game {
     this.finishNext();
   }
 
-  kickoff(onside = false) {
-    const kSide = this.kickingSide;
-    const rSide = other(kSide);
-    const k = this.kicker(kSide);
-    const ret = this.returner(rSide);
-    const fromYard = this.freeKick ? 20 : 35;
-    const res = K.kickoff(k, ret, this.rng, { onside, fromYard });
-    this.freeKick = false;
-    let text;
-    let headline = null;
-    const tk = this.teams[kSide].abbr;
-    const tr = this.teams[rSide].abbr;
-    this.poss = rSide;
-    if (res.type === 'touchback') {
-      text = `${nm(k)} kicks off. Touchback, ${tr} ball at the 35.`;
-      this.setPossession(rSide, 35);
-    } else if (res.type === 'onside_recovered') {
-      text = `ONSIDE KICK — recovered by ${tk}!`;
-      headline = 'Onside kick recovered!';
-      this.setPossession(kSide, res.ballOn);
-    } else if (res.type === 'onside_failed') {
-      text = `Onside kick recovered by ${tr}.`;
-      this.setPossession(rSide, res.ballOn);
-    } else if (res.type === 'fumble') {
-      text = `${nm(ret)} fumbles the return! Recovered by ${tk}.`;
-      headline = 'Fumble!';
-      this.runClock(5);
-      this.setPossession(kSide, 100 - res.ballOn);
-    } else if (res.type === 'td') {
-      text = `${nm(ret)} returns the kick ${res.returnYds} yards for a TOUCHDOWN!`;
-      headline = 'Kick return touchdown!';
-      this.runClock(11);
-      this.setPossession(rSide, 99);
-      this.addScore(rSide, 6);
-      this.addLog(text, 'score');
-      if (!this.otScore(rSide, 'td')) this.startPat(rSide);
-      this.finishNext();
-      return { text, headline, kind: 'kickoff', res, kSide, rSide, from: fromYard, returner: ret, next: this.next };
-    } else {
-      text = `${nm(k)} kicks off, ${nm(ret)} returns it ${res.returnYds} yards to the ${fieldLabel(res.ballOn, tr, tk)}.`;
-      this.runClock(clamp(4 + res.returnYds * 0.12, 4, 9));
-      this.setPossession(rSide, res.ballOn);
-    }
-    this.addLog(text, 'kick');
-    this.finishNext();
-    return { text, headline, kind: 'kickoff', res, kSide, rSide, from: fromYard, returner: ret, next: this.next };
-  }
-
   setPossession(side, ballOn) {
     this.poss = side;
     this.ballOn = clamp(Math.round(ballOn), 1, 99);
@@ -605,93 +554,6 @@ export class Game {
     this.pcShort = true;
     this.phase = 'play';
     this.otPossession(side);
-  }
-
-  punt() {
-    const side = this.poss;
-    const opp = other(side);
-    const p = this.punter(side);
-    const ret = this.returner(opp);
-    const startBall = this.ballOn;
-    const res = K.punt(p, ret, startBall, this.rng);
-    const l = this.stats.line(p, side);
-    l.punt.n++;
-    l.punt.yds += res.gross;
-    this.stats.team[side].plays++;
-    this.runClock(res.type === 'return' ? 8 + res.returnYds * 0.1 : 6);
-    const tr = this.teams[opp].abbr;
-    const tk = this.teams[side].abbr;
-    let text;
-    let headline = null;
-    if (res.type === 'blocked') {
-      text = 'PUNT BLOCKED!';
-      headline = 'Blocked!';
-      this.changePossession(res.ballOn);
-    } else if (res.type === 'touchback') {
-      text = `${nm(p)} punts ${res.gross} yards into the end zone. Touchback.`;
-      this.changePossession(20);
-    } else if (res.type === 'downed') {
-      text = `${nm(p)} punts ${res.gross} yards, downed at the ${tr} ${res.landing >= 100 ? 1 : 100 - res.landing}.`;
-      this.changePossession(res.ballOn);
-    } else if (res.type === 'fair') {
-      text = `${nm(p)} punts ${res.gross} yards, fair catch by ${nm(ret)}.`;
-      this.changePossession(res.ballOn);
-    } else if (res.type === 'muff') {
-      text = `${nm(p)} punts ${res.gross} yards — MUFFED! ${tk} recovers.`;
-      headline = 'Muffed punt!';
-      this.ballOn = clamp(res.ballOn, 1, 99);
-      this.down = 1;
-      this.ltg = Math.min(this.ballOn + 10, 100);
-      this.clockRunning = false;
-    } else if (res.type === 'td') {
-      text = `${nm(ret)} returns the punt ${res.returnYds} yards for a TOUCHDOWN!`;
-      headline = 'Punt return touchdown!';
-      this.changePossession(99);
-      this.addScore(opp, 6);
-      this.addLog(text, 'score');
-      if (!this.otScore(opp, 'td')) this.startPat(opp);
-      this.finishNext();
-      return { text, headline, kind: 'punt', res, side, next: this.next, startBall };
-    } else {
-      text = `${nm(p)} punts ${res.gross} yards, ${nm(ret)} returns ${res.returnYds}.`;
-      this.changePossession(res.ballOn);
-    }
-    this.addLog(text, 'kick');
-    this.finishNext();
-    return { text, headline, kind: 'punt', res, side, next: this.next, startBall };
-  }
-
-  fieldGoal() {
-    const side = this.poss;
-    const k = this.kicker(side);
-    const startBall = this.ballOn;
-    const res = K.fieldGoal(k, startBall, this.rng);
-    const l = this.stats.line(k, side);
-    l.kick.fga++;
-    this.stats.team[side].plays++;
-    this.runClock(4);
-    let text;
-    let headline;
-    if (res.good) {
-      l.kick.fgm++;
-      l.kick.long = Math.max(l.kick.long, res.distance);
-      text = `${nm(k)} ${res.distance}-yard field goal is GOOD.`;
-      headline = 'Field goal!';
-      this.addScore(side, 3);
-      this.addLog(text, 'score');
-      if (!this.otScore(side, 'fg')) {
-        this.kickingSide = side;
-        this.phase = 'kickoff';
-      }
-    } else {
-      text = res.blocked ? `${nm(k)} ${res.distance}-yard attempt is BLOCKED!` : `${nm(k)} ${res.distance}-yard field goal is NO GOOD (${res.miss}).`;
-      headline = res.blocked ? 'Blocked!' : 'No good';
-      this.addLog(text, 'kick');
-      const kickSpot = startBall - 7;
-      this.changePossession(Math.max(20, 100 - kickSpot));
-    }
-    this.finishNext();
-    return { text, headline, kind: 'fg', res, side, next: this.next, startBall, anim: { type: 'fg', distance: res.distance, good: res.good, miss: res.miss } };
   }
 
   // ------------------------------------------------------------ periods
@@ -793,3 +655,5 @@ export class Game {
     }
   }
 }
+
+Object.assign(Game.prototype, penaltyMethods, kickingMethods);

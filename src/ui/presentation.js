@@ -6,6 +6,7 @@ import { other } from '../game/rules.js';
 import { MID_X } from '../core/util.js';
 import { titleCard, fitPixelCanvas } from './broadcast.js';
 import { h } from './dom.js';
+import { sidelineReact } from '../render/sideline.js';
 
 export const presentationMethods = {
   updateBug() {
@@ -53,6 +54,7 @@ export const presentationMethods = {
     const showPc = (this.mode === 'call' || this.mode === 'set') && !this.noPlayClock();
     const ok = this.scorebug.update({
       ...this.bugShot,
+      flag: !!this.flagUp,
       clock: g.over ? null : Math.ceil(g.clock),
       pc: showPc ? String(Math.max(0, Math.ceil(g.playClock))) : '',
     });
@@ -123,6 +125,12 @@ export const presentationMethods = {
 
   // The home crowd gets loud when the home team makes a play.
   cheer(r, offSide) {
+    // the sideline of the team that made the play goes wild
+    const defSide = other(offSide);
+    if (r.td && !r.turnover) sidelineReact(this.sideline, offSide, 1);
+    else if (r.turnover) sidelineReact(this.sideline, defSide, 1);
+    else if (r.kind === 'sack') sidelineReact(this.sideline, defSide, 0.7);
+    else if (r.yards >= 15) sidelineReact(this.sideline, offSide, 0.6);
     if (!this.crowd) return;
     const homeO = offSide === 'home';
     let h = 0;
@@ -142,6 +150,7 @@ export const presentationMethods = {
     // the network's own title card when there is one for this moment
     const card = titleCard(this.broadcast.net, cardKey);
     hd.classList.toggle('tv-card', !!card);
+    hd.classList.remove('flag');
     if (card) {
       hd.replaceChildren(card);
       fitPixelCanvas(card, Math.min(400, this.stage.clientWidth - 28));
@@ -161,6 +170,18 @@ export const presentationMethods = {
     };
     const token = (this.bannerToken = {});
     this.after(sec, () => { if (this.bannerToken === token && this.bannerThen) this.bannerThen(); });
+  },
+
+  // A flag: broadcast-style lower third with the foul, who, and how it's
+  // enforced. pen: { name, on, player, text }.
+  penaltyBanner(pen, then, after = null) {
+    const g = this.game;
+    const who = pen.player && pen.player.num != null ? ` #${pen.player.num}` : '';
+    const team = pen.on && g.teams[pen.on] && pen.mode !== 'offset' ? g.teams[pen.on].abbr : '';
+    const rest = (pen.text || '').split('. ').slice(1).join('. ');
+    const text = `${pen.name}${team ? `, ${team}${who}` : ''}${rest ? `. ${rest}` : '.'}`;
+    this.banner('Flag', text, 2.6, after ? () => this.banner(after, '', 1.4, then) : then, 'Flag');
+    this.el.banner.querySelector('.banner-head').classList.add('flag');
   },
 
   // The network's two-minute warning card for a moment (no tap needed).

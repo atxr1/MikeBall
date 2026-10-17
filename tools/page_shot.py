@@ -1,6 +1,7 @@
-"""Screenshot any repo page (e.g. tools/sprites.html) at its natural size.
+"""Screenshot any repo page (e.g. tools/rig.html) at its natural size.
 
-Usage: python3 tools/page_shot.py tools/sprites.html out.png [query]
+Usage: python3 tools/page_shot.py tools/rig.html out.png [query]
+       (also tools/anim.html: frames of a live play; tools/kick.html: a kick)
 """
 
 import sys

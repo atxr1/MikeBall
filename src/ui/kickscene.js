@@ -9,7 +9,10 @@
 
 import { FIELD_W, MID_X, clamp, lerp, dist } from '../core/util.js';
 import { rosterIndex } from '../game/personnel.js';
-import { drawSprite, drawShadow, drawCarriedBall, drawFootball, viewFromFace } from '../render/pixelsprites.js';
+import { drawShadow, drawFootball } from '../render/pixelsprites.js';
+import { drawRig } from '../render/rig.js';
+import { outfitFor } from '../render/simdraw.js';
+import { kickPose } from '../render/kickanim.js';
 
 const PREFS_COVER = [['LB', 1], ['S', 1], ['CB', 2], ['TE', 1], ['RB', 1], ['WR', 3], ['LB', 3], ['S', 2], ['CB', 3], ['RB', 2], ['WR', 4], ['TE', 2], ['LB', 0], ['S', 0]];
 const PREFS_LINE = [['OL', 5], ['OL', 6], ['OL', 7], ['TE', 0], ['TE', 1], ['LB', 2], ['DL', 4], ['OL', 0], ['OL', 1], ['OL', 2], ['OL', 3], ['OL', 4]];
@@ -100,8 +103,9 @@ export class KickScene {
       this.add(p, 'R', x, from + 31 + (i % 2) * 2.5, 'block');
     });
     let landF = 100 - res.landing;
-    if (res.type === 'touchback' && landF < 101) landF = 101.5 + this.rng.next() * 5;
-    const landX = clamp(MID_X + (this.rng.next() - 0.5) * 18, 8, FIELD_W - 8);
+    if (res.type === 'touchback' && landF < 101 && !res.rolled) landF = 101.5 + this.rng.next() * 5;
+    let landX = clamp(MID_X + (this.rng.next() - 0.5) * 18, 8, FIELD_W - 8);
+    if (res.type === 'oob') landX = this.rng.next() < 0.5 ? -1.5 : FIELD_W + 1.5;
     this.returner = this.add(this.returnerRec, 'R', onside ? MID_X : clamp(landX + 3, 6, FIELD_W - 6), onside ? from + 31 : 92, 'returner');
     this.add(blockers[9], 'R', onside ? MID_X + 6 : (landX < MID_X ? landX + 14 : landX - 14), onside ? from + 31 : 88, 'block');
 
@@ -114,7 +118,7 @@ export class KickScene {
     this.kickerEnt.tf = from - 0.6;
     this.kickerEnt.speed = 6;
     this.frozen = true; // nobody else moves until the ball lands
-    this.returner.tx = this.plan.land.x;
+    this.returner.tx = clamp(this.plan.land.x, 1, FIELD_W - 1); // never out of bounds after it
     this.returner.tf = landF;
   }
 
@@ -145,15 +149,17 @@ export class KickScene {
     this.add(db[0], 'R', 5.5, los + 2, 'jammer');
     this.add(db[1], 'R', FIELD_W - 5.5, los + 2, 'jammer');
     const landF = res.type === 'touchback' ? 105 : res.type === 'blocked' ? los - 10 : res.landing;
-    const landX = clamp(bx + (this.rng.next() - 0.5) * 16, 6, FIELD_W - 6);
+    let landX = clamp(bx + (this.rng.next() - 0.5) * 16, 6, FIELD_W - 6);
+    if (res.type === 'oob') landX = landX < MID_X ? -1.5 : FIELD_W + 1.5;
     this.returner = this.add(this.returnerRec, 'R', landX, Math.min(landF, 99) + (res.type === 'touchback' ? -4 : 0), 'returner');
     this.ball = { x: bx, f: los - 0.4, z: 0.5, state: 'held', holder: ls, spin: 0 };
     const tSnap = 0.3;
     const tCatch = 0.75;
     const tKick = 1.3;
     const blocked = res.type === 'blocked';
-    const T = blocked ? 0.5 : clamp(1.5 + (res.gross || 40) * 0.02, 1.7, 2.8);
-    this.plan = { tSnap, tCatch, tKick, T, land: { x: blocked ? bx + (this.rng.next() - 0.5) * 4 : landX, f: landF }, peak: blocked ? 1.5 : 18, blocked };
+    // the engine's hang time, shortened a little so the scene keeps moving
+    const T = blocked ? 0.5 : res.hang ? clamp(res.hang * 0.62, 1.8, 3.1) : clamp(1.5 + (res.gross || 40) * 0.02, 1.7, 2.8);
+    this.plan = { tSnap, tCatch, tKick, T, land: { x: blocked ? bx + (this.rng.next() - 0.5) * 4 : landX, f: landF }, peak: blocked ? 1.5 : 18, blocked, gap: res.gap };
   }
 
   // ------------------------------------------------------------------ field goal / PAT
@@ -176,13 +182,23 @@ export class KickScene {
     this.add(rush[10], 'R', bx, los + 5, 'jumper');
     this.ball = { x: bx, f: los - 0.4, z: 0.5, state: 'held', holder: ls, spin: 0 };
     const a = this.out.anim || {};
-    const blocked = !!(this.out.res && this.out.res.blocked);
+    const res = this.out.res || {};
+    const blocked = !!res.blocked;
     const miss = a.miss || '';
-    const tx = MID_X + (a.good ? (this.rng.next() - 0.5) * 2.4 : miss.includes('left') ? -4.6 : miss.includes('right') ? 4.6 : (this.rng.next() - 0.5) * 2);
+    const op = a.op || res.op || { snap: 'good', hold: 'clean', time: 1.28 };
     const landF = blocked ? los + 1.5 : miss === 'short' ? 107 : 118;
     const kickF = los - 7;
+    // the kick flies on the angle the engine rolled (src/game/kicks.js)
+    let tx;
+    if (a.angle != null) tx = bx + Math.tan(a.angle) * (landF - kickF);
+    else tx = MID_X + (a.good ? (this.rng.next() - 0.5) * 2.4 : miss.includes('left') ? -4.6 : miss.includes('right') ? 4.6 : (this.rng.next() - 0.5) * 2);
     const T = blocked ? 0.35 : clamp(0.7 + (landF - kickF) * 0.018, 0.9, 1.9);
-    this.plan = { tSnap: 0.25, tCatch: 0.55, tKick: 0.95, T, land: { x: tx, f: landF }, peak: blocked ? 1 : 6 + (landF - kickF) * 0.06, blocked, kickF };
+    // snap to kick: about 1.3 s, longer when the snap or the hold goes wrong
+    const tSnap = 0.25;
+    const bad = op.snap !== 'good';
+    const tCatch = tSnap + 0.36 + (bad ? 0.12 : 0);
+    const tKick = tSnap + (op.time || 1.28);
+    this.plan = { tSnap, tCatch, tKick, T, land: { x: tx, f: landF }, peak: blocked ? 1 : 6 + (landF - kickF) * 0.06, blocked, kickF, op };
   }
 
   // ------------------------------------------------------------------ update
@@ -219,6 +235,12 @@ export class KickScene {
       b.z = 1;
     } else if (b.state === 'ground') {
       b.z = Math.max(0, b.z - dt * 3);
+      if (b.rollTo != null) {
+        // bouncing along toward where it stops
+        const d = b.rollTo - b.f;
+        b.f += Math.sign(d) * Math.min(Math.abs(d), dt * Math.max(1.2, Math.abs(d) * 1.6));
+        b.z = Math.abs(Math.sin(this.t * 9)) * Math.min(0.5, Math.abs(d) * 0.12);
+      }
     }
   }
 
@@ -379,7 +401,7 @@ export class KickScene {
     }
     if (b.state === 'air' && this.returner && !P.onside) {
       // returner drifts under it (allowed before the ball lands)
-      this.returner.tx = P.land.x; this.returner.tf = P.land.f; this.returner.speed = 5;
+      this.returner.tx = clamp(P.land.x, 1, FIELD_W - 1); this.returner.tf = P.land.f; this.returner.speed = 5;
     }
     if (b.state === 'air' || b.state === 'tee') { this.checkEnd(); return; }
     if (!this.landed) {
@@ -391,11 +413,16 @@ export class KickScene {
         for (const p of this.players) { p.tx = b.x + (this.rng.next() - 0.5) * 3; p.tf = b.f + (this.rng.next() - 0.5) * 3; p.speed = p.maxSpd * 0.9; }
         this.onsideDiver = near[0];
         this.endAt(this.t + 1.8);
-      } else if (res.type === 'touchback') {
-        this.returner.carrying = P.land.f >= 100;
+      } else if (res.type === 'touchback' || res.type === 'short' || res.type === 'oob') {
+        this.returner.carrying = res.type === 'touchback' && P.land.f >= 100;
         if (this.returner.carrying) { b.state = 'held'; b.holder = this.returner; }
         this.settle();
-        this.endAt(this.t + 1.2);
+        if (res.rolled) {
+          // it hit in the landing zone and rolled in; he lets it go and downs it there
+          b.rollTo = 101.5 + this.rng.next() * 2;
+          this.returner.tx = b.x; this.returner.tf = b.rollTo; this.returner.speed = 4;
+          this.endAt(this.t + 1.9);
+        } else this.endAt(this.t + 1.2);
       } else {
         const endF = res.type === 'td' ? -3 : res.type === 'fumble' ? 100 - res.ballOn : 100 - res.ballOn;
         const endX = clamp(P.land.x + (this.rng.next() - 0.5) * 16, 4, FIELD_W - 4);
@@ -424,7 +451,16 @@ export class KickScene {
       this.snapped = true;
       this.launch(b.x, b.f, { x: punter.x, f: punter.f + 0.3 }, P.tCatch - P.tSnap, 0.4);
       for (const p of this.players) {
-        if (p.role === 'gunner') { p.tx = clamp(P.land.x + (p.x < MID_X ? -4 : 4), 3, FIELD_W - 3); p.tf = P.land.f - 2; p.speed = p.maxSpd; }
+        if (p.role === 'gunner') {
+          // get there with the gap the engine worked out (how much room the
+          // returner has when it comes down)
+          const gap = P.gap ?? 4;
+          const tx = clamp(P.land.x + (p.x < MID_X ? -1 : 1) * Math.min(gap, 4), 3, FIELD_W - 3);
+          const tf = P.land.f - Math.max(1, gap * 0.8);
+          const left = P.tKick + P.T - this.t;
+          p.tx = tx; p.tf = tf;
+          p.speed = clamp(dist(p.x, p.f, tx, tf) / Math.max(0.5, left), 4, p.maxSpd * 1.1);
+        }
         if (p.role === 'jammer') { p.tx = p.x + (p.x < MID_X ? 1 : -1); p.tf = P.land.f - 8; p.speed = p.maxSpd * 0.85; }
         if (p.role === 'rush') { p.tx = p.x; p.tf = this.los - 0.5; p.speed = 3; }
         if (p.role === 'line') { p.speed = 1; p.tf = p.f - 0.3; }
@@ -465,7 +501,7 @@ export class KickScene {
       this.landed = true;
       for (const p of this.players) p.eng = null;
       const type = res.type;
-      if (type === 'fair' || type === 'touchback' || type === 'downed') {
+      if (type === 'fair' || type === 'touchback' || type === 'downed' || type === 'oob') {
         if (type === 'fair') { this.returner.x = P.land.x; this.returner.f = P.land.f; this.returner.carrying = true; b.state = 'held'; b.holder = this.returner; }
         for (const p of this.players) {
           if (p === this.returner) { p.speed = 0; continue; }
@@ -492,7 +528,7 @@ export class KickScene {
       }
     }
     if (this.kicked && b.state === 'air' && this.returner) {
-      this.returner.tx = P.land.x; this.returner.tf = Math.min(P.land.f, 104); this.returner.speed = 5;
+      this.returner.tx = clamp(P.land.x, 1, FIELD_W - 1); this.returner.tf = Math.min(P.land.f, 104); this.returner.speed = 5;
     }
     if (this.muffDiver && !this.muffDiver.down && this.t > b.landT + 0.7) {
       const d = this.muffDiver;
@@ -509,7 +545,11 @@ export class KickScene {
     const t = this.t;
     if (!this.snapped && t >= P.tSnap) {
       this.snapped = true;
-      this.launch(b.x, b.f, { x: this.holder.x + 0.2, f: this.holder.f + 0.3 }, P.tCatch - P.tSnap, 0.3);
+      // a bad snap sails high, skips low or goes wide of the holder
+      const sn = P.op.snap;
+      const off = sn === 'wide' ? 1.4 : 0.2;
+      this.launch(b.x, b.f, { x: this.holder.x + off, f: this.holder.f + 0.3 }, P.tCatch - P.tSnap, sn === 'high' ? 1.4 : sn === 'low' ? 0.05 : 0.3);
+      if (sn === 'wide') { this.holder.tx = this.holder.x + 1.1; this.holder.speed = 3; }
       for (const p of this.players) {
         if (p.side === 'R') {
           const edge = Math.abs(p.x - b.x) > 6;
@@ -565,46 +605,21 @@ export class KickScene {
     list.length = 0;
     for (const p of this.players) list.push(p);
     list.sort((a, b) => b.f - a.f);
-    const e = { view: 'N', pose: 'stand', frame: 0, num: 0, skin: 0 };
     for (const p of list) {
       const x = cam.sx(p.x);
       const y = cam.sy(p.f);
-      if (x < -20 || x > cam.w + 20 || y < -4 || y > cam.h + 30) continue;
+      if (x < -24 || x > cam.w + 24 || y < -6 || y > cam.h + 34) continue;
       drawShadow(ctx, x, y, p.down ? 16 : 10);
     }
     const b = this.ball;
     for (const p of list) {
       const x = cam.sx(p.x);
       const y = cam.sy(p.f);
-      if (x < -20 || x > cam.w + 20 || y < -4 || y > cam.h + 30) continue;
-      const sp = Math.hypot(p.vx, p.vf);
-      e.num = p.rec.num;
-      e.skin = p.rec.skinTone;
-      e.frame = 0;
-      const mv = p.move && this.t - p.move.t0 < 0.4 ? p.move : null;
-      if (p.diveT && this.t < p.diveT) { e.pose = 'dive'; e.view = Math.cos(p.face) >= 0 ? 'E' : 'W'; }
-      else if (p.down) { e.pose = 'down'; e.view = Math.cos(p.face) >= 0 ? 'E' : 'W'; }
-      else {
-        e.view = sp > 0.6 ? viewFromFace(p.face) : p.side === 'K' ? 'N' : 'S';
-        if (p.eng) e.pose = 'push';
-        else if (mv && mv.k === 'spin') {
-          const order = ['N', 'E', 'S', 'W'];
-          e.view = order[(order.indexOf(e.view) + 1 + Math.floor(((this.t - mv.t0) / 0.4) * 4)) % 4];
-          e.pose = 'carry';
-          e.frame = Math.floor(p.anim * 0.6) % 4;
-        } else if (mv && mv.k === 'juke' && this.t - mv.t0 < 0.26) {
-          e.view = p.vf >= 0 ? 'N' : 'S';
-          e.pose = mv.dir < 0 ? 'cutL' : 'cutR';
-        } else if (mv && mv.k === 'stiff') {
-          e.pose = e.view === 'E' || e.view === 'W' ? 'stiffL' : mv.side === 'L' ? 'stiffL' : 'stiffR';
-        } else if (sp > 0.6) { e.pose = b.holder === p ? 'carry' : 'run'; e.frame = Math.floor(p.anim * 0.6) % 4; }
-        else e.pose = 'stand';
-      }
-      drawSprite(ctx, p.side === 'K' ? uniK : uniR, e, x, y);
-      if (b.state === 'held' && b.holder === p && !p.down && p.role !== 'line') {
-        drawCarriedBall(ctx, e.view, x, y);
-        if (this.ret && !this.ret.ended) marker(ctx, x, y);
-      }
+      if (x < -24 || x > cam.w + 24 || y < -6 || y > cam.h + 34) continue;
+      const e = kickPose(p, this);
+      const yy = y - (e.lift || 0);
+      drawRig(ctx, outfitFor(p.side === 'K' ? uniK : uniR, p.rec.skinTone || 0), e, x, yy, p.rec.num, p);
+      if (b.state === 'held' && b.holder === p && !p.down && this.ret && !this.ret.ended) marker(ctx, x, yy);
     }
     if (b.state !== 'held' || (b.holder && b.holder.role === 'line')) {
       drawFootball(ctx, cam.sx(b.x), cam.sy(b.f), b.z * cam.s * 0.9, b.spin);

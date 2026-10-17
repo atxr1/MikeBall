@@ -2,6 +2,91 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
+## 2026-10-17 — Odds model, generative animation, officials and penalties, the pre-snap stage
+
+**Done**
+- Odds instead of dice (`src/sim/odds.js`): a catch starts from the
+  receiver's clean-catch rate (about 98% wide open) and every defender near
+  the ball takes a bite by distance (1 yard away is huge, 3 yards small),
+  more if he's in front of the receiver or looking back for the ball, less
+  if he's trailing with his back to it; ball placement and the throw's
+  error (pressure, throwing on the move, across the body, distance) come on
+  top. Tackles (angle, help, speed), fumbles, interceptions, punt catches
+  (how close the gunner is), field goals (kick angle, carry, the
+  operation's timing) and extra points use the same style. The owner's
+  example (defenders at 1 and 3 yards → about 22%) is a test.
+- Quarterbacks read by expected value: timing throws on the last break,
+  leading the receiver to where his route goes, checkdowns once pressured.
+- Generative animation (`src/render/rig.js`, `rigparts.js`, `animate.js`):
+  players are drawn from a skeleton (two-bone IK arms and legs, crouch,
+  lean, rotation) instead of fixed sprites. Every player has his own stride,
+  knee lift, arm swing and lean hashed from his id, so no two run alike;
+  catches reach for where the ball actually arrives (over the shoulder,
+  high, low, diving); throws wind up and follow through; tackles wrap,
+  drag, trip, hit, push out and sack; falls go the way the momentum goes;
+  celebrations are seeded. Sprites are cached with a per-frame build budget.
+- Officials (`src/sim/officials.js`, `src/render/crewdraw.js`): the full
+  seven-man crew in their real spots, flags thrown by the official who'd
+  see the foul, signals (holding, interference, offside, false start,
+  personal foul, face mask, touchdown, incomplete, first down…). The down
+  judge and chain crew work the visitors' sideline in the first half and
+  the home sideline in the second.
+- Penalties come out of the play (`src/sim/fouls.js`): offensive holding
+  when a blocker is beaten, defensive holding and illegal contact (past 5
+  yards) in man coverage, DPI and OPI at the catch, roughing the passer,
+  face mask, unnecessary roughness after the whistle, offside and 12 men as
+  live-ball fouls (free play), illegal formation; false starts,
+  encroachment and neutral zone infractions kill the play (staged, with the
+  flinch). Accept/decline, half the distance, spot fouls, automatic first
+  downs, 15-vs-5 double fouls, the clock after a foul (Rule 4-3-2) and the
+  10-second runoff inside two minutes (`src/game/penalties.js`).
+- Pre-snap stage (`src/ui/presnap.js`, `coachstage.js`): huddles, players
+  jog to their spots when the formation changes, substitutes run on from
+  the bench while the replaced players run off, the umpire stands over the
+  ball after an offensive substitution until the defense matches (not in
+  the last two minutes or on kicks), the offense must be set a full second,
+  ineligible numbers at eligible spots report, and a defense caught
+  substituting gets flagged for 12 men.
+- Depth chart editing in game: Roster while calling a play; drag rows by
+  the grip to reorder. Changes take effect on the next snap.
+- Rings on players with a secondary assignment: blitzing DBs red, linemen
+  dropping into coverage blue, receivers and tight ends blocking cyan,
+  linemen running routes yellow.
+- Sidelines (`src/render/sideline.js`): the white border, coaches' line,
+  team areas and broken limit line laid out per Rule 1; benches, players
+  not in the game (some helmets off), coaches with play sheets, trainers,
+  the blue medical tent, coolers, the kicking net, photographers, TV
+  cameras, the chain crew with rods and down box. All generated from the
+  game seed, nobody copied.
+- Kicks: 2025 kickoff rules (landing zone; touchback at the 35 from the end
+  zone, at the 20 when it lands short and rolls in; short or out of bounds
+  → the 40). Punts can be angled out of bounds, let bounce and downed
+  inside the 20, or pooched from midfield. Long field goals are harder.
+- Spoilers gone: no "JUKE!"/"BOOM!" labels, no result text before a kick or
+  play finishes; the result line appears after.
+- Module split: `src/sim/passing.js`, `offense.js`, `defense.js`,
+  `src/game/kicking.js`, `src/ui/coachkicks.js`, `coachmenus.js`.
+- Dev tools: `tools/rig.html` (rig sheet), `tools/anim.html` (frames of a
+  play), `tools/kick.html` (frames of a kick).
+
+**Known issues**
+- Scoring is still a little high (about 26–27 points a team; NFL ~22).
+- Accepted penalties run about 8–9 a game for both teams (NFL ~12); no
+  special-teams fouls yet (illegal block in the back, holding on returns).
+- A dead-ball foul after a touchdown or turnover isn't enforced on the
+  kickoff (it can't currently happen: late hits are only checked after a
+  tackle or a runner going out of bounds).
+- The offense can't take a timeout to avoid a 10-second runoff.
+- `rec._style` and `rec._byId` are cached on roster records; strip them
+  before saving rosters (season mode).
+- The sidelines are only on screen on wide plays and kicks.
+- `src/render/animate.js` is near the 800-line guideline.
+
+**Next**
+- Special-teams penalties; more scrambles and throwaways under pressure.
+- Rest of milestone 2: challenges; saving drawn plays.
+- Season mode (milestone 3).
+
 ## 2026-10-16 (evening) — Celebrations, stadium score shows, TV packages, honors
 
 **Done**

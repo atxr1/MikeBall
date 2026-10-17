@@ -34,14 +34,26 @@ export const playClockMethods = {
   // the CPU offense snaps it when its tempo says so, or when you're ready.
   tickPlayClock(dt) {
     const g = this.game;
+    const busy = this.bannerThen || this.drawing.drag || this.root.querySelector('[aria-modal="true"]');
+    // a snap called for while players are still getting set goes off as
+    // soon as they are (not under a banner or the roster sheet)
+    if (this.wantSnap && !busy && (this.mode === 'call' || this.mode === 'set') && this.pre.ready()) {
+      this.wantSnap = false;
+      return this.doSnap();
+    }
     if ((this.mode !== 'call' && this.mode !== 'set') || this.noPlayClock()) {
       if (this.el.pc.textContent) this.updateClocks(); // hide it after the snap
       return;
     }
     // paused while a banner, dialog or the roster is up, or a finger is drawing
-    if (this.bannerThen || this.drawing.drag || this.root.querySelector('[aria-modal="true"]')) return;
+    if (busy) return;
     let sec = dt;
-    if (this.mode === 'set') sec = Math.min(Math.max(0, g.playClock - this.snapTarget), this.setRate * dt);
+    if (this.mode === 'set') {
+      // the clock spins down to the snap once everyone's set; until then
+      // (lining up, subs, the umpire over the ball) it runs in real time
+      if (!this.pre.ready()) sec = dt;
+      else sec = Math.min(Math.max(0, g.playClock - this.snapTarget), this.setRate * dt);
+    }
     const ev = g.tickBetweenPlays(sec);
     this.updateClocks();
     if (ev.includes('endQuarter')) {
@@ -51,6 +63,7 @@ export const playClockMethods = {
       return this.advance();
     }
     if (ev.includes('twoMinute')) {
+      this.wantSnap = false; // the stoppage: the call reopens
       this.updateBug();
       this.twoMinuteCard();
       this.mode = 'call';
@@ -59,24 +72,24 @@ export const playClockMethods = {
     }
     const userOff = g.poss === this.user;
     if (ev.includes('delay')) {
-      if (userOff && this.mode === 'call') return this.delayOfGame();
+      if ((userOff && this.mode === 'call') || !this.pre.ready()) return this.delayOfGame();
       return this.doSnap();
     }
-    if (this.mode === 'set' && g.playClock <= this.snapTarget + 1e-6) return this.doSnap();
-    if (this.mode === 'call' && !userOff && g.playClock <= g.snapAt(other(this.user))) {
-      this.toast(`${g.teams[g.poss].abbr} snap it`, 1);
-      this.doSnap();
-    }
+    if (this.mode === 'set' && g.playClock <= this.snapTarget + 1e-6 && !this.wantSnap) return this.doSnap();
+    if (this.mode === 'call' && !userOff && g.playClock <= g.snapAt(other(this.user)) && !this.wantSnap) this.doSnap();
   },
 
   delayOfGame() {
     const g = this.game;
+    this.wantSnap = false;
     this.setSheetEnabled(false);
     this.mode = 'idle';
     const pen = g.delayOfGame();
     this.updateBug();
     this.setTicker(`Flag: ${pen.text}`);
-    this.banner('Delay of game', pen.text, 1.8, () => this.advance());
+    this.flagUp = true;
+    this.updateScorebug();
+    this.penaltyBanner(pen, () => this.advance());
   },
 
   // Run play (offense) / Ready (defense): break the huddle and run the play
@@ -98,6 +111,12 @@ export const playClockMethods = {
     if (this.mode !== 'call' && this.mode !== 'set') return;
     const g = this.game;
     this.setSheetEnabled(false);
+    if (!this.pre.ready()) {
+      // still getting set (or the umpire's over the ball): snap when ready
+      this.wantSnap = true;
+      return;
+    }
+    this.wantSnap = false;
     const userOff = g.poss === this.user;
     const mine = this.drawing.play();
     const o = userOff ? mine : this.cpuPlay;

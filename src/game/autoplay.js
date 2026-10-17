@@ -8,7 +8,7 @@ import { offPlay } from '../data/playbook.js';
 import { other } from './rules.js';
 import { MID_X } from '../core/util.js';
 
-export function makePlaySim(game, oPlay, dPlay, rng) {
+export function makePlaySim(game, oPlay, dPlay, rng, extra = null) {
   const off = game.poss;
   const def = other(off);
   return new PlaySim({
@@ -20,6 +20,14 @@ export function makePlaySim(game, oPlay, dPlay, rng) {
     ballX: game.ballX,
     rng: rng || game.rng.fork(),
     wantOOB: game.tempoFor(off) === 'hurry' && game.inLateWindow(),
+    toGo: game.ltg >= 100 ? null : game.ltg - game.ballOn,
+    umpireDefense: game.umpireOnDefense ? game.umpireOnDefense() : false,
+    // the home bench is on the left of the screen when the home team has the
+    // ball (the view turns around with possession)
+    homeSide: off === 'home' ? -1 : 1,
+    // the chain crew (and the down judge) switch sidelines at halftime
+    half: game.quarter >= 3 ? 2 : 1,
+    ...(extra || {}),
   });
 }
 
@@ -45,7 +53,7 @@ export function cpuStep(game) {
       setupTwoPoint(game);
       const o = cpuOffense(game, side);
       const play = o.cat === 'special' ? offPlay('slants') : o;
-      const sim = makePlaySim(game, play, cpuDefense(game, other(side)));
+      const sim = makePlaySim(game, play, cpuDefense(game, other(side)), null, { noFouls: true });
       return game.applyTwoPoint(sim.runToEnd());
     }
     case 'call':
@@ -62,8 +70,8 @@ export function cpuStep(game) {
       const snap = game.snap();
       if (snap.stop) return { kind: 'endQuarter' };
       const pen = game.preSnapPenalty();
-      if (pen) { game.finishNext(); return { kind: 'penalty', pen }; }
-      const sim = makePlaySim(game, o, d);
+      if (pen && !pen.live) { game.finishNext(); return { kind: 'penalty', pen }; }
+      const sim = makePlaySim(game, o, d, null, pen ? { snapFoul: { key: pen.key } } : null);
       return game.applyPlay(sim.runToEnd(), o, d);
     }
   }

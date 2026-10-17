@@ -46,8 +46,9 @@ export class Camera {
     this.zoom = lerp(this.zoom, this.tzoom, k);
     // keep the field edges from scrolling too far past the sidelines
     const halfW = this.w / 2 / this.s;
-    const minX = Math.min(FIELD_W / 2, halfW - 2);
-    const maxX = Math.max(FIELD_W / 2, FIELD_W - halfW + 2);
+    // (up to 11 yards past the sideline, so plays near it show the bench)
+    const minX = Math.min(FIELD_W / 2, halfW - 11);
+    const maxX = Math.max(FIELD_W / 2, FIELD_W - halfW + 11);
     this.x = lerp(this.x, clamp(this.tx, minX, maxX), k);
     this.f = lerp(this.f, this.tf, k);
     return Math.abs(this.x - px) + Math.abs(this.f - pf) > 0.002 || Math.abs(this.zoom - pz) > 0.0005;

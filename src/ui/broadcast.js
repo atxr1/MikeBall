@@ -227,7 +227,15 @@ export class Scorebug {
     text('period', s.period);
     text('clock', s.clock == null ? '' : fmtClock(s.clock));
     text('play_clock', s.pc);
-    text('down_distance', s.dd);
+    if (s.flag && F.down_distance) {
+      // FLAG over the down and distance, like the broadcasts
+      const r = F.down_distance;
+      ctx.fillStyle = '#f7d117';
+      ctx.fillRect(r[0], r[1], r[2], r[3]);
+      ctx.fillStyle = '#1a1400';
+      const w = textWidth('FLAG', 1, 1);
+      drawText(ctx, 'FLAG', Math.round(r[0] + (r[2] - w) / 2), Math.round(r[1] + (r[3] - 7) / 2), 1, '#1a1400', 0, 1);
+    } else text('down_distance', s.dd);
     const pm = s.poss && lay.possession[s.poss];
     if (pm) {
       ctx.fillStyle = '#ffd23f';

@@ -431,3 +431,19 @@ table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nu
 .potg-row strong { display: block; font-size: 16px; }
 .potg-row small { color: var(--dim); }
 .potg-row p { margin: 4px 0 0; font-size: 13px; }
+/* penalty lower third: a yellow FLAG tab */
+.banner-head.flag { background: #f7d117; color: #1a1400; text-shadow: none; font-size: 30px; padding: 10px 14px 6px; }
+/* depth chart: drag the grip to reorder */
+.depth-head { font: 400 14px/1 var(--px); color: var(--dim); margin: 14px 0 4px; }
+.depth-box { position: relative; }
+.p-line { display: grid; grid-template-columns: 1fr 44px; align-items: center; }
+.p-item.on-field .p-num { color: var(--chalk); }
+.p-item.dragging { position: relative; z-index: 2; background: var(--panel-2); box-shadow: var(--frame); }
+.p-item { transition: transform 0.12s; background: var(--panel); }
+.p-item.dragging { transition: none; }
+.grip {
+  width: 44px; height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  touch-action: none; cursor: grab;
+}
+.grip i { display: block; width: 18px; height: 3px; background: var(--dim); }
+.grip:focus-visible { outline: 3px solid var(--gold, #ffd23f); }

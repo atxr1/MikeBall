@@ -1,6 +1,6 @@
 // CPU coach: play calling, 4th downs, two-point tries, onside kicks, timeouts.
 
-import { OFFENSE_PLAYS, DEFENSE_PLAYS, offPlay, defPlay } from '../data/playbook.js';
+import { OFFENSE_PLAYS, DEFENSE_PLAYS, FORMATIONS, offPlay, defPlay } from '../data/playbook.js';
 import { fgDistance, maxFgRange } from './kicks.js';
 
 const RUNS = OFFENSE_PLAYS.filter((p) => p.cat === 'run');
@@ -117,4 +117,31 @@ export function cpuDefense(game, side) {
   if (s.down === 3 && tg >= 7) return rng.pick(pool(['cov3_nickel', 'cov4', '2man', 'fire_zone', 'nickel_blitz', 'press_dime', 'cov0']));
   if (tg <= 3) return rng.pick(pool(['run_commit', '34_base', 'cov1_43', 'mike_blitz', 'cov3_43']));
   return rng.pick(pool(['cov1_43', 'cov2_43', 'tampa2', 'cov3_43', 'cov3_nickel', 'cov4', 'cov1_nickel', 'mike_blitz', 'fire_zone', '2man', 'edge_34']));
+}
+
+// Matching personnel: when the offense brings in a third receiver the CPU
+// defense goes to nickel (or dime), and back to base when it goes heavy.
+// current: the defense the CPU called before the offense substituted.
+const NICKEL_FOR = {
+  cov1_43: 'cov1_nickel', cov2_43: 'cov4', tampa2: 'cov3_nickel', cov3_43: 'cov3_nickel',
+  mike_blitz: 'nickel_blitz', run_commit: 'cov1_nickel', '34_base': 'cov3_nickel', edge_34: 'fire_zone', goal_line: 'cov1_nickel',
+};
+const BASE_FOR = {
+  cov1_nickel: 'cov1_43', '2man': 'cov1_43', press_dime: 'cov1_43', cov3_nickel: 'cov3_43', cov4: 'cov2_43',
+  prevent: 'cov2_43', fire_zone: 'mike_blitz', nickel_blitz: 'mike_blitz', cov0: 'mike_blitz',
+};
+
+export function receiversIn(play) {
+  const f = FORMATIONS[play.formation];
+  if (!f || play.cat === 'special') return 2;
+  return f.slots.filter((s) => s.pos === 'WR').length;
+}
+
+export function cpuMatchDefense(game, side, oPlay, current) {
+  if (!oPlay || oPlay.cat === 'special' || !current) return current;
+  const wr = receiversIn(oPlay);
+  const light = current.front === 'nickel' || current.front === 'dime';
+  if (wr >= 3 && !light && NICKEL_FOR[current.id]) return defPlay(NICKEL_FOR[current.id]);
+  if (wr <= 1 && light && BASE_FOR[current.id]) return defPlay(BASE_FOR[current.id]);
+  return current;
 }

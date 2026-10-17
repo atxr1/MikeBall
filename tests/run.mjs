@@ -17,6 +17,12 @@ import { applyEdits, editFromStroke, editFromTap, editFromDoubleTap } from '../s
 import { broadcastFor } from '../src/data/broadcast.js';
 import { playerOfTheGame, seasonAwards } from '../src/game/awards.js';
 import { resolveHonors, honorsFor } from '../src/data/honors.js';
+import { catchOdds, tackleOdds, proximity } from '../src/sim/odds.js';
+import { fieldGoal, extraPoint, kickoff } from '../src/game/kicks.js';
+import { PreSnap } from '../src/ui/presnap.js';
+import { makePlaySim } from '../src/game/autoplay.js';
+import { cpuMatchDefense } from '../src/game/cpu.js';
+import { offPlay, defPlay } from '../src/data/playbook.js';
 
 let failed = 0;
 let passed = 0;
@@ -203,6 +209,121 @@ console.log('broadcasts and awards');
   const sa = seasonAwards({ lines, teams: [{ id: 'A', wins: 12, lastWins: 5 }] });
   check('season awards: MVP, OPOY, DPOY and rookie of the year', sa.awards.MVP && sa.awards.MVP.id === 'q1' && sa.awards.DPOY.id === 'd1' && sa.awards.OROY.id === 'r1' && sa.awards.OPOY && sa.awards.OPOY.id !== 'q1');
   check('All-Pro: three first-team and three second-team receivers', sa.allPro.first.filter((x) => x.slot === 'WR').length === 3 && sa.allPro.second.filter((x) => x.slot === 'WR').length === 3);
+}
+
+console.log('catch, tackle and kick odds');
+{
+  // a fake sim with a receiver and defenders placed by hand
+  const mk = (pos, x, y, face = 0, extra = {}) => ({ pos, x, y, vx: 0, vy: 0, face, down: false, blk: null, rec: { height: 73, weight: 205 }, a: { cth: 80, str: 55, mcv: 72, zcv: 72, bsk: 66, tkl: 70, elu: 70, agi: 80, car: 70, awr: 70 }, ballReact: 0.2, seeBall: 0.2, ...extra });
+  const r = mk('WR', 20, 12, Math.PI / 2, { side: 'O' });
+  const ball = { x: 20, y: 12, z: 1.4, fx: 20, fy: -6, t0: 0, speed: 24 };
+  const sim = (defs) => ({ defense: defs, t: 1, phase: 'air' });
+  const open = catchOdds(sim([]), r, ball).p;
+  check('a wide-open, well-thrown ball is caught about 98% of the time', between(open, 0.95, 0.995), open.toFixed(3));
+  const two = catchOdds(sim([mk('CB', 20.6, 11.2, -Math.PI / 2), mk('S', 22.5, 13.8, -Math.PI / 2)]), r, ball).p;
+  check('a defender a yard away and another three away cut it to roughly a quarter', between(two, 0.15, 0.4), two.toFixed(3));
+  const front = catchOdds(sim([mk('CB', 20, 10.6, -Math.PI / 2)]), r, ball).p;
+  const behind = catchOdds(sim([mk('CB', 20, 13.4, -Math.PI / 2)]), r, ball).p;
+  check('a defender in front of the receiver matters more than one trailing him', front < behind, `${front.toFixed(2)} vs ${behind.toFixed(2)}`);
+  check('proximity fades with distance', proximity(0.5) > proximity(1) && proximity(1) > proximity(3) && proximity(6) < 0.02);
+  const h = mk('RB', 20, 10, Math.PI / 2, { side: 'O', vx: 0, vy: 6 });
+  const tsim = { defense: [], offense: [], qb: null, phase: 'run' };
+  const side = tackleOdds(tsim, mk('LB', 21, 10, Math.PI, { side: 'D', vx: -5 }), h).p;
+  const chase = tackleOdds(tsim, mk('LB', 20, 9, Math.PI / 2, { side: 'D', vy: 6 }), h).p;
+  check('a tackle from the side beats an arm tackle from behind', side > chase, `${side.toFixed(2)} vs ${chase.toFixed(2)}`);
+  const rng = makeRng(4);
+  const k = { attrs: { kpw: 80, kac: 82, awr: 70 } };
+  let m30 = 0;
+  let m55 = 0;
+  let pat = 0;
+  for (let i = 0; i < 3000; i++) {
+    if (fieldGoal(k, 100 - 13, rng).good) m30++;
+    if (fieldGoal(k, 100 - 38, rng).good) m55++;
+    if (extraPoint(k, rng).good) pat++;
+  }
+  check('field goals: 30 yards ~94%, 55 yards much less, extra points ~94%', between(m30 / 3000, 0.88, 0.99) && m55 / 3000 < m30 / 3000 - 0.1 && between(pat / 3000, 0.9, 0.98), `${m30 / 30}% ${m55 / 30}% ${pat / 30}%`);
+  // 2025 kickoffs: aimed into the landing zone, most returned; touchbacks
+  // from the end zone come out to the 35, short kicks give the ball at the 40
+  const ret = { attrs: { spd: 90, elu: 75 } };
+  const ko = { touchback: 0, short: 0, ret: 0, start: 0 };
+  for (let i = 0; i < 4000; i++) {
+    const r = kickoff(k, ret, rng);
+    if (r.type === 'touchback') ko.touchback++;
+    else if (r.type === 'short' || r.type === 'oob') ko.short++;
+    else if (r.type === 'return') ko.ret++;
+    ko.start += r.ballOn;
+  }
+  check('kickoffs: most are returned, some touchbacks, few short of the landing zone', ko.ret / 4000 > 0.6 && between(ko.touchback / 4000, 0.06, 0.32) && ko.short / 4000 < 0.04 && between(ko.start / 4000, 26, 35), `ret ${ko.ret / 40}% tb ${ko.touchback / 40}% short ${ko.short / 40}% start ${(ko.start / 4000).toFixed(1)}`);
+}
+
+console.log('fouls and penalties');
+{
+  const g = new Game({ homeTeam: TEAMS[0], awayTeam: TEAMS[1], homeRoster: league[TEAMS[0].id], awayRoster: league[TEAMS[1].id], userSide: null, qLen: 15, seed: 8 });
+  g.next = 'call'; g.phase = 'play'; g.poss = 'home'; g.ballOn = 40; g.down = 2; g.ltg = 48;
+  const hold = { key: 'holdO', name: 'Offensive holding', on: 'O', yards: 10 };
+  check('offensive holding on a loss of 12 is declined', g.choosePenalty({ fouls: [hold], yards: -12, incomplete: false }).mode === 'declined');
+  check('offensive holding on a 9-yard gain is accepted', g.choosePenalty({ fouls: [hold], yards: 9, incomplete: false }).mode === 'replace');
+  const dpi = { key: 'dpi', name: 'Defensive pass interference', on: 'D', yards: 0, spotFoul: true, auto1st: true, spotY: 22 };
+  check('pass interference on an incompletion is accepted at the spot', g.choosePenalty({ fouls: [dpi], incomplete: true, yards: 0 }).spot === 22);
+  const rtp = { key: 'rtp', name: 'Roughing the passer', on: 'D', yards: 15, auto1st: true, afterPlay: true };
+  check('roughing on a completion adds 15 to the end of the play', g.choosePenalty({ fouls: [rtp], incomplete: false, yards: 12 }).mode === 'after');
+  const twelve = { key: 'subs', name: 'Too many men on the field', on: 'D', yards: 5 };
+  check('12 men on the field is a live-ball foul: the offense keeps a bigger gain', g.choosePenalty({ fouls: [twelve], incomplete: false, yards: 14 }).mode === 'declined' && g.choosePenalty({ fouls: [twelve], incomplete: true, yards: 0 }).mode === 'replace');
+  check('holding against roughing: 10 vs 15 offset', g.choosePenalty({ fouls: [hold, rtp], incomplete: false, yards: 6 }).mode === 'offset');
+  const ur = { key: 'ur', name: 'Unnecessary roughness', on: 'D', yards: 15, auto1st: true, afterPlay: true, deadBall: true };
+  check('a late hit after a loss is still marked from the end of the play', g.choosePenalty({ fouls: [ur], incomplete: false, yards: -3 }).mode === 'after');
+  check('a late hit after holding: the holding is enforced, then the late hit', g.choosePenalty({ fouls: [hold, ur], incomplete: false, yards: 6 }).late?.key === 'ur');
+  check('a late hit after a safety does not wipe out the safety', g.choosePenalty({ fouls: [ur], incomplete: false, yards: -2, safety: true }) === null);
+  {
+    const g2 = new Game({ homeTeam: TEAMS[0], awayTeam: TEAMS[1], homeRoster: league[TEAMS[0].id], awayRoster: league[TEAMS[1].id], userSide: null, qLen: 15, seed: 8 });
+    g2.next = 'call'; g2.phase = 'play'; g2.poss = 'home'; g2.ballOn = 50; g2.down = 2; g2.ltg = 58; g2.quarter = 4; g2.clock = 90; g2.clockRunning = true;
+    g2.rng = { chance: () => true, pick: (a) => a[0] }; // force the false start
+    const pen = g2.preSnapPenalty();
+    check('a false start inside two minutes costs 10 seconds, and the clock starts on the ready signal', pen.key === 'falseStart' && /10-second runoff/.test(pen.text) && g2.clock === 80 && g2.clockRunning, `${pen.text} ${g2.clock} ${g2.clockRunning}`);
+  }
+  // fouls come out of plays at about NFL rates
+  let flags = 0;
+  const rng = makeRng(12);
+  const ids = Object.keys(league);
+  for (let i = 0; i < 600; i++) {
+    const o = OFFENSE_PLAYS.filter((p) => p.cat !== 'special')[i % 20];
+    const d = DEFENSE_PLAYS[i % DEFENSE_PLAYS.length];
+    const r = new PlaySim({ offPlay: o, defPlay: d, offLineup: offenseLineup(league[ids[i % 32]], o.formation), defLineup: defenseLineup(league[ids[(i + 5) % 32]], d.front), ballOn: 35, ballX: 26.67, rng: rng.fork() }).runToEnd();
+    flags += r.fouls.length;
+  }
+  check('live-ball flags on roughly 2-8% of plays', between(flags / 600, 0.02, 0.08), `${((flags / 600) * 100).toFixed(1)}%`);
+}
+
+console.log('pre-snap: lining up and substitutions');
+{
+  const g = new Game({ homeTeam: TEAMS[2], awayTeam: TEAMS[3], homeRoster: league[TEAMS[2].id], awayRoster: league[TEAMS[3].id], userSide: 'home', qLen: 15, seed: 9 });
+  g.next = 'call'; g.phase = 'play'; g.poss = 'home'; g.ballOn = 30; g.down = 1; g.ltg = 40; g.quarter = 1; g.clock = 600;
+  const pre = new PreSnap();
+  const sim1 = makePlaySim(g, offPlay('dive'), defPlay('cov3_43'), makeRng(1));
+  pre.begin(sim1, { offTeam: 'home', homeSide: -1, hurry: false, twoMinute: false, fg: false, prevLos: 30, los: 30 });
+  check('players start in the huddle, not on their spots', !pre.ready());
+  for (let i = 0; i < 600; i++) pre.update(1 / 60);
+  check('they break the huddle and get set', pre.ready());
+  pre.snapped(sim1, 'home');
+  // next play: a three-receiver set brings on a receiver for the fullback
+  const sim2 = makePlaySim(g, offPlay('slants'), defPlay('cov3_43'), makeRng(1));
+  pre.begin(sim2, { offTeam: 'home', homeSide: -1, hurry: false, twoMinute: false, fg: false, prevLos: 30, los: 30 });
+  check('an offensive substitution: the umpire holds the ball for the defense', pre.hold && !pre.hold.released);
+  check('the players being replaced run off', pre.leaving.length > 0);
+  for (let i = 0; i < 900; i++) pre.update(1 / 60);
+  check('once the defense has matched, the snap can go', pre.ready());
+  pre.snapped(sim2, 'home');
+  const sim3 = makePlaySim(g, offPlay('dive'), defPlay('cov3_43'), makeRng(1));
+  pre.begin(sim3, { offTeam: 'home', homeSide: -1, hurry: false, twoMinute: true, fg: false, prevLos: 30, los: 30 });
+  check('inside the two-minute warning the umpire does not hold the ball', !pre.hold);
+  check('the CPU defense goes to nickel against three receivers', cpuMatchDefense(g, 'away', offPlay('slants'), defPlay('cov3_43')).front === 'nickel');
+  check('and back to base against a heavy set', cpuMatchDefense(g, 'away', offPlay('gl_dive'), defPlay('cov3_nickel')).front === '43');
+  const crew = sim3.crew;
+  check('seven officials on the field, down judge on the visitors\' sideline', crew.list.length === 7 && crew.by.DJ.x > 53);
+  g.quarter = 3;
+  const sim4 = makePlaySim(g, offPlay('dive'), defPlay('cov3_43'), makeRng(1));
+  check('the chains and the down judge move to the home sideline for the second half', sim4.crew.by.DJ.x < 0);
+  g.quarter = 1;
 }
 
 if (existsSync('assets/data/league.json')) {

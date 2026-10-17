@@ -2,7 +2,7 @@
 // online, with a cached copy for offline play. Bump CACHE_VERSION on every
 // release so phones drop the old copy.
 
-const CACHE_VERSION = 'mikeball-v8';
+const CACHE_VERSION = 'mikeball-v10';
 const NET_TIMEOUT_MS = 3500;
 const TEAM_IDS = 'BUF MIA NE NYJ BAL CIN CLE PIT HOU IND JAX TEN DEN KC LV LAC DAL NYG PHI WAS CHI DET GB MIN ATL CAR NO TB ARI LAR SF SEA'.split(' ');
 // Team logos are small and used on every screen, so they're cached up front.
@@ -73,6 +73,24 @@ const SHELL = [
   'src/render/scoreshow.js',
   'src/sim/celebrate.js',
   'src/ui/broadcast.js',
+  'src/sim/odds.js',
+  'src/sim/passing.js',
+  'src/sim/fouls.js',
+  'src/sim/officials.js',
+  'src/render/rig.js',
+  'src/render/rigparts.js',
+  'src/render/animate.js',
+  'src/render/crewdraw.js',
+  'src/render/kickanim.js',
+  'src/render/sideline.js',
+  'src/ui/presnap.js',
+  'src/ui/coachstage.js',
+  'src/ui/coachkicks.js',
+  'src/ui/coachmenus.js',
+  'src/sim/offense.js',
+  'src/sim/defense.js',
+  'src/game/penalties.js',
+  'src/game/kicking.js',
 ];
 
 self.addEventListener('install', (e) => {

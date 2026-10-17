@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Rig sheet</title>
+<style>
+  body { margin: 0; background: #3f8a3a; }
+  canvas { image-rendering: pixelated; display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+  import { TEAMS, setTeams } from '../src/data/teams.js';
+  import { fromLeagueJson } from '../src/data/realleague.js';
+  import { uniform } from '../src/render/pixelsprites.js';
+  import { playerOutfit, personOutfit, drawRig } from '../src/render/rig.js';
+  const real = await fetch('../assets/data/league.json').then((r) => r.json()).then(fromLeagueJson);
+  setTeams(real.teams);
+  const q = new URLSearchParams(location.search);
+  const t = TEAMS.find((x) => x.id === (q.get('team') || 'KC'));
+  const P = playerOutfit(uniform(t, true), 2);
+  const A = playerOutfit(uniform(TEAMS.find((x) => x.id === 'BUF'), false), 4);
+  const REF = personOutfit({ key: 'ref', skin: 1, hair: 1, shirt: { a: '#f4f4f4', b: '#141414', collar: '#141414' }, sleeve: '#f4f4f4', cuff: '#141414', pants: '#f2f2f2', socks: '#141414', shoes: '#141414', cap: '#f4f4f4', brim: '#f4f4f4' });
+  const COACH = personOutfit({ key: 'coach', skin: 0, hair: 6, shirt: { a: t.colors.primary, collar: '#ffffff', badge: '#ffffff' }, pants: '#2a2c33', cap: t.colors.primary, brim: t.colors.primary, headset: true });
+  const ks = (q.get('set') || 'base');
+  const rows = [];
+  const base = { view: 'S', crouch: 0, lean: 0, tx: 0, legs: [[0, 0], [0, 0]], arms: [[0, 0, 0], [0, 0, 0]], ball: -1 };
+  const pose = (o) => ({ ...base, ...o });
+  const run = (v, ph, carry) => {
+    const s = Math.sin(ph); const c = Math.cos(ph);
+    if (v === 'E' || v === 'W') return pose({ view: v, lean: 2, crouch: Math.abs(s) < 0.5 ? 1 : 0, legs: [[Math.round(-c * 3), -Math.round(Math.max(0, -s) * 3)], [Math.round(c * 3), -Math.round(Math.max(0, s) * 3)]], arms: [[Math.round(c * 3), -2, 0], [Math.round(-c * 3), -2, 0]], ball: carry ? 2 : -1 });
+    return pose({ view: v, crouch: Math.abs(c) < 0.5 ? 1 : 0, legs: [[0, -Math.round(Math.max(0, s) * 3)], [0, -Math.round(Math.max(0, -s) * 3)]], arms: [[0, -Math.round(Math.max(0, -s) * 3), 1], [0, -Math.round(Math.max(0, s) * 3), 1]], ball: carry ? 2 : -1 });
+  };
+  for (const O of [P, A]) {
+    const r = [];
+    for (const v of ['S', 'N', 'E', 'W']) r.push(pose({ view: v }));
+    for (const v of ['S', 'N', 'E']) for (let i = 0; i < 4; i++) r.push(run(v, (i / 4) * Math.PI * 2, v !== 'S'));
+    rows.push([O, r]);
+    const m = [];
+    m.push(pose({ view: 'S', arms: [[-2, -12, 0], [2, -12, 0]] })); // arms up
+    m.push(pose({ view: 'N', arms: [[2, -11, 1], [-1, -11, 1]] })); // reach high
+    m.push(pose({ view: 'E', lean: 3, arms: [[6, -6, 0], [6, -5, 0]] })); // reach forward
+    m.push(pose({ view: 'E', lean: 3, rot: 4, pivot: 'hips', arms: [[7, -7, 0], [7, -6, 0]], legs: [[-3, -2], [-2, -3]] })); // dive
+    m.push(pose({ view: 'E', rot: 6, pivot: 'feet' })); // fallen
+    m.push(pose({ view: 'S', crouch: 4, lean: 2, arms: [[3, -3, 1], [-3, -3, 1]], legs: [[-1, 0], [1, 0]] })); // stance
+    m.push(pose({ view: 'N', crouch: 5, lean: 3, arms: [[2, 1, 1], [0, -2, 1]], legs: [[-1, 0], [1, -1]] })); // 3 point
+    m.push(pose({ view: 'E', crouch: 3, lean: 4, arms: [[5, -4, 0], [6, -4, 0]] })); // push / block
+    m.push(pose({ view: 'S', sy: 6 })); // squash
+    m.push(pose({ view: 'W', lean: 2, arms: [[0, 0, 0], [7, -5, 0]], ball: 0 })); // stiff arm
+    m.push(pose({ view: 'S', arms: [[-1, -10, 0], [6, 0, 0]], tx: 1 })); // point
+    rows.push([O, m]);
+  }
+  rows.push([REF, [pose({ view: 'S' }), pose({ view: 'N' }), pose({ view: 'E' }), pose({ view: 'S', arms: [[0, -11, 0], [0, -11, 0]] }), pose({ view: 'S', arms: [[4, -4, 1], [-4, -4, 1]] }), pose({ view: 'E', arms: [[2, -3, 0], [7, -9, 0]], prop: { k: 'flag', hand: 1 } }), run('S', 1, false), run('E', 2, false)]]);
+  rows.push([COACH, [pose({ view: 'S' }), pose({ view: 'N' }), pose({ view: 'E' }), pose({ view: 'S', arms: [[1, -4, 1], [-1, -3, 1]], prop: { k: 'sheet', hand: 0 } }), pose({ view: 'S', arms: [[-2, -12, 0], [2, -12, 0]] })]]);
+  const S = 6;
+  const cw = 34;
+  const rh = 46;
+  const cv = document.getElementById('c');
+  const ncol = Math.max(...rows.map((r) => r[1].length));
+  cv.width = ncol * cw * S;
+  cv.height = rows.length * rh * S;
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const lo = document.createElement('canvas');
+  lo.width = ncol * cw; lo.height = rows.length * rh;
+  const l = lo.getContext('2d');
+  rows.forEach(([O, list], ri) => list.forEach((ps, ci) => {
+    l.fillStyle = (ri + ci) % 2 ? '#3d8c3c' : '#367f36';
+    l.fillRect(ci * cw, ri * rh, cw, rh);
+    drawRig(l, O, ps, ci * cw + cw / 2, ri * rh + rh - 6, O.pads ? 15 : null);
+  }));
+  setTimeout(() => {
+    ctx.drawImage(lo, 0, 0, cv.width, cv.height);
+    document.title = 'ready';
+  }, 400);
+</script>
+</body>
+</html>

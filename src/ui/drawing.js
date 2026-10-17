@@ -18,7 +18,9 @@ export class PlayDrawing {
     this.forPlay = null;
     this.drag = null;
     this.lastTap = null;
+    // the how-to hint shows for a player's first few calls, ever
     this.hintsLeft = 4;
+    try { this.hintsLeft = Number(localStorage.getItem('mb.drawHints') ?? 4); } catch { /* private mode */ }
     this.chip = h('button', { class: 'draw-chip', type: 'button', hidden: true, onclick: () => this.reset() });
     coach.stage.append(this.chip);
     const cv = coach.canvas;
@@ -57,7 +59,10 @@ export class PlayDrawing {
     this.edits = {};
     this.forPlay = null;
     this.drag = null;
-    if (this.hintsLeft > 0) this.hintsLeft--;
+    if (this.hintsLeft > 0) {
+      this.hintsLeft--;
+      try { localStorage.setItem('mb.drawHints', String(this.hintsLeft)); } catch { /* private mode */ }
+    }
   }
 
   reset() {

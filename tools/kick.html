@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Kick strip</title>
+<style>
+  body { margin: 0; background: #222; }
+  canvas { image-rendering: pixelated; display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+  // Stages one kick scene and lays out frames: ?type=fg|punt|kickoff&seed=3
+  import { TEAMS, setTeams } from '../src/data/teams.js';
+  import { fromLeagueJson } from '../src/data/realleague.js';
+  import { uniform } from '../src/render/pixelsprites.js';
+  import { Game } from '../src/game/rules.js';
+  import { KickScene } from '../src/ui/kickscene.js';
+  import { makeRng } from '../src/core/rng.js';
+  import { carrierMarker } from '../src/render/simdraw.js';
+  const q = new URLSearchParams(location.search);
+  const real = await fetch('../assets/data/league.json').then((r) => r.json()).then(fromLeagueJson);
+  setTeams(real.teams);
+  const T = (id) => TEAMS.find((t) => t.id === id);
+  const g = new Game({ homeTeam: T('KC'), awayTeam: T('BUF'), homeRoster: real.rosters.KC, awayRoster: real.rosters.BUF, userSide: null, qLen: 15, seed: +(q.get('seed') || 3) });
+  const type = q.get('type') || 'fg';
+  g.poss = 'home'; g.phase = 'play'; g.ballOn = type === 'fg' ? 70 : 35; g.down = 4; g.ltg = g.ballOn + 8;
+  let out;
+  let kSide = 'home';
+  if (type === 'fg') out = g.fieldGoal();
+  else if (type === 'punt') out = g.punt();
+  else { g.kickingSide = 'home'; out = g.kickoff(false); kSide = out.kSide; }
+  const sc = new KickScene({ type, out, game: g, kSide, rSide: kSide === 'home' ? 'away' : 'home', rng: makeRng(5), ballX: 23.6 });
+  const uniK = uniform(T('KC'), true);
+  const uniR = uniform(T('BUF'), false);
+  const n = +(q.get('n') || 18);
+  const step = +(q.get('step') || 0.12);
+  const cam = { s: 10, w: 110, h: 80, sx(x) { return this.w / 2 + (x - this.cx) * this.s; }, sy(f) { return this.h / 2 - (f - this.cf) * this.s * 0.86; }, cx: 0, cf: 0 };
+  const cols = 6;
+  const S = 4;
+  const cv = document.getElementById('c');
+  cv.width = cols * cam.w * S;
+  cv.height = Math.ceil(n / cols) * cam.h * S;
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const lo = document.createElement('canvas');
+  lo.width = cam.w; lo.height = cam.h;
+  const l = lo.getContext('2d');
+  let k = 0;
+  let next = +(q.get('from') || 0);
+  while (k < n && sc.t < 20 && !sc.done) {
+    if (sc.t >= next) {
+      const f = sc.focus();
+      cam.cx = f.x; cam.cf = f.f;
+      l.fillStyle = '#3d8c3c';
+      l.fillRect(0, 0, cam.w, cam.h);
+      sc.draw(l, cam, uniK, uniR, carrierMarker);
+      l.fillStyle = '#fff';
+      l.font = '8px monospace';
+      l.fillText(sc.t.toFixed(2), 2, 9);
+      ctx.drawImage(lo, (k % cols) * cam.w * S, Math.floor(k / cols) * cam.h * S, cam.w * S, cam.h * S);
+      k++;
+      next += step;
+    }
+    sc.update(1 / 60);
+  }
+  document.title = 'ready';
+</script>
+</body>
+</html>

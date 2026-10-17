@@ -14,6 +14,7 @@
 // No DOM here, and every random draw comes from the sim's seeded RNG.
 
 import { FIELD_W, clamp, dist } from '../core/util.js';
+import { tackleOdds, fumbleOdds } from './odds.js';
 
 const MOVE_T = { juke: 0.34, spin: 0.42, stiff: 0.45, truck: 0.34, hurdle: 0.5, shrug: 0.3 };
 const MOVE_BOOST = 1.3; // how often carriers try a move before contact
@@ -46,6 +47,8 @@ export const contactMethods = {
     p.down = true;
     p.downT = 0;
     p.upT = upT;
+    p.fallAt = this.clock();
+    p.fellBack = false;
     p.vx = vx;
     p.vy = vy;
     if (Math.hypot(vx, vy) > 0.2) p.face = Math.atan2(vy, vx);
@@ -60,6 +63,7 @@ export const contactMethods = {
       p.down = false;
       p.upT = 0;
       p.stumbleT = 0.12;
+      p.upAt = this.clock();
       return false;
     }
     this.brake(p, dt, 14);
@@ -132,6 +136,17 @@ export const contactMethods = {
     const h = this.ball.holder;
     if (!h || this.ball.state !== 'held' || this.wrap) return;
     const foes = h.side === 'O' ? this.defense : this.offense;
+    if (h.down) {
+      // on the turf after a dive: a touch ends it (down by contact)
+      for (const d of foes) {
+        if (d.down || dist(d.x, d.y, h.x, h.y) > 1.2) continue;
+        this.tackler = d;
+        this.events.push({ t: this.t, k: 'tackle', who: d, on: h, kind: 'touch', gain: 0, v0: 0 });
+        this.endPlay('tackle', { spotY: h.y, spotX: h.x });
+        return;
+      }
+      return;
+    }
     for (const d of foes) {
       if (d.down || d.stumbleT > 0 || d.tackleCD > 0 || d.wrapOn) continue;
       const dd = dist(d.x, d.y, h.x, h.y);
@@ -151,25 +166,18 @@ export const contactMethods = {
   },
 
   tryTackle(d, h) {
-    const brk = h.a.str * 0.35 + h.a.elu * 0.35 + h.a.agi * 0.15 + h.a.car * 0.15;
-    const tk = d.a.tkl * 0.75 + d.a.str * 0.25;
-    let help = 0;
-    const foes = h.side === 'O' ? this.defense : this.offense;
-    for (const o of foes) if (o !== d && !o.down && !o.blk && dist(o.x, o.y, h.x, h.y) < 1.7) help++;
-    const sack = h === this.qb && this.phase === 'pre';
-    let p = 0.8 + (tk - brk) / 160 + help * 0.1 - (h.juke > 0 ? 0.25 : 0) - (d.blk ? 0.3 : 0) + (sack ? 0.06 : 0);
-    p = clamp(p, 0.2, 0.96);
-    if (this.rng.chance(p)) {
-      const fumbleP = sack ? 0.085 : 0.011 * (1.25 - h.a.car / 100);
-      if (this.rng.chance(fumbleP)) {
-        this.fumble(h, sack ? 'strip sack' : 'fumble', d);
+    const o = tackleOdds(this, d, h);
+    if (this.rng.chance(o.p)) {
+      const n = 1 + (o.help > 0.6 ? 1 : 0);
+      if (this.rng.chance(fumbleOdds(h, d, n, null, o.sack))) {
+        this.fumble(h, o.sack ? 'strip sack' : 'fumble', d);
         return true;
       }
       if (d.blk) this.breakBlock(d.blk);
-      this.startWrap(d, h, sack ? 'sack' : null);
+      this.startWrap(d, h, o.sack ? 'sack' : null, o);
       return true;
     }
-    this.brokenTackle(d, h, sack);
+    this.brokenTackle(d, h, o.sack);
     return false;
   },
 
@@ -224,7 +232,7 @@ export const contactMethods = {
   },
 
   tryDive(d, h) {
-    const p = clamp(0.4 + (d.a.tkl - 65) / 200 - (h.a.elu - 70) / 300 - (h.juke > 0 ? 0.2 : 0), 0.15, 0.7);
+    const p = clamp(0.48 + (d.a.tkl - 65) / 200 - (h.a.elu - 70) / 300 - (h.juke > 0 ? 0.2 : 0), 0.15, 0.75);
     d.diveT = 0.3;
     if (this.rng.chance(p)) {
       if (d.blk) this.breakBlock(d.blk);
@@ -242,7 +250,7 @@ export const contactMethods = {
   },
 
   // A made tackle. The runner keeps fighting for a moment before he's down.
-  startWrap(d, h, forced) {
+  startWrap(d, h, forced, odds = null) {
     const rng = this.rng;
     const g = h.side === 'O' ? 1 : -1;
     const sp = Math.hypot(h.vx, h.vy);
@@ -254,7 +262,9 @@ export const contactMethods = {
     if (!forced) {
       const nearSide = h.x < 2.4 || h.x > FIELD_W - 2.4;
       const inside = Math.abs(d.x - FIELD_W / 2) < Math.abs(h.x - FIELD_W / 2);
+      const behind = odds && odds.ahead < -0.35;
       if (nearSide && inside && rng.chance(0.55)) kind = 'pushout';
+      else if (behind) kind = rng.chance(0.4) ? 'trip' : 'drag'; // caught from behind: ankles, or dragged down falling forward
       else if (closing > 6 && rng.chance(clamp(0.2 + (d.a.str - 70) / 150 + (d.a.tkl - 70) / 200, 0.05, 0.45))) kind = 'hit';
       else if (sp > 3 && h.a.str * 0.6 + h.a.car * 0.4 - (d.a.tkl * 0.7 + d.a.str * 0.3) + rng.normal(0, 12) > 2) kind = 'drag';
     }
@@ -369,6 +379,7 @@ export const contactMethods = {
       if (this.rng.chance(w.kind === 'hit' || w.kind === 'trip' ? 0.85 : 0.6)) {
         d.down = true;
         d.upT = 0;
+        d.fallAt = this.clock();
         d.face = Math.atan2(h.y - d.y, h.x - d.x);
       }
       d.vx *= 0.3;
@@ -377,10 +388,15 @@ export const contactMethods = {
     h.down = true;
     h.upT = 0;
     h.move = null;
-    h.face = w.kind === 'hit' ? Math.atan2(h.vy, h.vx) : w.g > 0 ? Math.PI / 2 : -Math.PI / 2;
+    h.fallAt = this.clock();
+    // he goes down the way he was going (a big hit puts him on his back)
+    h.fellBack = w.kind === 'hit';
+    const hs = Math.hypot(h.vx, h.vy);
+    h.face = w.kind === 'hit' ? Math.atan2(-(h.y - d0.y), -(h.x - d0.x)) : hs > 0.5 ? Math.atan2(h.vy, h.vx) : w.g > 0 ? Math.PI / 2 : -Math.PI / 2;
     // spot: where he went down, or his forward progress if he was driven back
     let spotY = h.y + (w.kind === 'hit' || sack ? 0 : 0.2 * w.g);
     if ((w.progY - spotY) * w.g > 0) spotY = w.progY; // forward progress (sacks too)
+    this.onTackle(w);
     this.events.push({ t: this.t, k: sack ? 'sack' : 'tackle', who: d0, on: h, kind: w.kind, gain: (spotY - w.y0) * w.g, v0: w.v0 });
     this.endPlay(sack ? 'sack' : 'tackle', { spotY, spotX: h.x });
   },
@@ -401,6 +417,7 @@ export const contactMethods = {
           if (dist(o.x, o.y, h.x, h.y) < 1.8 && (i * 7 + Math.floor(o.x * 10)) % 3 !== 0) {
             o.down = true;
             o.upT = 0;
+            o.fallAt = this.clock();
             o.face = Math.atan2(h.y - o.y, h.x - o.x);
           }
         });
@@ -408,11 +425,12 @@ export const contactMethods = {
     }
     this.post.t += dt;
     this.spikeBall(dt);
+    if (this.crew) this.crew.update(dt);
     for (const p of this.players) {
       if (p.down) {
         if (p.upT > 0) {
           p.downT += dt;
-          if (p.downT >= p.upT) p.down = false;
+          if (p.downT >= p.upT) { p.down = false; p.upAt = this.clock(); }
         }
         this.brake(p, dt, 14);
       } else if (p.celeb) this.celebMove(p, dt);

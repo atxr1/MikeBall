@@ -9,6 +9,11 @@ import { FORMATIONS } from '../data/playbook.js';
 import { alignOffense, alignDefense, routePoints, pathPoints } from './align.js';
 import { contactMethods } from './contact.js';
 import { celebrateMethods } from './celebrate.js';
+import { passingMethods } from './passing.js';
+import { offenseMethods } from './offense.js';
+import { defenseMethods } from './defense.js';
+import { foulMethods } from './fouls.js';
+import { Crew } from './officials.js';
 
 export const DT = 1 / 60;
 const HIST = 40;
@@ -25,7 +30,7 @@ function mkEnt(rec, side, slot, pos, x, y) {
     blk: null, target: null, retarget: 0,
     freeT: 0, stunT: 0, stumbleT: 0, tackleCD: 0, moveCD: 0, jamT: 0,
     down: false, downT: 0, upT: 0, anim: (x * 7.3 + y * 3.1) % 6, juke: 0,
-    move: null, diveT: 0, wrapOn: null, cheer: false, celeb: null, hidden: false,
+    move: null, diveT: 0, diving: null, wrapOn: null, cheer: false, celeb: null, hidden: false,
     hist: new Float32Array(HIST * 2), hi: 0,
     wp: 0, pts: null, routeEnd: 'continue', released: false,
     readDelay: 0, ballReact: 0, paFooled: false, sat: false,
@@ -56,7 +61,11 @@ export class PlaySim {
     this.offense = [];
     this.defense = [];
     this.players = [];
+    this.fouls = [];
     this.setup();
+    this.crew = new Crew(this, !!opts.umpireDefense);
+    if (opts.preFoul) this.setupPreFoul(opts.preFoul);
+    if (opts.snapFoul) this.setupSnapFoul(opts.snapFoul);
   }
 
   // ---------------------------------------------------------------- setup
@@ -181,6 +190,7 @@ export class PlaySim {
     if (this.done) return;
     const dt = DT;
     this.t += dt;
+    if (this.preFoul) return this.stepPreFoul(dt);
     this.updateBall(dt);
     if (this.done) return;
     for (const p of this.players) {
@@ -200,11 +210,94 @@ export class PlaySim {
     if (this.done) return;
     this.checkContacts(dt);
     if (this.done) return;
+    this.checkSnapFoul();
+    this.checkCoverageHolds();
+    this.checkLateHits();
+    this.crew.update(dt);
     this.checkBoundaries();
     if (!this.done && this.t > MAX_TIME) {
       const h = this.ball.holder;
       this.endPlay(h ? 'tackle' : 'incomplete', { spotY: h ? h.y : 0, spotX: h ? h.x : this.ballX });
     }
+  }
+
+  // A foul before the snap (decided by the rules engine): the guilty
+  // player moves early, the official throws the flag, the whistle blows.
+  setupPreFoul(pf) {
+    const rng = this.rng;
+    let who;
+    if (pf.key === 'falseStart') {
+      const cands = this.offense.filter((p) => p.pos === 'OL' || p.pos === 'TE' || (p.pos === 'WR' && p.y > -1.2));
+      who = rng.pick(cands.length ? cands : this.offense);
+    } else {
+      const cands = this.defense.filter((p) => p.pos === 'DL' || (p.pos === 'LB' && p.y < 2.5));
+      who = rng.pick(cands.length ? cands : this.defense);
+    }
+    this.preFoul = { ...pf, who, flagged: false };
+    this.ball.state = 'snap';
+    this.ball.T = 99;
+  }
+
+  // A live-ball foul at the snap: offside (a lineman jumps early and is in
+  // the neutral zone when the ball is snapped) or twelve men on the field.
+  // The play runs; the offense takes the better of the play and the flag.
+  setupSnapFoul(sf) {
+    let who = null;
+    if (sf.key === 'offside') {
+      const cands = this.defense.filter((p) => p.pos === 'DL' || (p.pos === 'LB' && p.y < 2.5));
+      who = this.rng.pick(cands.length ? cands : this.defense);
+      who.y = Math.max(0.15, who.y - 0.9); // he's across the line as it's snapped
+      who.freeT = 0.3;
+    } else if (sf.key === 'formation') {
+      // a receiver who should be on the line set a step off it (or vice versa)
+      const wide = this.offense.filter((p) => p.pos === 'WR' || p.pos === 'TE');
+      who = wide.length ? this.rng.pick(wide) : null;
+    }
+    this.snapFoul = { ...sf, who, flagged: false };
+  }
+
+  checkSnapFoul() {
+    const sf = this.snapFoul;
+    if (!sf || sf.flagged || this.t < 0.12) return;
+    sf.flagged = true;
+    const x = sf.who ? sf.who.x : this.ballX;
+    this.flag(sf.key, sf.who, x, sf.who ? sf.who.y : 1);
+  }
+
+  stepPreFoul(dt) {
+    const pf = this.preFoul;
+    const p = pf.who;
+    const t = this.t;
+    if (t < 0.32) {
+      // the flinch: a lineman jumps forward, a defender crosses the line
+      const dir = p.side === 'O' ? 1 : -1;
+      const reach = pf.key === 'falseStart' ? 0.5 : 1.6;
+      p.vy = t < 0.16 ? dir * reach * 6 : 0;
+      p.y += p.vy * dt;
+      p.flinch = true;
+    } else if (pf.key !== 'falseStart' && t < 0.9) {
+      // he scrambles back to his side
+      p.vy = (p.sy - p.y) * 4;
+      p.y += p.vy * dt;
+    } else p.vy = 0;
+    // the other side reacts
+    if (t > 0.12 && t < 0.4) {
+      for (const o of this.players) {
+        if (o.side === p.side || Math.abs(o.x - p.x) > 4 || o.pos !== 'OL' && o.pos !== 'DL') continue;
+        o.flinch = true;
+      }
+    }
+    if (!pf.flagged && t > 0.18) {
+      pf.flagged = true;
+      this.flag(pf.key, p, p.x, p.side === 'O' ? 0.2 : -0.2);
+    }
+    this.crew.update(dt);
+    if (t > 1.1) this.endPlay('dead', { spotY: 0, spotX: this.ballX });
+  }
+
+  // Animation clock: play time, then time since the whistle.
+  clock() {
+    return this.t + (this.post ? this.post.t : 0);
   }
 
   runToEnd() {
@@ -238,16 +331,12 @@ export class PlaySim {
       const u = clamp((this.t - b.t0) / b.T, 0, 1);
       b.x = b.fx + (b.tx - b.fx) * u;
       b.y = b.fy + (b.ty - b.fy) * u;
-      b.z = 1.8 + 4 * b.peak * u * (1 - u) - 0.6 * u;
+      b.z = 1.8 + 4 * b.peak * u * (1 - u) + ((b.tz ?? 1.2) - 1.8) * u;
       if (u >= 1) {
         if (b.state === 'pitch') this.completePitch();
         else this.resolveCatch();
       }
     }
-  }
-
-  ballSpeed(qb) {
-    return 15.5 + qb.a.thp * 0.11;
   }
 
   // ---------------------------------------------------------------- think
@@ -268,830 +357,7 @@ export class PlaySim {
     else this.defThink(p, dt);
   }
 
-  offThink(p, dt) {
-    const carrier = this.carrier;
-    if (this.phase === 'run' && carrier) {
-      if (carrier.side === 'O') {
-        if (p.job.t === 'passpro' && p.target && this.t - this.runT < 0.6 && !this.scramble) return this.passPro(p, dt);
-        return this.escort(p, dt, carrier);
-      }
-      return this.pursue(p, dt, carrier); // turnover: offense chases
-    }
-    if (this.phase === 'air') {
-      if (p === this.ball.target) {
-        this.steer(p, this.ball.tx, this.ball.ty, 1, dt, 0.4);
-        return;
-      }
-      if (p.pts && p.released) return this.runRoute(p, dt);
-      if (p.job.t === 'passpro' || p.job.t === 'chkrel') return this.passPro(p, dt);
-      return this.brake(p, dt, 6);
-    }
-    // pre-snap-to-handoff / pass in pocket
-    switch (p.job.t) {
-      case 'pass': return this.qbPass(p, dt);
-      case 'handoff': return this.qbHandoff(p, dt);
-      case 'kneel':
-        if (this.t > 0.45) this.endPlay('kneel', { spotY: -1, spotX: this.ballX });
-        return this.steer(p, p.sx, p.sy - 0.6, 0.3, dt, 0.3);
-      case 'spike':
-        if (this.t > 0.55) this.endPlay('spike', { spotY: 0, spotX: this.ballX });
-        return this.brake(p, dt, 8);
-      case 'carry': return this.followPath(p, dt, this.preHandoffSpeed(p));
-      case 'route': return this.runRoute(p, dt);
-      case 'chkrel':
-        if (!p.released && this.t > 1.5 && !this.blitzThreat(p)) p.released = true;
-        return p.released ? this.runRoute(p, dt) : this.passPro(p, dt);
-      case 'pafake':
-        if (this.t < 0.9) return this.followPath(p, dt, 0.8);
-        return this.passPro(p, dt);
-      case 'passpro': return this.passPro(p, dt);
-      case 'draw':
-        return this.passPro(p, dt);
-      case 'screenOL':
-        if (this.t < 1.0) return this.passPro(p, dt);
-        return this.releaseScreen(p, dt);
-      case 'pull':
-        if (p.wp < p.pts.length) return this.followPath(p, dt, 0.92);
-        return this.runBlock(p, dt);
-      case 'lead':
-        if (p.wp < p.pts.length && this.t < 1.6) return this.followPath(p, dt, 0.95);
-        return this.runBlock(p, dt);
-      case 'zone':
-      case 'stalk':
-      default:
-        return this.runBlock(p, dt);
-    }
-  }
-
-  defThink(p, dt) {
-    const carrier = this.carrier;
-    const holder = this.ball.holder;
-    if (this.phase === 'run' && carrier) {
-      if (carrier.side === 'D') return this.escort(p, dt, carrier);
-      const knows = this.t - this.runT > (this.receiver || this.interceptor ? p.ballReact : p.readDelay);
-      if (knows || p.assign.t === 'rush' || p.assign.t === 'blitz' || dist(p.x, p.y, carrier.x, carrier.y) < 4) return this.pursue(p, dt, carrier);
-      return this.coverage(p, dt);
-    }
-    if (this.phase === 'air') {
-      const b = this.ball;
-      if (this.t - b.t0 > p.ballReact && (p.assign.t !== 'rush' && p.assign.t !== 'blitz' || p.y > 2)) {
-        const tLeft = b.t0 + b.T - this.t;
-        const d = dist(p.x, p.y, b.tx, b.ty);
-        if (d / p.maxSpd < tLeft + 1.2) return this.steer(p, b.tx, b.ty, 1, dt, 0.2);
-        if (b.target) return this.steer(p, b.tx, b.ty + 1, 1, dt, 0.5);
-      }
-      return this.coverage(p, dt);
-    }
-    // ball in backfield (or QB scramble not yet a "run" phase)
-    switch (p.assign.t) {
-      case 'rush':
-      case 'blitz':
-        return this.rush(p, dt, holder);
-      case 'spy':
-        if (holder && holder.y > -0.5) return this.pursue(p, dt, holder);
-        return this.steer(p, this.qb.x, Math.max(this.qb.y + 6, 4.5), 0.8, dt, 0.6);
-      case 'fit':
-        if (this.t < 0.8) return this.steer(p, this.ballX + (p.sx - this.ballX) * 0.5, 1.6, 0.9, dt, 0.5);
-        p.assign = { ...p.assign, t: 'zone', zone: { x: this.ballX, y: 7, rx: 5, ry: 4 } };
-        return this.zoneCover(p, dt);
-      default:
-        return this.coverage(p, dt);
-    }
-  }
-
-  coverage(p, dt) {
-    if (p.paFooled && this.t < 0.75) return this.steer(p, p.sx, p.sy - 2.2, 0.7, dt, 0.4);
-    // Linebackers read-step before dropping so they can still fit the run.
-    if (p.pos === 'LB' && this.t < 0.25 + p.readDelay * 0.6 && this.phase === 'pre') return this.steer(p, p.sx, p.sy - 0.6, 0.35, dt, 0.4);
-    if (p.assign.t === 'man') return this.manCover(p, dt);
-    if (p.assign.t === 'zone') return this.zoneCover(p, dt);
-    if (p.assign.t === 'rush' || p.assign.t === 'blitz') return this.rush(p, dt, this.ball.holder || this.qb);
-    return this.zoneCover(p, dt);
-  }
-
-  // ---------------------------------------------------------------- offense behaviors
-  preHandoffSpeed(p) {
-    if (p.job.self) return 0.9;
-    if (p.job.handT >= 0.9) return this.t < p.job.handT - 0.25 ? 0 : 0.85;
-    return 0.85;
-  }
-
-  followPath(p, dt, frac) {
-    if (!p.pts || p.wp >= p.pts.length) return this.brake(p, dt, 6);
-    const tp = p.pts[p.wp];
-    if (frac <= 0) return this.brake(p, dt, 8);
-    this.steer(p, tp.x, tp.y, frac, dt, 0);
-    if (dist(p.x, p.y, tp.x, tp.y) < 0.6) p.wp++;
-  }
-
-  runRoute(p, dt) {
-    if (p.jamT > 0) return this.steer(p, p.x, p.y + 1, 0.25, dt, 0);
-    const pts = p.pts;
-    if (p.wp < pts.length) {
-      const tp = pts[p.wp];
-      this.steer(p, tp.x, tp.y, 0.96, dt, 0);
-      if (dist(p.x, p.y, tp.x, tp.y) < 0.7) {
-        p.wp++;
-        // cut: lose some speed depending on route running
-        const keep = 0.45 + p.a.rte / 240;
-        if (p.wp < pts.length || p.routeEnd === 'sit') { p.vx *= keep; p.vy *= keep; }
-      }
-      return;
-    }
-    if (p.routeEnd === 'sit') {
-      // settle; drift away from the closest defender a little
-      const def = this.nearest(this.defense, p.x, p.y);
-      let tx = pts[pts.length - 1].x;
-      let ty = pts[pts.length - 1].y;
-      if (def && dist(def.x, def.y, p.x, p.y) < 3) {
-        tx += clamp(p.x - def.x, -1, 1) * 1.2;
-        ty += clamp(p.y - def.y, -1, 0.5) * 0.6;
-      }
-      return this.steer(p, clamp(tx, 1, FIELD_W - 1), ty, 0.5, dt, 0.8);
-    }
-    // continue in last direction
-    const a = pts.length > 1 ? pts[pts.length - 2] : { x: p.sx, y: p.sy };
-    const b = pts[pts.length - 1];
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const m = Math.hypot(dx, dy) || 1;
-    let tx = p.x + (dx / m) * 10;
-    const ty = p.y + (dy / m) * 10;
-    if (tx < 1.2 || tx > FIELD_W - 1.2) {
-      tx = clamp(tx, 1.2, FIELD_W - 1.2);
-      return this.steer(p, tx, p.y + 10, 0.96, dt, 0);
-    }
-    this.steer(p, tx, ty, 0.96, dt, 0);
-  }
-
-  blitzThreat(p) {
-    for (const d of this.defense) {
-      if (d.blk || d.down) continue;
-      if ((d.assign.t === 'blitz' || d.assign.t === 'rush') && d.y < 2.5 && dist(d.x, d.y, this.qb.x, this.qb.y) < 7) {
-        let blocked = false;
-        for (const o of this.offense) if (o !== p && o.target === d) blocked = true;
-        if (!blocked) return true;
-      }
-    }
-    return false;
-  }
-
-  passPro(p, dt) {
-    if (p.stunT > 0) return this.brake(p, dt, 6);
-    p.retarget -= dt;
-    let tgt = p.target;
-    const qb = this.qb;
-    const want = this.drawnTarget(p);
-    if (want && !(this.t > 0.6 && want.y > 4 && want.vy > 0)) tgt = p.target = want;
-    if (tgt && (tgt.down || (tgt.blk && tgt.blk.b !== p) || (this.t > 0.6 && tgt.y > 4 && tgt.vy > 0))) tgt = p.target = null;
-    if (!tgt && p.retarget <= 0) {
-      p.retarget = 0.15;
-      let best = null;
-      let bd = 1e9;
-      for (const d of this.defense) {
-        if (d.down || d.blk || d.freeT > 0.3) continue;
-        if (d.y > 4.5) continue;
-        if (this.t > 0.3 && d.vy > 1.5) continue; // dropping into coverage
-        let taken = false;
-        for (const o of this.offense) if (o !== p && o.target === d) taken = true;
-        if (taken && p.pos !== 'OL') continue;
-        const lat = Math.abs(d.x - p.x);
-        const range = p.pos === 'OL' ? 3.6 : 6;
-        if (lat > range) continue;
-        const c = lat + Math.abs(d.y - p.y) * 0.5 + (taken ? 3 : 0);
-        if (c < bd) { bd = c; best = d; }
-      }
-      tgt = p.target = best;
-    }
-    if (tgt) {
-      const dx = qb.x - tgt.x;
-      const dy = qb.y - tgt.y;
-      const m = Math.hypot(dx, dy) || 1;
-      const ix = tgt.x + (dx / m) * 1.0;
-      const iy = tgt.y + (dy / m) * 1.0;
-      return this.steer(p, ix, Math.min(iy, p.sy + 0.4), 0.82, dt, 0.25);
-    }
-    // nobody to block: hold the pocket
-    return this.steer(p, p.sx + (qb.x - this.ballX) * 0.5, Math.max(p.sy - 1.8, qb.y + 2), 0.4, dt, 0.5);
-  }
-
-  releaseScreen(p, dt) {
-    const dir = p.job.dir || 1;
-    if (!p.target || p.target.down) {
-      const rb = this.bySlot.RB;
-      let best = null;
-      let bd = 1e9;
-      for (const d of this.defense) {
-        if (d.down || d.blk) continue;
-        const dd = dist(d.x, d.y, rb.x + dir * 2, rb.y + 4);
-        if (dd < bd) { bd = dd; best = d; }
-      }
-      p.target = best;
-    }
-    if (this.phase === 'run') return this.escort(p, dt, this.carrier);
-    return this.steer(p, clamp(p.sx + dir * 6, 1, FIELD_W - 1), 2.5, 0.8, dt, 0.5);
-  }
-
-  runBlock(p, dt) {
-    if (p.stunT > 0) return this.brake(p, dt, 6);
-    const aim = this.runAim();
-    if (p.job.t === 'stalk' && this.t < 0.5) return this.steer(p, p.x, p.sy + 2, 0.6, dt, 0.3);
-    p.retarget -= dt;
-    let tgt = p.target;
-    const want = this.drawnTarget(p);
-    if (want) tgt = p.target = want;
-    if (tgt && (tgt.down || (tgt.blk && tgt.blk.b !== p))) tgt = p.target = null;
-    if (!tgt && p.retarget <= 0) {
-      p.retarget = 0.2;
-      tgt = p.target = this.pickRunTarget(p, aim);
-    }
-    if (tgt) {
-      const dx = aim.x - tgt.x;
-      const dy = aim.y - tgt.y;
-      const m = Math.hypot(dx, dy) || 1;
-      return this.steer(p, tgt.x + (dx / m) * 0.9, tgt.y + (dy / m) * 0.9, 0.95, dt, 0.2);
-    }
-    const dir = p.job.dir || 0;
-    return this.steer(p, p.x + dir * 1.5, p.y + 2, 0.6, dt, 0.5);
-  }
-
-  // The defender the coach drew this blocker onto, while he's still blockable.
-  drawnTarget(p) {
-    const t = p.job.target && this.defBySlot[p.job.target];
-    if (!t || t.down || (t.blk && t.blk.b !== p)) return null;
-    return t;
-  }
-
-  runAim() {
-    const c = this.carrier || this.bySlot.RB || this.qb;
-    if (this.carrier) return { x: c.x, y: c.y };
-    const rb = this.offense.find((p) => p.job.t === 'carry');
-    if (rb && rb.pts) {
-      const hole = rb.pts.find((pt) => pt.y > -1.5) || rb.pts[rb.pts.length - 1];
-      return { x: hole.x, y: hole.y };
-    }
-    return { x: this.ballX, y: 0 };
-  }
-
-  pickRunTarget(p, aim) {
-    const dir = p.job.dir || 0;
-    let best = null;
-    let bd = 1e9;
-    const level2 = this.t > 0.35;
-    for (const d of this.defense) {
-      if (d.down) continue;
-      if (d.blk && d.blk.b !== p) continue;
-      let taken = 0;
-      for (const o of this.offense) if (o !== p && o.target === d) taken++;
-      if (taken >= 1) continue;
-      const lat = d.x - p.x;
-      const depth = d.y - p.y;
-      if (depth < -2 || depth > (p.pos === 'WR' ? 14 : level2 ? 9 : 4)) continue;
-      if (p.pos === 'OL' && Math.abs(lat) > 4.5) continue;
-      let c = Math.abs(lat) + depth * 0.55;
-      if (dir && lat * dir < -0.8) c += 2.2; // prefer playside
-      c += dist(d.x, d.y, aim.x, aim.y) * 0.15;
-      if (c < bd) { bd = c; best = d; }
-    }
-    return best;
-  }
-
-  escort(p, dt, carrier) {
-    if (p.stunT > 0) return this.brake(p, dt, 6);
-    const g = carrier.side === 'O' ? 1 : -1;
-    const foes = carrier.side === 'O' ? this.defense : this.offense;
-    p.retarget -= dt;
-    if (!p.target || p.target.down || (p.target.blk && p.target.blk.b !== p) || p.retarget <= 0) {
-      p.retarget = 0.25;
-      let best = null;
-      let bd = 1e9;
-      for (const d of foes) {
-        if (d.down || d.blk || d === carrier) continue;
-        const ahead = (d.y - carrier.y) * g;
-        if (ahead < -1.5) continue;
-        const dd = dist(d.x, d.y, p.x, p.y);
-        if (dd > 5 || dist(d.x, d.y, carrier.x, carrier.y) > 7) continue;
-        const c = dd + dist(d.x, d.y, carrier.x, carrier.y) * 0.7;
-        if (c < bd) { bd = c; best = d; }
-      }
-      p.target = best;
-    }
-    const tgt = p.target;
-    if (tgt) {
-      const dx = carrier.x - tgt.x;
-      const dy = carrier.y - tgt.y;
-      const m = Math.hypot(dx, dy) || 1;
-      return this.steer(p, tgt.x + (dx / m) * 0.8, tgt.y + (dy / m) * 0.8, 0.95, dt, 0.2);
-    }
-    return this.steer(p, carrier.x + (p.x - carrier.x) * 0.5, carrier.y + g * 3, 0.7, dt, 1);
-  }
-
   // ---------------------------------------------------------------- QB
-  qbHandoff(p, dt) {
-    const j = p.job;
-    const rb = this.offense.find((o) => o.job.t === 'carry');
-    if (!rb) return this.brake(p, dt, 6);
-    if (this.ball.holder !== p || this.ball.state !== 'held') {
-      // after handoff: carry out the fake
-      const away = (this.offPlay.dir || 1) * -1;
-      return this.steer(p, this.ballX + away * 4, p.y - 0.5, this.t - (this.runT || 0) < 0.9 ? 0.7 : 0.1, dt, 0.5);
-    }
-    if (j.pitch) {
-      if (this.t > 0.28) this.pitchTo(p, rb);
-      return this.brake(p, dt, 6);
-    }
-    if (j.fakeDrop && this.t < rb.job.handT - 0.15) return this.steer(p, this.ballX, p.sy - 2.2, 0.6, dt, 0.4);
-    // meet the back
-    const tgt = rb.pts[0];
-    const mx = (tgt.x + p.x) / 2;
-    this.steer(p, mx, Math.min(p.y, tgt.y + 0.6), 0.7, dt, 0.3);
-    if ((this.t > 0.22 && dist(p.x, p.y, rb.x, rb.y) < 1.1) || this.t > rb.job.handT + 0.5) this.handTo(rb);
-  }
-
-  handTo(rb) {
-    this.ball.state = 'held';
-    this.ball.holder = rb;
-    this.carrier = rb;
-    this.phase = 'run';
-    this.runT = this.t;
-    this.rusher = rb;
-    this.events.push({ t: this.t, k: 'handoff', who: rb });
-  }
-
-  pitchTo(qb, rb) {
-    const b = this.ball;
-    const lead = 0.38;
-    b.state = 'pitch';
-    b.holder = null;
-    b.fx = qb.x; b.fy = qb.y;
-    b.tx = rb.x + rb.vx * lead; b.ty = rb.y + rb.vy * lead;
-    b.t0 = this.t; b.T = lead; b.peak = 0.25; b.target = rb;
-    this.runT = this.t;
-  }
-
-  completePitch() {
-    const rb = this.ball.target;
-    this.ball.target = null;
-    if (this.rng.chance(0.006)) return this.fumble(rb, 'muffed pitch');
-    this.handTo(rb);
-  }
-
-  qbPass(p, dt) {
-    if (this.ball.holder !== p) {
-      if (this.ball.state === 'snap') return this.brake(p, dt, 4);
-      return this.brake(p, dt, 5);
-    }
-    const play = this.offPlay;
-    if (p.qbState === undefined) {
-      const gun = p.sy < -2.5;
-      const drop = play.drop || 5;
-      p.dropY = gun ? p.sy - (drop === 3 ? 0.6 : drop === 5 ? 1.8 : 2.8) : -(drop === 3 ? 4.2 : drop === 5 ? 6.6 : 8.2);
-      p.qbState = play.pa ? 'fake' : 'drop';
-      p.decT = 0;
-    }
-    if (p.qbState === 'fake') {
-      const rb = this.bySlot.RB;
-      this.steer(p, (p.x + rb.x) / 2, p.y - 0.3, 0.5, dt, 0.3);
-      if (this.t > 0.65) p.qbState = 'drop';
-      return;
-    }
-    if (p.qbState === 'drop') {
-      this.steer(p, this.ballX, p.dropY, 0.8, dt, 0.4);
-      if (Math.abs(p.y - p.dropY) < 0.35) {
-        p.qbState = 'set';
-        p.setT = this.t;
-      }
-      return;
-    }
-    // Wind-up: the ball isn't out yet, so the QB can still be hit.
-    if (p.pending) {
-      if (this.t >= p.pending.at) {
-        const pd = p.pending;
-        p.pending = null;
-        if (pd.away) this.throwAwayNow(p);
-        else this.throwNow(p, pd.r, pd.pressure);
-      }
-      return this.brake(p, dt, 8);
-    }
-    // Set in the pocket: read and decide.
-    const tSet = this.t - p.setT;
-    const pressure = this.pressureOn(p);
-    // pocket movement: slide away from the nearest free rusher
-    const threat = this.nearestFree(this.defense, p.x, p.y);
-    let mx = this.ballX;
-    let my = p.dropY + Math.min(1.2, tSet * 0.6);
-    if (threat && dist(threat.x, threat.y, p.x, p.y) < 4) {
-      mx = p.x + clamp(p.x - threat.x, -1.5, 1.5) * 1.2;
-      my = p.y + clamp(p.y - threat.y, -1, 1);
-    }
-    this.steer(p, clamp(mx, this.ballX - 5, this.ballX + 5), Math.min(my, -1.2), 0.45, dt, 0.4);
-
-    if (play.screen) {
-      if (this.t >= play.screen) this.throwTo(p, this.bySlot.RB, pressure);
-      return;
-    }
-    if (play.hailMary) {
-      if (tSet > 2.0 || pressure > 0.8) {
-        let deep = null;
-        for (const r of this.progression) if (!deep || r.y > deep.y) deep = r;
-        this.throwTo(p, deep, pressure + 0.6);
-      }
-      return;
-    }
-
-    const readDur = 0.45 + (100 - p.a.dec) / 260;
-    const idx = Math.min(this.progression.length - 1, Math.floor(tSet / readDur));
-    const base = play.depth === 'short' ? 1.3 : play.depth === 'deep' ? 2.1 : 1.8;
-    const threshold = base - Math.max(0, tSet - 1.6) * 0.55 - pressure * 0.9;
-    const cand = this.progression[idx];
-    if (cand && tSet > 0.12) {
-      const o = this.openness(p, cand);
-      if (o >= threshold) return this.throwTo(p, cand, pressure);
-    }
-    p.decT -= dt;
-    if (p.decT > 0) return;
-    p.decT = 0.22;
-    if (pressure > 0.65 || tSet > 2.8) {
-      let best = null;
-      let bo = -99;
-      for (const r of this.progression) {
-        const o = this.openness(p, r) + r.y * 0.02;
-        if (o > bo) { bo = o; best = r; }
-      }
-      if (best && bo > (tSet > 3.4 ? 0.6 : 1.0)) return this.throwTo(p, best, pressure);
-      const scrP = 0.12 + 0.45 * clamp((p.a.spd - 55) / 35, 0, 1);
-      if (this.rng.chance(scrP) && this.laneOpen(p)) return this.startScramble(p);
-      if (tSet > 4.4 || (pressure > 0.85 && this.rng.chance(0.25))) {
-        if (this.rng.chance(0.55 + p.a.dec / 300)) return this.throwAway(p);
-      }
-    }
-  }
-
-  pressureOn(qb) {
-    let m = 9;
-    for (const d of this.defense) {
-      if (d.down) continue;
-      const dd = dist(d.x, d.y, qb.x, qb.y) - (d.blk ? 1.4 : 0);
-      if (dd < m) m = dd;
-    }
-    return clamp((3.2 - m) / 2.2, 0, 1);
-  }
-
-  laneOpen(qb) {
-    // Any of three lanes (middle, left, right) free of unblocked defenders.
-    for (const lx of [0, -4, 4]) {
-      let open = true;
-      for (const d of this.defense) {
-        if (d.down || d.blk) continue;
-        if (d.y > qb.y - 1 && d.y < qb.y + 5 && Math.abs(d.x - (qb.x + lx)) < 2.2) { open = false; break; }
-      }
-      if (open) return true;
-    }
-    return false;
-  }
-
-  leadPoint(qb, r) {
-    const spd = this.ballSpeed(qb);
-    let lx = r.x;
-    let ly = r.y;
-    let T = 0;
-    for (let i = 0; i < 3; i++) {
-      const d = dist(qb.x, qb.y, lx, ly);
-      T = d / spd + 0.12 + (d > 25 ? (d - 25) * 0.012 : 0);
-      const settle = r.routeEnd === 'sit' && r.wp >= (r.pts ? r.pts.length : 0);
-      lx = r.x + (settle ? 0 : r.vx * T);
-      ly = r.y + (settle ? 0 : r.vy * T);
-    }
-    return { x: clamp(lx, 0.8, FIELD_W - 0.8), y: Math.min(ly, this.goalY + 8), T };
-  }
-
-  openness(qb, r) {
-    if (!r || r.down || !r.released || r.blk) return -99;
-    if (r.jamT > 0) return -5;
-    const L = this.leadPoint(qb, r);
-    if (L.y < qb.y - 1 && !this.offPlay.screen) return -5;
-    let o = 99;
-    for (const d of this.defense) {
-      if (d.down || d.blk) continue;
-      const dd = dist(d.x, d.y, L.x, L.y) - d.maxSpd * L.T * 0.55;
-      if (dd < o) o = dd;
-      // underneath defender in the throwing lane
-      const lx = L.x - qb.x;
-      const ly = L.y - qb.y;
-      const len2 = lx * lx + ly * ly || 1;
-      const u = ((d.x - qb.x) * lx + (d.y - qb.y) * ly) / len2;
-      if (u > 0.15 && u < 0.6) {
-        const px = qb.x + lx * u;
-        const py = qb.y + ly * u;
-        if (dist(px, py, d.x, d.y) < 1.1) o -= 1.4;
-      }
-    }
-    return o - Math.max(0, L.y - 12) * 0.05;
-  }
-
-  throwTo(qb, r, pressure) {
-    if (qb.pending) return;
-    qb.pending = { r, pressure, at: this.t + 0.1 + (100 - qb.a.dec) / 600 + pressure * 0.04 };
-  }
-
-  throwAway(qb) {
-    if (qb.pending) return;
-    qb.pending = { away: true, at: this.t + 0.14 };
-  }
-
-  throwNow(qb, r, pressure) {
-    if (!r) return this.throwAwayNow(qb);
-    const L = this.leadPoint(qb, r);
-    const d = dist(qb.x, qb.y, L.x, L.y);
-    const sigma = 0.15 + (100 - qb.a.tha) * 0.012 + pressure * 0.6 + d * 0.015 + (this.offPlay.hailMary ? 1.6 : 0);
-    const tx = L.x + this.rng.normal(0, sigma);
-    const ty = L.y + this.rng.normal(0, sigma * 1.15);
-    const b = this.ball;
-    b.state = 'air';
-    b.holder = null;
-    b.fx = qb.x; b.fy = qb.y;
-    b.tx = tx; b.ty = ty;
-    b.t0 = this.t;
-    b.T = Math.max(0.25, dist(qb.x, qb.y, tx, ty) / this.ballSpeed(qb) + 0.08 + (d > 25 ? (d - 25) * 0.012 : 0));
-    b.peak = 0.6 + d * 0.1;
-    b.target = r;
-    this.phase = 'air';
-    this.passer = qb;
-    this.airYards = ty;
-    this.events.push({ t: this.t, k: 'throw', who: qb, to: r });
-  }
-
-  throwAwayNow(qb) {
-    const side = qb.x < this.ballX ? -1 : 1;
-    const b = this.ball;
-    b.state = 'air';
-    b.holder = null;
-    b.fx = qb.x; b.fy = qb.y;
-    b.tx = side < 0 ? -3 : FIELD_W + 3;
-    b.ty = Math.max(qb.y + 6, 2);
-    b.t0 = this.t;
-    b.T = dist(qb.x, qb.y, b.tx, b.ty) / this.ballSpeed(qb) + 0.1;
-    b.peak = 2.5;
-    b.target = null;
-    b.away = true;
-    this.phase = 'air';
-    this.passer = qb;
-    this.events.push({ t: this.t, k: 'throwaway', who: qb });
-  }
-
-  startScramble(qb) {
-    this.scramble = true;
-    this.carrier = qb;
-    this.phase = 'run';
-    this.runT = this.t;
-    this.rusher = qb;
-    this.events.push({ t: this.t, k: 'scramble', who: qb });
-  }
-
-  // ---------------------------------------------------------------- catch
-  resolveCatch() {
-    const b = this.ball;
-    const L = { x: b.tx, y: b.ty };
-    this.phase = 'resolving';
-    if (b.away || L.x < 0 || L.x > FIELD_W || L.y > this.goalY + 10) {
-      return this.incomplete(b.away ? 'thrown away' : 'out of bounds', null);
-    }
-    let r = null;
-    let rd = 1e9;
-    for (const o of this.offense) {
-      if (o.down || (o.pos !== 'WR' && o.pos !== 'TE' && o.pos !== 'RB')) continue;
-      let dd = dist(o.x, o.y, L.x, L.y);
-      if (o === b.target) dd -= 0.3;
-      if (dd < rd) { rd = dd; r = o; }
-    }
-    if (r === b.target) rd += 0.3;
-    let def = null;
-    let dd = 1e9;
-    for (const d of this.defense) {
-      if (d.down || d.blk) continue;
-      const x = dist(d.x, d.y, L.x, L.y);
-      if (x < dd) { dd = x; def = d; }
-    }
-    const contest = clamp((1.7 - dd) / 1.7, 0, 1);
-    if (def && dd < 1.4) {
-      const close = clamp((1.4 - dd) / 1.4, 0, 1);
-      const pInt = (0.02 + def.a.bsk * 0.0018) * close * (r && rd < dd ? 0.4 : 1.1);
-      if (this.rng.chance(pInt)) return this.intercept(def);
-      const cov = (def.a.mcv + def.a.zcv) / 200;
-      const pPbu = (0.16 + cov * 0.36) * close * (r && rd < dd ? 0.8 : 1.2);
-      if (this.rng.chance(pPbu)) return this.incomplete('broken up', def);
-    }
-    if (r && rd < 1.45) {
-      const deep = Math.max(0, L.y - 12) * 0.008;
-      const pc = clamp(0.58 + r.a.cth * 0.004 - rd * 0.08 - contest * 0.3 - deep, 0.05, 0.97);
-      if (this.rng.chance(pc)) return this.catchBy(r, L);
-      return this.incomplete(contest < 0.3 && rd < 0.7 ? 'dropped' : 'contested', def);
-    }
-    return this.incomplete(L.y > (b.target ? b.target.y : 0) ? 'overthrown' : 'incomplete', null);
-  }
-
-  catchBy(r, L) {
-    r.x = L.x * 0.6 + r.x * 0.4;
-    r.y = L.y * 0.6 + r.y * 0.4;
-    this.ball.state = 'held';
-    this.ball.holder = r;
-    this.ball.target = null;
-    this.carrier = r;
-    this.phase = 'run';
-    this.runT = this.t;
-    this.receiver = r;
-    this.catchY = r.y;
-    r.moveCD = 0.6;
-    r.secureT = 0.35;
-    r.vx *= 0.7;
-    r.vy *= 0.7;
-    this.events.push({ t: this.t, k: 'catch', who: r });
-    for (const p of this.offense) if (p !== r) p.target = null;
-  }
-
-  intercept(d) {
-    this.ball.state = 'held';
-    this.ball.holder = d;
-    this.ball.target = null;
-    this.carrier = d;
-    this.phase = 'run';
-    this.runT = this.t;
-    this.turnover = true;
-    this.interceptor = d;
-    this.events.push({ t: this.t, k: 'int', who: d });
-    for (const p of this.players) { p.target = null; if (p.blk) this.breakBlock(p.blk); }
-    if (d.y >= this.goalY + 1.5) this.endPlay('touchback', { spotY: this.goalY, spotX: d.x });
-  }
-
-  incomplete(why, def) {
-    this.events.push({ t: this.t, k: 'incomplete', why, def });
-    this.endPlay('incomplete', { spotY: 0, spotX: this.ballX, why, defender: def });
-  }
-
-  // ---------------------------------------------------------------- carrier
-  carrierThink(p, dt) {
-    // Designed run path before the line.
-    if (p.job && p.job.t === 'carry' && p.pts && p.wp < p.pts.length && !this.turnover) {
-      const tp = p.pts[p.wp];
-      let clogged = false;
-      for (const d of this.defense) {
-        if (d.down || d.blk) continue;
-        if (dist(d.x, d.y, tp.x, tp.y) < 1.5) { clogged = true; break; }
-      }
-      if (!clogged) {
-        this.steer(p, tp.x, tp.y, 1, dt, 0);
-        if (dist(p.x, p.y, tp.x, tp.y) < 0.8) p.wp++;
-        return;
-      }
-      p.wp = p.pts.length;
-    }
-    if (this.qbSlide(p)) return;
-    this.freeRun(p, dt);
-  }
-
-  qbSlide(p) {
-    if (p !== this.qb || !this.scramble || p.y < 1) return false;
-    const foe = this.nearestFree(this.defense, p.x, p.y);
-    if (foe && dist(foe.x, foe.y, p.x, p.y) < 1.6 && this.rng.chance(0.5)) {
-      this.endPlay('tackle', { spotY: p.y, spotX: p.x, slide: true });
-      return true;
-    }
-    return false;
-  }
-
-  freeRun(p, dt) {
-    const g = p.side === 'O' ? 1 : -1;
-    const foes = p.side === 'O' ? this.defense : this.offense;
-    const base = g > 0 ? Math.PI / 2 : -Math.PI / 2;
-    const cur = Math.atan2(p.vy, p.vx);
-    const wantOOB = this.opts.wantOOB && p.side === 'O';
-    let bestA = base;
-    let bestS = -1e9;
-    for (let k = -4; k <= 4; k++) {
-      const ang = base + k * (Math.PI / 9);
-      const cx = Math.cos(ang);
-      const cy = Math.sin(ang);
-      let s = Math.sin(ang) * g * 1.2;
-      for (const [look, w] of LOOKS) {
-        const px = p.x + cx * look;
-        const py = p.y + cy * look;
-        if (px < 0.7 || px > FIELD_W - 0.7) {
-          s += wantOOB ? 0.4 : -2.5;
-          break;
-        }
-        const tCar = look / p.maxSpd;
-        let minM = 3;
-        for (const o of foes) {
-          if (o.down || o.stumbleT > 0.15) continue;
-          const tO = (dist(o.x, o.y, px, py) - 1.0) / o.maxSpd + (o.blk ? 0.8 : 0);
-          const m = tO - tCar;
-          if (m < minM) minM = m;
-        }
-        s += clamp(minM, -1.5, 1.2) * w;
-      }
-      if (p.vx * p.vx + p.vy * p.vy > 4) s += Math.cos(ang - cur) * 0.35;
-      if (s > bestS) { bestS = s; bestA = ang; }
-    }
-    const turn = Math.abs(Math.atan2(Math.sin(bestA - cur), Math.cos(bestA - cur)));
-    const cutPenalty = turn > 0.8 ? 0.82 + p.a.agi / 600 : 1;
-    if (p.secureT > 0) p.secureT -= dt;
-    this.carrierSteer(p, bestA, cutPenalty * 0.9 * (p.secureT > 0 ? 0.55 : 1), dt);
-    this.carrierMoves(p, foes);
-  }
-
-  // ---------------------------------------------------------------- defense behaviors
-  rush(p, dt, holder) {
-    const qb = holder || this.qb;
-    // blitzers (and linemen given a gap) attack their lane first
-    if ((p.assign.t === 'blitz' || p.assign.gapX != null) && this.t < 0.55 && p.y > 0.3) {
-      return this.steer(p, p.assign.gapX, -0.3, 1, dt, 0);
-    }
-    let tx = qb.x;
-    let ty = qb.y;
-    const side = p.x - qb.x;
-    if (Math.abs(side) > 2 && p.y > qb.y + 2.5) {
-      tx = qb.x + Math.sign(side) * 1.8;
-      ty = qb.y + 0.8;
-    }
-    this.steer(p, tx, ty, p.freeT > 0 ? 1 : 0.95, dt, 0);
-  }
-
-  pursue(p, dt, c) {
-    if (p.stunT > 0) return this.brake(p, dt, 5);
-    // Solve for the earliest intercept: |r + v*t| = s*t
-    const rx = c.x - p.x;
-    const ry = c.y - p.y;
-    const s = p.maxSpd * 0.97;
-    const a = c.vx * c.vx + c.vy * c.vy - s * s;
-    const b = 2 * (rx * c.vx + ry * c.vy);
-    const cc = rx * rx + ry * ry;
-    let T = Math.sqrt(cc) / s;
-    if (Math.abs(a) > 1e-6) {
-      const disc = b * b - 4 * a * cc;
-      if (disc >= 0) {
-        const sq = Math.sqrt(disc);
-        const t1 = (-b - sq) / (2 * a);
-        const t2 = (-b + sq) / (2 * a);
-        const cand = [t1, t2].filter((t) => t > 0);
-        if (cand.length) T = Math.min(...cand);
-      }
-    }
-    T = Math.min(T, 1.8);
-    const tx = c.x + c.vx * T * 0.92;
-    const ty = c.y + c.vy * T * 0.92;
-    this.steer(p, clamp(tx, -1, FIELD_W + 1), ty, 1, dt, 0);
-  }
-
-  manCover(p, dt) {
-    const r = p.target;
-    if (!r) return this.zoneCover(p, dt);
-    // receiver stayed in to block -> green-dog rush (LB) or rob the middle (DB)
-    if (!r.released && this.t > 0.9) {
-      if (p.pos === 'LB') { p.assign = { t: 'rush' }; return this.rush(p, dt, this.ball.holder || this.qb); }
-      p.assign = { t: 'zone', zone: { x: this.ballX, y: 9, rx: 5, ry: 4 } };
-      return this.zoneCover(p, dt);
-    }
-    const lag = clamp(0.42 - p.a.mcv * 0.0028, 0.12, 0.4);
-    const k = Math.round(lag / DT);
-    const idx = ((r.hi - k) % HIST + HIST) % HIST;
-    const lvx = r.hist[idx * 2];
-    const lvy = r.hist[idx * 2 + 1];
-    const startCush = p.assign.press ? 1.0 : Math.max(1.5, p.sy - r.sy - 1);
-    const cushion = Math.max(0.9, startCush - this.t * 2.6);
-    const inward = r.x > this.ballX ? -1 : 1;
-    const tx = r.x + lvx * 0.35 + inward * 0.5;
-    const ty = r.y + lvy * 0.35 + cushion;
-    this.steer(p, tx, ty, 1, dt, 0.3);
-  }
-
-  zoneCover(p, dt) {
-    const z = p.assign.zone || { x: p.sx, y: p.sy + 4, rx: 5, ry: 4 };
-    let thr = null;
-    let best = -1e9;
-    for (const r of this.eligible) {
-      if (r.down || !r.released) continue;
-      const nx = (r.x - z.x) / (z.rx * 1.35);
-      const ny = (r.y - z.y) / (z.ry * 1.35);
-      const inside = nx * nx + ny * ny;
-      if (z.deep) {
-        if (inside > 1.6 || r.y < z.y - z.ry * 1.2) continue;
-        if (r.y > best) { best = r.y; thr = r; }
-      } else if (inside < 1) {
-        const s = -inside;
-        if (s > best) { best = s; thr = r; }
-      }
-    }
-    const qb = this.qb;
-    if (!thr) {
-      const eyes = (qb.x - z.x) * 0.15;
-      const spd = this.t < 1.2 ? 0.85 : 0.6;
-      return this.steer(p, z.x + eyes, z.y, spd, dt, 1);
-    }
-    if (z.deep) return this.steer(p, thr.x + (this.ballX - thr.x) * 0.06, Math.max(thr.y + 2.8, z.y - z.ry * 0.4), 1, dt, 0.4);
-    const inward = thr.x > this.ballX ? -1 : 1;
-    return this.steer(p, clamp(thr.x + inward * 0.7, z.x - z.rx * 1.4, z.x + z.rx * 1.4), clamp(thr.y + 0.6, z.y - z.ry * 1.4, z.y + z.ry * 1.4), 0.95, dt, 0.4);
-  }
-
   // ---------------------------------------------------------------- engagements
   canBeBlocked(d) {
     return !d.blk && d.freeT <= 0 && !d.down && !d.wrapOn && d !== this.ball.holder;
@@ -1160,6 +426,7 @@ export class PlaySim {
       }
       if (pair.open) rate += 0.8;
       if (this.rng.next() < rate * dt) {
+        this.onShed(pair);
         this.breakBlock(pair);
         d.freeT = 0.6;
         b.stunT = 0.45;
@@ -1269,6 +536,7 @@ export class PlaySim {
     this.events.push({ t: this.t, k: 'fumble', who: h, by, rec });
     this.tackler = by || null;
     h.down = true;
+    h.fallAt = this.clock();
     this.fumbled = { by: h, forcedBy: by, recoveredBy: rec, lost, why };
     if (lost && h.side === 'O') this.turnover = true;
     else if (lost && h.side === 'D') this.turnover = false; // offense got it back
@@ -1317,6 +585,7 @@ export class PlaySim {
   endPlay(outcome, info) {
     if (this.done) return;
     this.done = true;
+    if (!this.preFoul) this.checkLateHitAfterWhistle(outcome, this.ball.holder);
     if (this.wrap) {
       // a tackle in progress ended at a boundary: out of bounds or in the end zone
       const w = this.wrap;
@@ -1360,7 +629,7 @@ export class PlaySim {
       outOfBounds: outcome === 'oob',
       slide: !!info.slide,
       elapsed: this.t,
-      passer: (this.passer || (this.offPlay.cat !== 'run' || this.scramble ? this.qb : null))?.rec,
+      passer: (this.passer || (this.offPlay.cat !== 'run' || this.scramble || outcome === 'sack' ? this.qb : null))?.rec,
       target: this.ball.target?.rec,
       receiver: this.receiver?.rec,
       rusher: this.rusher?.rec,
@@ -1371,6 +640,8 @@ export class PlaySim {
       fumble: this.fumbled ? { by: this.fumbled.by.rec, forcedBy: this.fumbled.forcedBy?.rec, recoveredBy: this.fumbled.recoveredBy.rec, lost: this.fumbled.lost } : null,
       airYards: this.airYards != null ? Math.round(this.airYards) : null,
       catchY: this.catchY,
+      firstDown: offense && !td && this.opts.toGo != null && spotY >= this.opts.toGo && outcome !== 'incomplete',
+      fouls: this.foulsOut(),
       evCounts: this.events.reduce((m, e) => ((m[e.k] = (m[e.k] || 0) + 1), m), {}),
       offPlay: this.offPlay.id,
       defPlay: this.defPlay.id,
@@ -1381,9 +652,8 @@ export class PlaySim {
   }
 }
 
-Object.assign(PlaySim.prototype, contactMethods, celebrateMethods);
+Object.assign(PlaySim.prototype, contactMethods, celebrateMethods, passingMethods, foulMethods, offenseMethods, defenseMethods);
 
-const LOOKS = [[1.5, 1.4], [3.5, 1.0], [6, 0.6]];
 
 export function simulatePlay(opts) {
   const sim = new PlaySim(opts);

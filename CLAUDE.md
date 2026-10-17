@@ -70,3 +70,6 @@ UI; badges only.
 - `python3 tools/playthrough.py --games 2 --speed 10` — plays full games
   through the UI to catch flow bugs
 - `node tools/balance.mjs 1500 --real` — balance report on the real league
+- `python3 tools/page_shot.py tools/rig.html out.png` — the animation rig
+  sheet; `tools/anim.html?play=slants&want=catch` lays out frames of a live
+  play, `tools/kick.html?type=fg|punt|kickoff` frames of a kick

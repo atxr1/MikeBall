@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Animation strip</title>
+<style>
+  body { margin: 0; background: #222; }
+  canvas { image-rendering: pixelated; display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+  // Plays one sim and lays out frames around the moment that matters
+  // (catch, tackle) in a grid, zoomed on the ball.
+  // ?play=slants&def=cov3_43&seed=3&from=-0.6&step=0.08&n=24&focus=ball
+  import { TEAMS, setTeams } from '../src/data/teams.js';
+  import { fromLeagueJson } from '../src/data/realleague.js';
+  import { uniform } from '../src/render/pixelsprites.js';
+  import { offPlay, DEFENSE_PLAYS } from '../src/data/playbook.js';
+  import { offenseLineup, defenseLineup } from '../src/game/personnel.js';
+  import { PlaySim } from '../src/sim/playsim.js';
+  import { makeRng } from '../src/core/rng.js';
+  import { drawSimPlayers } from '../src/render/simdraw.js';
+  import { HASH_L } from '../src/core/util.js';
+  const q = new URLSearchParams(location.search);
+  const real = await fetch('../assets/data/league.json').then((r) => r.json()).then(fromLeagueJson);
+  setTeams(real.teams);
+  const oT = TEAMS.find((t) => t.id === (q.get('off') || 'KC'));
+  const dT = TEAMS.find((t) => t.id === (q.get('defteam') || 'BUF'));
+  const op = offPlay(q.get('play') || 'slants');
+  const dp = DEFENSE_PLAYS.find((d) => d.id === (q.get('def') || 'cov3_43')) || DEFENSE_PLAYS[0];
+  const mk = (seed) => new PlaySim({ offPlay: op, defPlay: dp, offLineup: offenseLineup(real.rosters[oT.id], op.formation), defLineup: defenseLineup(real.rosters[dT.id], dp.front), ballOn: 35, ballX: HASH_L, rng: makeRng(seed) });
+  // find a seed whose play has the event we want
+  const want = q.get('want') || 'catch';
+  let seed = +(q.get('seed') || 1);
+  let sim;
+  for (let i = 0; i < 200; i++) {
+    sim = mk(seed);
+    sim.runToEnd();
+    const ok = want === 'any' || sim.events.some((e) => e.k === want) || (want === 'drop' && sim.catchInfo && sim.catchInfo.kind === 'drop') || (want === 'dive' && sim.catchInfo && sim.catchInfo.reach > 1.6);
+    if (ok) break;
+    seed++;
+  }
+  const ev = sim.events.find((e) => e.k === want) || { t: sim.t - 0.4 };
+  const t0 = Math.max(0, (want === 'drop' || want === 'dive') && sim.catchInfo ? sim.catchInfo.t + +(q.get('from') || -0.6) : ev.t + +(q.get('from') || -0.6));
+  const step = +(q.get('step') || 0.07);
+  const n = +(q.get('n') || 24);
+  // replay, snapshotting frames
+  sim = mk(seed);
+  const cam = { s: 10, w: +(q.get('w') || 80), h: +(q.get('h') || 64), sx(x) { return this.w / 2 + (x - this.cx) * this.s; }, sy(f) { return this.h / 2 - (f - this.cf) * this.s * 0.86; }, cx: 0, cf: 0 };
+  const scene = { sim, los: 35, offUni: uniform(oT, true), defUni: uniform(dT, false) };
+  const cols = 6;
+  const S = +(q.get('scale') || 6);
+  const cv = document.getElementById('c');
+  cv.width = cols * cam.w * S;
+  cv.height = Math.ceil(n / cols) * cam.h * S;
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const lo = document.createElement('canvas');
+  lo.width = cam.w; lo.height = cam.h;
+  const l = lo.getContext('2d');
+  let k = 0;
+  let next = t0;
+  let focus = null;
+  let guard = 0;
+  while (k < n && guard++ < 4000) {
+    const live = sim.t >= next || sim.done;
+    if (live) {
+      if (!focus) focus = sim.ball.holder && sim.ball.state === 'held' ? sim.ball.holder : sim.ball;
+      const who = q.get('focus') ? sim.crew.by[q.get('focus')] : sim.ball.state === 'air' ? sim.ball.target : sim.ball.holder;
+      if (who) focus = who;
+      const fx = focus && focus.x != null ? focus.x : sim.ball.x;
+      const fy = focus && focus.y != null ? focus.y : sim.ball.y;
+      cam.cx = fx; cam.cf = 35 + fy + 1;
+      l.fillStyle = '#3d8c3c';
+      l.fillRect(0, 0, cam.w, cam.h);
+      drawSimPlayers(l, cam, scene, true);
+      l.fillStyle = '#fff';
+      l.font = '8px monospace';
+      l.fillText(sim.t.toFixed(2) + (sim.done ? '*' : ''), 2, 9);
+      ctx.drawImage(lo, (k % cols) * cam.w * S, Math.floor(k / cols) * cam.h * S, cam.w * S, cam.h * S);
+      k++;
+      next += step;
+    }
+    if (!sim.done) sim.step();
+    else sim.settle(1 / 60);
+  }
+  document.title = 'ready';
+</script>
+</body>
+</html>

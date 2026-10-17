@@ -142,7 +142,7 @@ export function setupScreen(app, userId) {
       seg([[5, '5 min'], [8, '8 min'], [12, '12 min'], [15, '15 min']], () => qLen, (v) => { qLen = v; }),
     ),
     h('div', { class: 'setup-actions' },
-      h('button', { class: 'act', onclick: () => openRoster(app.root, user, app.league[userId]) }, 'View roster'),
+      h('button', { class: 'act', onclick: () => openRoster(app.root, user, app.league[userId], null, { editable: true }) }, 'Depth chart'),
       h('button', { class: 'go', onclick: start }, 'Kick off'),
     ),
   );

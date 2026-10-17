@@ -1,185 +1,120 @@
-// Draws the 22 players of a live (or pre-snap) play: picks each player's
-// pose from the sim state (runs, cuts, stiff arms, spins, hurdles, wraps,
-// falls, celebrations), then sprites, the ball and the carrier marker.
+// Draws the 22 players of a live (or pre-snap) play: each player's pose is
+// generated from the sim state (src/render/animate.js) and drawn with the
+// procedural rig (src/render/rig.js), then the ball and the carrier marker.
 
-import { drawSprite, drawShadow, drawCarriedBall, drawFootball, viewFromFace } from './pixelsprites.js';
+import { drawShadow, drawFootball } from './pixelsprites.js';
+import { playerOutfit, drawRig } from './rig.js';
+import { animatePlayer } from './animate.js';
+import { officialPose, officialOutfit, drawFlags } from './crewdraw.js';
 
-const TMP = { view: 'N', pose: 'stand', frame: 0, num: 0, skin: 0, lift: 0, ball: true };
 const sortBuf = [];
+const outfits = new Map();
 
-export function poseFor(p, sim, live) {
-  const e = TMP;
-  e.num = p.rec.num;
-  e.skin = p.rec.skinTone;
-  e.frame = 0;
-  e.lift = 0;
-  e.ball = true;
-  const side = (a) => (Math.cos(a) >= 0 ? 'E' : 'W');
-  if (live && p.diveT > 0) { e.pose = 'dive'; e.view = side(p.face); return e; }
-  if (p.down) {
-    e.pose = 'down';
-    const c = Math.cos(p.face);
-    e.view = Math.abs(c) > 0.6 ? side(p.face) : Math.sin(p.face) > 0 ? 'N' : 'S';
-    return e;
+export function outfitFor(uni, skin) {
+  const k = `${uni.key}|${skin}`;
+  let o = outfits.get(k);
+  if (!o) {
+    o = playerOutfit(uni, skin);
+    outfits.set(k, o);
   }
-  const speed = Math.hypot(p.vx, p.vy);
-  if (!live || sim.t < 0.05) {
-    e.pose = 'stand';
-    e.view = p.side === 'O' ? 'N' : 'S';
-    return e;
-  }
-  e.view = viewFromFace(p.face);
-  if (p.cheer) { e.pose = 'cheer'; e.ball = false; return e; }
-  const c = p.celeb;
-  if (c && sim.post && sim.post.t >= c.t0 && celebPose(e, p, c, sim.post.t - c.t0, speed, sim.post.t)) return e;
-  const holder = sim.ball.holder === p;
-  if (p === sim.qb && (p.pending || (sim.passer === p && sim.t - (sim.ball.t0 || 0) < 0.22 && sim.ball.state === 'air'))) {
-    e.pose = 'throw';
-    if (e.view === 'E' || e.view === 'W') e.view = 'N';
-    return e;
-  }
-  const m = p.move;
-  if (m) {
-    const u = m.t / m.T;
-    if (m.k === 'spin') {
-      const order = ['N', 'E', 'S', 'W'];
-      e.view = order[(order.indexOf(e.view) + 1 + Math.floor(u * 4)) % 4];
-      e.pose = 'carry';
-      e.frame = Math.floor(p.anim * 0.6) % 4;
-      return e;
-    }
-    if (m.k === 'stiff') {
-      if (e.view === 'E' || e.view === 'W') { e.pose = 'stiffL'; e.ball = false; }
-      else e.pose = m.on && m.on.x < p.x ? 'stiffL' : 'stiffR';
-      return e;
-    }
-    if (m.k === 'juke' && m.t < 0.26) {
-      e.view = p.vy >= 0 ? 'N' : 'S';
-      e.pose = m.dir < 0 ? 'cutL' : 'cutR';
-      return e;
-    }
-    if (m.k === 'truck') { e.pose = 'push'; return e; }
-    if (m.k === 'hurdle') {
-      e.pose = 'carry';
-      e.frame = 0;
-      e.lift = Math.round(Math.sin(Math.min(1, u) * Math.PI) * 6);
-      return e;
-    }
-  }
-  if (p.wrapOn) {
-    e.pose = 'push';
-    e.view = viewFromFace(Math.atan2(p.wrapOn.y - p.y, p.wrapOn.x - p.x));
-    return e;
-  }
-  if (sim.wrap && sim.wrap.h === p) {
-    e.pose = 'carry';
-    e.frame = Math.floor(sim.t * 9) % 4;
-    return e;
-  }
-  if (p.stumbleT > 0 && !p.blk) { e.pose = 'reel'; return e; }
-  if (p.blk) { e.pose = 'push'; return e; }
-  if (speed > 0.7) {
-    e.pose = holder ? 'carry' : 'run';
-    e.frame = Math.floor(p.anim * 0.6) % 4;
-    return e;
-  }
-  e.pose = 'stand';
-  return e;
+  return o;
 }
 
-// Celebration poses (see src/sim/celebrate.js). Returns false to fall back
-// to the normal pose.
-function celebPose(e, p, c, u, speed, now) {
-  const run = (pose) => {
-    e.pose = pose;
-    e.frame = Math.floor(p.anim * 0.6) % 4;
-  };
-  e.ball = c.k === 'point' || c.k === 'flexpoint' || c.k === 'arms' || c.k === 'hug';
-  switch (c.k) {
-    case 'dejected':
-      if (speed > 0.7) return false;
-      e.pose = 'stand';
-      e.view = p.side === 'O' ? 'S' : 'N';
-      return true;
-    case 'hug':
-      if (speed > 1.2) { run('run'); return true; }
-      e.pose = 'cheer';
-      e.view = 'S';
-      e.lift = Math.round(Math.abs(Math.sin(u * 9 + (p.rec.num || 0))) * 4);
-      return true;
-    case 'leap': {
-      if (c.arrived == null) { run('carry'); e.ball = true; return true; }
-      const k = now - c.arrived;
-      e.pose = 'cheer';
-      e.view = 'N';
-      e.lift = Math.round(Math.sin(Math.min(1, k / 0.45) * (Math.PI / 2)) * 14);
-      return true;
-    }
-    case 'spike':
-      e.pose = u < 0.25 ? 'throw' : 'cheer';
-      e.view = 'S';
-      return true;
-    case 'dance':
-      e.pose = ['cutL', 'cheer', 'cutR', 'cheer'][Math.floor(u * 6) % 4];
-      e.view = 'S';
-      return true;
-    case 'arms':
-      e.pose = 'cheer';
-      e.view = 'S';
-      e.lift = u < 0.6 ? Math.round(Math.abs(Math.sin(u * 10)) * 3) : 0;
-      return true;
-    case 'point':
-      e.pose = 'point';
-      e.view = p.side === 'O' ? 'N' : 'S';
-      return true;
-    case 'flex':
-      e.pose = 'reel';
-      e.view = 'S';
-      return true;
-    case 'flexpoint':
-      e.pose = u < 0.7 ? 'reel' : 'point';
-      e.view = u < 0.7 ? 'S' : p.side === 'O' ? 'N' : 'S';
-      return true;
-    case 'salute':
-      e.pose = 'salute';
-      e.view = 'S';
-      return true;
-    case 'sackdance':
-      e.pose = ['cutL', 'reel', 'cutR', 'reel'][Math.floor(u * 5) % 4];
-      e.view = 'S';
-      return true;
-    default:
-      return false;
-  }
+export function clearOutfits() {
+  outfits.clear();
 }
 
-// sc: { sim, los, offUni, defUni }; live: the play is running or just ended.
-export function drawSimPlayers(ctx, cam, sc, live) {
+// Players doing something other than their position's usual job — a corner
+// or safety blitzing, a lineman dropping into coverage, a receiver or tight
+// end staying in to block on a pass, anyone the coach redrew — get a colored
+// ring on the turf so they're easy to find. Returns the ring color or null.
+const BLITZ_RING = '#ff5a4e';
+const COVER_RING = '#4fa3ff';
+const BLOCK_RING = '#4fd1ff';
+const ROUTE_RING = '#ffd23f';
+export function secondaryRing(p, sim) {
+  if (p.side === 'D') {
+    const t = p.assign && p.assign.t;
+    if ((p.pos === 'CB' || p.pos === 'S') && (t === 'blitz' || t === 'rush')) return BLITZ_RING;
+    if (p.pos === 'DL' && (t === 'zone' || t === 'man' || t === 'spy')) return COVER_RING;
+    return null;
+  }
+  const j = p.job && p.job.t;
+  const block = j === 'passpro' || j === 'stalk' || j === 'zone' || (p.job && p.job.target);
+  const pass = sim.offPlay && sim.offPlay.cat === 'pass';
+  if ((p.pos === 'WR' || p.pos === 'TE') && block && pass) return BLOCK_RING;
+  const edited = sim.offPlay && sim.offPlay.editedSlots && sim.offPlay.editedSlots.includes(p.slot);
+  if (edited && p.pos !== 'OL') return block ? BLOCK_RING : ROUTE_RING;
+  if (p.pos === 'OL' && (j === 'route' || j === 'chkrel' || j === 'carry')) return ROUTE_RING;
+  return null;
+}
+
+function ring(ctx, x, y, col) {
+  const X = Math.round(x);
+  const Y = Math.round(y);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(X - 5, Y + 3, 11, 1);
+  ctx.fillStyle = col;
+  ctx.fillRect(X - 4, Y - 2, 9, 1);
+  ctx.fillRect(X - 4, Y + 2, 9, 1);
+  ctx.fillRect(X - 6, Y - 1, 2, 3);
+  ctx.fillRect(X + 5, Y - 1, 2, 3);
+}
+
+// sc: { sim, los, offUni, defUni, markSide }; live: the play is running or
+// just ended. markSide: 'O' | 'D' | null — whose secondary assignments to ring.
+// override(p): optional { x, y, pose } for players the pre-snap stage is
+// moving (src/ui/presnap.js).
+export function drawSimPlayers(ctx, cam, sc, live, override = null) {
   const sim = sc.sim;
   const list = sortBuf;
   list.length = 0;
   for (const p of sim.players) list.push(p);
-  list.sort((a, b) => b.y - a.y);
+  const over = new Map();
+  if (override) for (const p of list) { const o = override(p); if (o) over.set(p, o); }
+  const pos = (p) => over.get(p) || null;
+  const items = [];
   for (const p of list) {
     if (p.hidden) continue;
-    const x = cam.sx(p.x);
-    const y = cam.sy(sc.los + p.y);
-    if (x < -20 || x > cam.w + 20 || y < -4 || y > cam.h + 30) continue;
-    drawShadow(ctx, x, y, p.down ? 16 : 10);
+    const o = pos(p);
+    if (o && o.gone) continue;
+    const wx = o ? o.x : p.x;
+    const wy = o ? o.y : p.y;
+    const x = cam.sx(wx);
+    const y = cam.sy(sc.los + wy);
+    if (x < -24 || x > cam.w + 24 || y < -6 || y > cam.h + 34) continue;
+    const e = o && o.pose ? o.pose : animatePlayer(p, sim, live);
+    items.push([p, x, y, e]);
+    if (sc.markSide === p.side && !p.down && !(live && sim.done && sim.post && sim.post.t > 0.6)) {
+      const col = secondaryRing(p, sim);
+      if (col) ring(ctx, x, y, col);
+    }
+    drawShadow(ctx, x, y, e.lie || Math.abs(e.rot) >= 4 ? 16 : 10);
   }
+  // the officials, sorted in with the players
+  if (sim.crew && sc.crew !== false) {
+    const now = sim.clock();
+    for (const o of sim.crew.list) {
+      const x = cam.sx(o.x);
+      const y = cam.sy(sc.los + o.y);
+      if (x < -24 || x > cam.w + 24 || y < -6 || y > cam.h + 34) continue;
+      drawShadow(ctx, x, y, 9);
+      items.push([o, x, y, officialPose(o, sim.crew, now, live && (sim.t > 0.02 || sim.done)), true]);
+    }
+    drawFlags(ctx, cam, sim, sc.los, true);
+  }
+  // farther up the screen first
+  items.sort((a, b) => a[2] - b[2]);
   const b = sim.ball;
-  for (const p of list) {
-    if (p.hidden) continue;
-    const x = cam.sx(p.x);
-    const y = cam.sy(sc.los + p.y);
-    if (x < -20 || x > cam.w + 20 || y < -4 || y > cam.h + 30) continue;
-    const e = poseFor(p, sim, live);
-    const yy = y - e.lift;
-    drawSprite(ctx, p.side === 'O' ? sc.offUni : sc.defUni, e, x, yy);
+  for (const [p, x, y, e, official] of items) {
+    const yy = y - (e.lift || 0);
+    if (official) { drawRig(ctx, officialOutfit(p), e, x, yy, null, p); continue; }
+    const uni = p.side === 'O' ? sc.offUni : sc.defUni;
+    drawRig(ctx, outfitFor(uni, p.rec.skinTone || 0), e, x, yy, p.rec.num, p);
     const holder = b.holder === p && b.state === 'held';
-    if (holder && live && e.ball && e.pose !== 'throw' && e.pose !== 'down' && e.pose !== 'dive') drawCarriedBall(ctx, e.view, x, yy);
     if (holder && live && sim.phase === 'run' && !p.down && !sim.done) carrierMarker(ctx, x, yy);
   }
+  if (sim.crew && sc.crew !== false) drawFlags(ctx, cam, sim, sc.los, false);
   if (b.state !== 'held') {
     drawFootball(ctx, cam.sx(b.x), cam.sy(sc.los + b.y), b.z * cam.s * 0.9, sim.t * 12);
   }
@@ -187,7 +122,7 @@ export function drawSimPlayers(ctx, cam, sc, live) {
 
 export function carrierMarker(ctx, x, y) {
   const X = Math.round(x);
-  const Y = Math.round(y) - 28;
+  const Y = Math.round(y) - 30;
   ctx.fillStyle = '#2a2100';
   ctx.fillRect(X - 3, Y - 1, 7, 2);
   ctx.fillRect(X - 2, Y + 1, 5, 1);

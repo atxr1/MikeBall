@@ -75,7 +75,7 @@ def main():
         page.wait_for_selector(".setup-screen")
         shot("setup")
 
-        page.get_by_text("View roster").click()
+        page.get_by_text("Depth chart").click()
         page.wait_for_selector(".roster-list .p-row")
         page.locator(".p-row").first.click()
         time.sleep(0.3)

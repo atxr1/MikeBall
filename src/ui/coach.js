@@ -2,33 +2,36 @@
 // play-calling sheet at the bottom. Drives the Game state machine.
 
 import { Game, other } from '../game/rules.js';
-import { makePlaySim, setupTwoPoint, cpuStep } from '../game/autoplay.js';
+import { makePlaySim } from '../game/autoplay.js';
 import { cpuOffense, cpuDefense, cpuPat, cpuOnside, cpuTimeout } from '../game/cpu.js';
 import { OFFENSE_PLAYS, DEFENSE_PLAYS, OFF_CATS, DEF_CATS, offPlay, FORMATIONS } from '../data/playbook.js';
 import { fgDistance, maxFgRange } from '../game/kicks.js';
 import { makeRng } from '../core/rng.js';
-import { MID_X, fmtClock, clamp, lerp } from '../core/util.js';
+import { MID_X, fmtClock, lerp } from '../core/util.js';
 import { Camera } from '../render/camera.js';
 import { drawField, drawGoalposts, drawFieldDecals, drawScrimmageLines } from '../render/field.js';
 import { makeCrowd } from '../render/crowd.js';
+import { makeSideline, drawSidelinePeople, sidelineTick } from '../render/sideline.js';
 import { Effects } from '../render/effects.js';
 import { ScoreShow } from '../render/scoreshow.js';
-import { ready, image, setImageLoadListener } from '../render/images.js';
+import { image, setImageLoadListener } from '../render/images.js';
 import { teamArt } from '../data/realleague.js';
 import { Y_SQUASH } from '../render/camera.js';
-import { uniform, clearSpriteCache } from '../render/pixelsprites.js';
-import { drawSimPlayers, carrierMarker } from '../render/simdraw.js';
+import { uniform } from '../render/pixelsprites.js';
+import { clearRigCache, rigFrame } from '../render/rig.js';
+import { drawSimPlayers, carrierMarker, clearOutfits } from '../render/simdraw.js';
 import { PlayDrawing } from './drawing.js';
 import { Scorebug, titleCard, fitPixelCanvas, preloadBroadcast, netArt, loadLayouts } from './broadcast.js';
 import { broadcastFor } from '../data/broadcast.js';
 import { playClockMethods } from './playclock.js';
 import { presentationMethods } from './presentation.js';
+import { kickMethods } from './coachkicks.js';
+import { menuMethods } from './coachmenus.js';
+import { stageMethods } from './coachstage.js';
 import { drawFieldArt, playCardSVG } from '../render/playart.js';
 import { DT } from '../sim/playsim.js';
 import { h, clear } from './dom.js';
 import { teamMarkSVG } from './emblems.js';
-import { openRoster } from './roster.js';
-import { KickScene } from './kickscene.js';
 
 export class CoachScreen {
   constructor(app, opts) {
@@ -59,10 +62,14 @@ export class CoachScreen {
     this.sel = null;
     this.cat = null;
     this.uniCache = new Map();
-    clearSpriteCache(); // sprites from the last game's uniforms
+    clearRigCache(); // sprites from the last game's uniforms
+    clearOutfits();
     this.fx = new Effects();
     this.show = new ScoreShow(this.game.teams.home);
     this.homePts = 0; // home score the stadium show has celebrated
+    this.initStage();
+    const gm = this.game;
+    this.sideline = makeSideline(gm.teams, { home: this.uni('home'), away: this.uni('away') }, gm.rosters, opts.seed || 1);
     this.build();
     setImageLoadListener(() => { this.dirty = true; this.updateScorebug(); });
     loadLayouts().then(() => this.updateScorebug());
@@ -267,6 +274,12 @@ export class CoachScreen {
   enterCall() {
     const g = this.game;
     this.mode = 'call';
+    this.flagUp = false;
+    this.stageFresh = true;
+    this.wantSnap = false;
+    this.reported = null;
+    // where the last play left everyone (a no-huddle offense lines up from there)
+    this.lastPlaySim = this.scene && this.scene.kind === 'sim' && this.scene.sim.done ? this.scene.sim : null;
     this.drawing.clear();
     if (this.cat === 'special') this.sel = null;
     const userOff = g.poss === this.user;
@@ -278,7 +291,12 @@ export class CoachScreen {
     this.updateBug();
     if (userOff) {
       this.cpuPlay = cpuDefense(g, cpuSide);
+      // against a no-huddle offense there's no time to change personnel
+      const last = this.lastCpuDef;
+      if (last && g.tempoFor(g.poss) === 'hurry' && this.lastSnapPoss === g.poss && last.front !== this.cpuPlay.front) this.cpuPlay = last;
+      this.cpuBase = this.cpuPlay;
     } else {
+      this.cpuBase = null;
       let p = cpuOffense(g, cpuSide);
       if (this.twoPoint && p.cat === 'special') p = offPlay('slants');
       this.cpuPlay = p;
@@ -370,15 +388,18 @@ export class CoachScreen {
     const userOff = g.poss === this.user;
     this.drawing.sync(this.sel);
     const mine = this.drawing.play();
+    if (userOff) this.matchDefense(mine);
     let o = userOff ? mine : this.cpuPlay;
     const d = userOff ? this.cpuPlay : mine;
     let artSide = userOff ? 'O' : 'D';
-    if (o.cat === 'special' && (o.special === 'punt' || o.special === 'fg')) {
+    const special = o.cat === 'special' && (o.special === 'punt' || o.special === 'fg');
+    if (special) {
       o = offPlay('kneel');
       artSide = null;
     }
     const sim = makePlaySim(g, o, d, makeRng(7));
     this.setSimScene(sim, artSide);
+    this.stagePreview(sim, special);
     this.cam.set(lerp(g.ballX, MID_X, 0.6), g.ballOn + 6, 1.42, !this.previewShown);
     this.previewShown = true;
   }
@@ -399,6 +420,7 @@ export class CoachScreen {
       defTeam: g.teams[def],
       offUni: this.uni(off),
       defUni: this.uni(def),
+      markSide: off === this.user ? 'O' : 'D',
       showLines: true,
     };
   }
@@ -411,6 +433,7 @@ export class CoachScreen {
   // ------------------------------------------------------------------ snapping
   runSnap(o, d) {
     const g = this.game;
+    let snapFoul = !this.twoPoint && o.cat !== 'special' && this.twelveMen() ? { key: 'subs' } : null;
     if (!this.twoPoint) {
       const s = g.snap(Math.min(g.playClock, g.snapAt(g.poss)));
       this.updateBug();
@@ -419,18 +442,34 @@ export class CoachScreen {
       const bx = g.ballX;
       if (o.special === 'punt') return this.runKick('punt', g.punt(), bx);
       if (o.special === 'fg') return this.runKick('fg', g.fieldGoal(), bx);
-      const pen = g.preSnapPenalty();
-      if (pen) {
+      const los0 = g.ballOn;
+      const pen = snapFoul ? null : g.preSnapPenalty();
+      if (pen && pen.live) snapFoul = { key: pen.key };
+      else if (pen) {
+        // stage it: the flinch, the flag, the whistle, the signal
         g.finishNext();
-        this.updateBug();
-        this.setTicker(`Flag: ${pen.text}`);
-        this.mode = 'idle';
-        return this.banner('Flag', pen.text, 1.8, () => this.advance());
+        this.lastSnapPoss = g.poss;
+        this.lastSnapLos = los0;
+        const sim = makePlaySim(g, o, d, null, { ballOn: los0, preFoul: { key: pen.key } });
+        this.setSimScene(sim, null);
+        this.scene.los = los0;
+        this.preFoulPen = pen;
+        this.flagUp = true;
+        this.updateScorebug();
+        this.acc = 0;
+        this.playEnded = false;
+        this.mode = 'play';
+        return;
       }
     }
     this.liveO = o;
     this.liveD = d;
-    const sim = makePlaySim(g, o, d);
+    this.setTicker(''); // last play's line goes away while this one runs
+    if (g.poss === this.user) this.lastCpuDef = d;
+    const sim = makePlaySim(g, o, d, null, this.twoPoint ? { noFouls: true } : snapFoul ? { snapFoul } : null);
+    this.pre.snapped(sim, g.poss);
+    this.lastSnapPoss = g.poss;
+    this.lastSnapLos = g.ballOn;
     this.setSimScene(sim, null);
     this.acc = 0;
     this.playEnded = false;
@@ -476,6 +515,11 @@ export class CoachScreen {
       this.acc -= DT;
     }
     let hold = 0.75;
+    if (sim.fouls.length && !this.flagUp) {
+      // the flag's out: it goes up on the scoreboard right away
+      this.flagUp = true;
+      this.updateScorebug();
+    }
     if (sim.done && !this.playEnded) {
       const c = this.celebrationFor(sim);
       if (c) {
@@ -483,6 +527,8 @@ export class CoachScreen {
         if (c.kind === 'td') this.cheer(sim.result, this.game.offense); // the crowd reacts at the whistle
         hold = { td: 1.8, big: 1.35, first: 1.15, sack: 1.25, int: 1.3, takeaway: 1.2 }[c.kind] || 0.75;
       }
+      // a flag: give the referee time to announce it
+      if (sim.fouls.length) hold = Math.max(hold, 3.2);
     }
     if (sim.done) sim.settle(dt * this.speed);
     if (sim.done && !this.playEnded) {
@@ -495,6 +541,15 @@ export class CoachScreen {
     const g = this.game;
     const r = this.scene.sim.result;
     let out;
+    if (this.preFoulPen) {
+      // a dead-ball foul: already enforced, the play never happened
+      const pen = this.preFoulPen;
+      this.preFoulPen = null;
+      this.mode = 'idle';
+      this.updateBug();
+      this.setTicker(`Flag: ${pen.text}`);
+      return this.penaltyBanner(pen, () => this.advance());
+    }
     this.cheer(r, g.offense);
     if (this.twoPoint) {
       out = g.applyTwoPoint(r);
@@ -508,82 +563,9 @@ export class CoachScreen {
     this.setTicker(out.text);
     if (out.flags && out.flags.includes('twoMinute')) this.twoMinuteCard();
     const head = out.headline;
-    if (head && head !== 'First down') this.banner(head, out.text, 2.1, () => this.advance());
-    else {
-      if (head === 'First down') this.toast('First down');
-      this.after(0.5, () => this.advance());
-    }
-  }
-
-  // ------------------------------------------------------------------ kicks
-  doKickoff(onside) {
-    const g = this.game;
-    const out = g.kickoff(onside);
-    this.runKick('kickoff', out);
-  }
-
-  doExtraPoint() {
-    const out = this.game.extraPoint();
-    this.runKick('pat', out);
-  }
-
-  startTwoPoint() {
-    const g = this.game;
-    setupTwoPoint(g);
-    this.twoPoint = true;
-    this.updateBug();
-    this.enterCall();
-  }
-
-  runKick(type, out, bx = MID_X) {
-    const g = this.game;
-    this.mode = 'kick';
-    this.setSheetEnabled(false);
-    let kSide;
-    if (type === 'kickoff') kSide = out.kSide;
-    else kSide = out.side;
-    const rSide = other(kSide);
-    const sc = new KickScene({ type, out, game: g, kSide, rSide, rng: this.kickRng(), ballX: type === 'pat' ? MID_X : bx });
-    sc.offTeam = g.teams[kSide];
-    sc.defTeam = g.teams[rSide];
-    sc.ltg = null;
-    sc.showLines = type !== 'kickoff';
-    sc.uniK = this.uni(kSide);
-    sc.uniR = this.uni(rSide);
-    this.scene = sc;
-    const f0 = sc.focus();
-    this.cam.set(f0.x, f0.f + 6, 1.15, true);
-    this.dirty = true;
-    this.setTicker(out.text);
-  }
-
-  kickRng() {
-    if (!this._krng) this._krng = makeRng(this.opts.seed ^ 0x5eed);
-    return this._krng;
-  }
-
-  updateKick(dt) {
-    const sc = this.scene;
-    sc.update(dt * this.speed);
-    if (sc.done && !sc.reported) {
-      sc.reported = true;
-      const out = sc.out;
-      this.syncHomeScore();
-      this.updateBug();
-      this.mode = 'idle';
-      const head = out.headline;
-      if (this.crowd) {
-        const homeKick = sc.offTeam === this.game.teams.home;
-        const good = out.good || out.res?.good;
-        const td = out.res?.td || /touchdown/i.test(head || '');
-        if ((sc.type === 'fg' || sc.type === 'pat') && good && homeKick) this.crowd.hype = Math.max(this.crowd.hype, 0.6);
-        if (td) this.crowd.hype = Math.max(this.crowd.hype, homeKick ? 0 : 1);
-      }
-      if (sc.type === 'fg' && out.res?.good) this.banner('Field goal', out.text, 1.8, () => this.advance());
-      else if (sc.type === 'pat') this.banner(out.good ? 'Good' : 'No good', out.text, 1.4, () => this.advance());
-      else if (head) this.banner(head, out.text, 2, () => this.advance());
-      else this.after(0.6, () => this.advance());
-    }
+    if (out.penalty) this.penaltyBanner(out.penalty, () => this.advance(), out.kind !== 'penalty' ? head : null);
+    else if (head && head !== 'First down') this.banner(head, out.text, 2.1, () => this.advance());
+    else this.after(0.5, () => this.advance());
   }
 
   onStageTap() {
@@ -591,61 +573,6 @@ export class CoachScreen {
       this.bannerToken = null;
       this.bannerThen();
     }
-  }
-
-  dialog(title, text, buttons, { keepMode = false } = {}) {
-    if (!keepMode) this.mode = 'idle';
-    this.setSheetEnabled(false);
-    const close = () => d.remove();
-    const d = h('div', { class: 'sheet dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
-      h('div', { class: 'sheet-panel dialog-panel' },
-        h('strong', { class: 'dialog-title' }, title),
-        text ? h('p', { class: 'dialog-text' }, text) : null,
-        h('div', { class: 'dialog-buttons' }, ...buttons.map(([label, fn], i) =>
-          h('button', { class: i === 0 ? 'go' : 'act', onclick: () => { close(); fn(); } }, label))),
-      ),
-    );
-    this.root.append(d);
-    return close;
-  }
-
-  openRoster() {
-    openRoster(this.root, this.game.teams[this.user], this.game.rosters[this.user]);
-  }
-
-  openMenu() {
-    if (this.paused) return;
-    this.paused = true;
-    const wasEnabled = !this.el.go.disabled;
-    this.dialog('Menu', null, [
-      ['Resume', () => { this.paused = false; if (wasEnabled && this.mode === 'call') this.setSheetEnabled(true); }],
-      ['Sim to the end', () => { this.paused = false; this.simToEnd(); }],
-      ['Quit to title', () => this.app.showTitle()],
-    ], { keepMode: true });
-  }
-
-  simToEnd() {
-    const g = this.game;
-    // a play that ended but is still on screen (celebration) counts first
-    this.timers = [];
-    if (this.mode === 'play' && this.playEnded && this.scene?.sim?.done) {
-      const r = this.scene.sim.result;
-      if (this.twoPoint) { g.applyTwoPoint(r); this.twoPoint = false; } else g.applyPlay(r, this.liveO, this.liveD);
-    }
-    if (this.twoPoint) {
-      const sim = makePlaySim(g, cpuOffense(g, g.poss).cat === 'special' ? offPlay('slants') : cpuOffense(g, g.poss), cpuDefense(g, other(g.poss)));
-      g.applyTwoPoint(sim.runToEnd());
-      this.twoPoint = false;
-    }
-    let n = 0;
-    while (!g.over && n++ < 4000) cpuStep(g);
-    this.showFinal();
-  }
-
-  showFinal() {
-    this.mode = 'final';
-    this.updateBug();
-    this.app.showFinal(this.game, this.opts);
   }
 
   // ------------------------------------------------------------------ frame loop
@@ -685,10 +612,12 @@ export class CoachScreen {
       this.dirty = true;
     }
     if (this.fx.update(dt)) this.dirty = true;
+    if (sidelineTick(this.sideline, dt)) this.dirty = true;
     if (this.show.active) {
       this.show.update(dt, this.cam);
       this.dirty = true;
     }
+    if ((this.mode === 'call' || this.mode === 'set') && this.pre.update(dt)) this.dirty = true;
     this.tickPlayClock(dt);
     if (this.mode === 'kick' && this.scene.kind === 'kick') this.updateKick(dt);
     this.updateCamera();
@@ -719,6 +648,7 @@ export class CoachScreen {
   draw() {
     const sc = this.scene;
     if (!sc || !this.loCtx) return;
+    rigFrame();
     const out = this.ctx;
     const k = this.artPx;
     out.setTransform(1, 0, 0, 1, 0, 0);
@@ -727,7 +657,7 @@ export class CoachScreen {
     const g = this.game;
     const ctx = this.loCtx;
     ctx.imageSmoothingEnabled = false;
-    drawField(ctx, this.cam, { offTeam: sc.offTeam, defTeam: sc.defTeam, homeTeam: g.teams.home, los: sc.los, ltg: sc.ltg, showLines: false, crowd: this.crowd, t: this.crowdT || 0 });
+    drawField(ctx, this.cam, { offTeam: sc.offTeam, defTeam: sc.defTeam, homeTeam: g.teams.home, los: sc.los, ltg: sc.ltg, showLines: false, crowd: this.crowd, t: this.crowdT || 0, sideline: this.sideline });
     out.drawImage(this.lo, 0, 0, this.lo.width * k, this.lo.height * k);
     drawFieldDecals(out, this.cam, k, g.teams.home, sc.offTeam);
     // Players and overlays: every coordinate is a whole low-res pixel, so
@@ -737,6 +667,7 @@ export class CoachScreen {
     const topEnd = sc.offTeam && sc.offTeam.id !== g.teams.home.id ? 'S' : 'N';
     this.show.drawStatic(out, this.cam, topEnd);
     if (sc.showLines) drawScrimmageLines(out, this.cam, sc.los, sc.ltg);
+    this.drawSidelines(out, sc);
     if (sc.kind === 'sim') this.drawSim(out, sc);
     else if (sc.kind === 'kick') {
       sc.draw(out, this.cam, sc.uniK, sc.uniR, carrierMarker);
@@ -748,43 +679,32 @@ export class CoachScreen {
     out.setTransform(1, 0, 0, 1, 0, 0);
   }
 
-  // Pregame: slow pan across the home stadium. Returns false until the art
-  // has loaded (the field is drawn instead).
-  drawStadium(out, sc) {
-    const img = ready(sc.url);
-    if (!img) return false;
-    const W = this.canvas.width;
-    const H = this.canvas.height;
-    if (!sc.edge) {
-      // sample the sky (top row) and ground (bottom row) to fill around it
-      const c = document.createElement('canvas');
-      c.width = 1;
-      c.height = img.height;
-      const cx = c.getContext('2d');
-      cx.drawImage(img, img.width >> 1, 0, 1, img.height, 0, 0, 1, img.height);
-      const d = cx.getImageData(0, 0, 1, img.height).data;
-      const rgb = (i) => `rgb(${d[i]},${d[i + 1]},${d[i + 2]})`;
-      sc.edge = { sky: rgb(0), ground: rgb((img.height - 1) * 4) };
-    }
-    const scale = Math.max(W / img.width, (H * 0.58) / img.height);
-    const dw = Math.round(img.width * scale);
-    const dh = Math.round(img.height * scale);
-    const y = Math.round((H - dh) * 0.4);
-    out.fillStyle = sc.edge.sky;
-    out.fillRect(0, 0, W, y + 1);
-    out.fillStyle = sc.edge.ground;
-    out.fillRect(0, y + dh - 1, W, H - y - dh + 1);
-    const u = Math.min(1, sc.t / sc.dur);
-    const e = u * u * (3 - 2 * u);
-    out.drawImage(img, Math.round(-(dw - W) * (0.08 + 0.84 * e)), y, dw, dh);
-    return true;
+  // Benches, coaches, staff, cameras and the chain crew (src/render/sideline.js).
+  drawSidelines(out, sc) {
+    const g = this.game;
+    const onField = this._onField || (this._onField = new Set());
+    onField.clear();
+    for (const p of (sc.kind === 'sim' ? sc.sim.players : sc.players || [])) onField.add(p.rec.id);
+    drawSidelinePeople(out, this.cam, this.sideline, {
+      homeBall: !sc.offTeam || sc.offTeam.id === g.teams.home.id,
+      now: this.crowdT || 0,
+      los: sc.los,
+      ltg: sc.kind === 'sim' && !this.twoPoint ? g.ltg : null,
+      down: g.down,
+      // the play on screen's half (the last play of the second quarter stays
+      // up through the halftime banner)
+      half: (sc.kind === 'sim' && sc.sim.opts.half) || (g.quarter >= 3 ? 2 : 1),
+      onField,
+      unis: { home: this.uni('home'), away: this.uni('away') },
+    });
   }
 
   drawSim(ctx, sc) {
     const cam = this.cam;
     if (this.mode === 'call' && sc.artSide) drawFieldArt(ctx, cam, sc.sim, sc.artSide, sc.los);
     const live = this.mode === 'play' || this.mode === 'idle';
-    drawSimPlayers(ctx, cam, sc, live);
+    drawSimPlayers(ctx, cam, sc, live, this.stageOverride());
+    if (this.mode === 'call' || this.mode === 'set') this.pre.drawLeaving(ctx, cam, sc.los, (team) => this.uni(team));
     if (live) {
       this.fx.pull(sc.sim, sc.los);
       this.fx.draw(ctx, cam);
@@ -794,4 +714,4 @@ export class CoachScreen {
 
 }
 
-Object.assign(CoachScreen.prototype, playClockMethods, presentationMethods);
+Object.assign(CoachScreen.prototype, playClockMethods, presentationMethods, kickMethods, menuMethods, stageMethods);

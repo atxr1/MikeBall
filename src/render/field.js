@@ -12,6 +12,7 @@ import { ready } from './images.js';
 import { Y_SQUASH } from './camera.js';
 import { teamArt } from '../data/realleague.js';
 import { drawCrowd } from './crowd.js';
+import { APRON, drawSidelineGround } from './sideline.js';
 
 const TURF_A = '#3d8c3c';
 const TURF_B = '#367f36';
@@ -50,7 +51,7 @@ function tileRect(ctx, img, x, y, w, h, ox, oy) {
 }
 
 export function drawField(ctx, cam, opts) {
-  const { offTeam, defTeam, homeTeam, los, ltg, showLines = true, crowd, t = 0 } = opts;
+  const { offTeam, defTeam, homeTeam, los, ltg, showLines = true, crowd, t = 0, sideline = null } = opts;
   // Real end zone and midfield art (home team at both ends, like a real
   // stadium) are drawn later by drawFieldDecals at full screen resolution.
   const ezArt = ready(teamArt(homeTeam, 'endzone.png'));
@@ -63,8 +64,8 @@ export function drawField(ctx, cam, opts) {
   const [f0, f1] = cam.fRange();
 
   // sideline apron and wall
-  const apronL = X(-7);
-  const apronR = X(FIELD_W + 7);
+  const apronL = X(-APRON);
+  const apronR = X(FIELD_W + APRON);
   const top = Y(117);
   const bot = Y(-17);
 
@@ -104,6 +105,8 @@ export function drawField(ctx, cam, opts) {
 
   // turf texture over everything green
   tileRect(ctx, noiseTile(), apronL, top, apronR - apronL, bot - top, X(0), Y(0));
+  // white border, coaches' area, benches (src/render/sideline.js)
+  if (sideline) drawSidelineGround(ctx, cam, sideline, !offTeam || !homeTeam || offTeam.id === homeTeam.id);
 
   // yard lines
   ctx.fillStyle = LINE;
