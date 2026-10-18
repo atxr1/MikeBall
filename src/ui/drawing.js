@@ -22,7 +22,9 @@ export class PlayDrawing {
     this.hintsLeft = 4;
     try { this.hintsLeft = Number(localStorage.getItem('mb.drawHints') ?? 4); } catch { /* private mode */ }
     this.chip = h('button', { class: 'draw-chip', type: 'button', hidden: true, onclick: () => this.reset() });
-    coach.stage.append(this.chip);
+    // save what you drew to your own plays; or delete a saved one you've called
+    this.saveChip = h('button', { class: 'draw-chip save-chip', type: 'button', hidden: true, onclick: () => (this.saveChip.dataset.act === 'del' ? coach.deleteSavedPlay() : coach.saveDrawnPlay()) });
+    coach.stage.append(this.chip, this.saveChip);
     const cv = coach.canvas;
     cv.addEventListener('pointerdown', (e) => this.down(e));
     cv.addEventListener('pointermove', (e) => this.move(e));
@@ -83,6 +85,14 @@ export class PlayDrawing {
     if (this.chip.disabled === edited) {
       this.chip.disabled = !edited;
       this.chip.classList.toggle('hint', !edited);
+    }
+    const sel = this.c.sel;
+    const act = !show ? null : edited ? 'save' : sel && sel.custom ? 'del' : null;
+    if (this.saveChip.hidden === !!act) this.saveChip.hidden = !act;
+    if (act && this.saveChip.dataset.act !== act) {
+      this.saveChip.dataset.act = act;
+      this.saveChip.textContent = act === 'save' ? 'Save play' : 'Delete play';
+      this.saveChip.classList.toggle('danger', act === 'del');
     }
   }
 

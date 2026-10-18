@@ -19,6 +19,7 @@ import { describe, nm } from './commentary.js';
 import { starter, rosterIndex } from './personnel.js';
 import { penaltyMethods } from './penalties.js';
 import { kickingMethods } from './kicking.js';
+import { replayMethods } from './replay.js';
 
 export const other = (s) => (s === 'home' ? 'away' : 'home');
 const TEMPO_RUNOFF = { hurry: 13, normal: 36, milk: 39 };
@@ -36,7 +37,8 @@ export class Game {
     this.quarter = 1;
     this.clock = qLen * 60;
     this.timeouts = { home: 3, away: 3 };
-    this.challenges = { home: 2, away: 2 };
+    this.challenges = { home: 2, away: 2 }; // left (a third after one succeeds: ./replay.js)
+    this.challengeWins = { home: 0, away: 0 };
     this.poss = 'home';
     this.ballOn = 25;
     this.ballX = MID_X;
@@ -660,4 +662,4 @@ export class Game {
   }
 }
 
-Object.assign(Game.prototype, penaltyMethods, kickingMethods);
+Object.assign(Game.prototype, penaltyMethods, kickingMethods, replayMethods);

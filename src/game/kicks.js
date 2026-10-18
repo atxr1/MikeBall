@@ -156,9 +156,33 @@ export function kickoff(kicker, returner, rng, { onside = false, fromYard = 35 }
   let ballOn = landing + ret;
   // brought out of the end zone but stopped before he gets out of it
   if (ballOn <= 0) return { type: 'touchback', ballOn: 35, landing, returnYds: 0 };
-  if (ballOn >= 100 || rng.chance(0.003)) return { type: 'td', ballOn: 100, landing, returnYds: Math.round(100 - landing), td: true };
+  if (ballOn >= 100 || rng.chance(0.003)) return withReturnFoul({ type: 'td', ballOn: 100, landing, returnYds: Math.round(100 - landing), td: true }, Math.max(0, landing), rng, 0.07);
   ballOn = clamp(Math.round(ballOn), 1, 99);
-  return { type: 'return', ballOn, landing, returnYds: Math.round(ballOn - landing) };
+  return withReturnFoul({ type: 'return', ballOn, landing, returnYds: Math.round(ballOn - landing) }, Math.max(0, landing), rng, 0.07);
+}
+
+// Flags on a return. Most are on the return team, a block in the back or a
+// hold behind the runner: 10 yards from the spot of the foul (half the
+// distance inside the 20), and a touchdown comes back. Now and then the
+// cover team grabs the returner's face mask: 15 yards from the end of the
+// run. res.runEnd keeps where the runner actually got to (receiving
+// team's frame, yards from its own goal line); res.ballOn is where the
+// ball is put after the flag. catchAt: where he caught it, same frame.
+function withReturnFoul(res, catchAt, rng, pRet) {
+  res.runEnd = res.ballOn;
+  if (rng.chance(pRet) && res.ballOn - catchAt > 6) {
+    const spot = Math.round(catchAt + (res.ballOn - catchAt) * rng.float(0.4, 0.95));
+    const y = Math.min(10, Math.floor(spot / 2));
+    const kind = rng.chance(0.55) ? 'Holding' : 'Illegal block in the back';
+    res.foul = { name: kind, on: 'R', spot, yards: y };
+    res.ballOn = clamp(spot - y, 1, 99);
+    if (res.td) { res.td = false; res.type = 'return'; }
+  } else if (!res.td && rng.chance(0.012)) {
+    const y = Math.min(15, Math.floor((100 - res.ballOn) / 2));
+    res.foul = { name: 'Face mask', on: 'K', spot: res.ballOn, yards: y };
+    res.ballOn = clamp(res.ballOn + y, 1, 99);
+  }
+  return res;
 }
 
 // ballOn: punting team's frame. Returns new ballOn in the receiving team's
@@ -224,6 +248,6 @@ export function punt(punter, returner, ballOn, rng, ctx = {}) {
   let ret = Math.max(0, rng.normal(6.5 + (r.spd - 85) * 0.25 + (r.elu - 70) * 0.1 + (gap - 5) * 0.55, 4.5));
   if (rng.chance(0.012 + Math.max(0, gap - 6) * 0.004)) ret += rng.int(15, 50);
   const spot = 100 - landing + ret;
-  if (spot >= 100) return { type: 'td', ballOn: 100, gross: Math.round(gross), returnYds: Math.round(ret), landing, td: true, hang, gap, op };
-  return { type: 'return', ballOn: clamp(Math.round(spot), 1, 99), gross: Math.round(gross), returnYds: Math.round(ret), landing, hang, gap, op };
+  if (spot >= 100) return withReturnFoul({ type: 'td', ballOn: 100, gross: Math.round(gross), returnYds: Math.round(ret), landing, td: true, hang, gap, op }, 100 - landing, rng, 0.08);
+  return withReturnFoul({ type: 'return', ballOn: clamp(Math.round(spot), 1, 99), gross: Math.round(gross), returnYds: Math.round(ret), landing, hang, gap, op }, 100 - landing, rng, 0.08);
 }

@@ -13,6 +13,7 @@ import { drawShadow, drawFootball } from '../render/pixelsprites.js';
 import { drawRig } from '../render/rig.js';
 import { outfitFor } from '../render/simdraw.js';
 import { kickPose } from '../render/kickanim.js';
+import { drawFlagAt } from '../render/crewdraw.js';
 
 const PREFS_COVER = [['LB', 1], ['S', 1], ['CB', 2], ['TE', 1], ['RB', 1], ['WR', 3], ['LB', 3], ['S', 2], ['CB', 3], ['RB', 2], ['WR', 4], ['TE', 2], ['LB', 0], ['S', 0]];
 const PREFS_LINE = [['OL', 5], ['OL', 6], ['OL', 7], ['TE', 0], ['TE', 1], ['LB', 2], ['DL', 4], ['OL', 0], ['OL', 1], ['OL', 2], ['OL', 3], ['OL', 4]];
@@ -210,6 +211,32 @@ export class KickScene {
     else this.updateFieldGoal();
     for (const p of this.players) this.move(p, dt);
     this.updateBall(dt);
+    this.updateFlag();
+  }
+
+  // A flag on the return (src/game/kicks.js withReturnFoul): thrown at the
+  // man who did it as the runner goes by the spot.
+  updateFlag() {
+    const f = this.out.res && this.out.res.foul;
+    const r = this.returner;
+    if (!f || !this.ret || !r) return;
+    if (!this.flag) {
+      const spotF = 100 - f.spot; // the kicking team's frame, like the scene
+      if (f.on === 'R' ? r.f > spotF : !this.ret.ended && this.t - this.ret.t0 < this.ret.dur * 0.9) return;
+      const side = f.on;
+      const near = (p) => Math.hypot(p.x - r.x, p.f - (f.on === 'R' ? spotF : r.f));
+      const who = this.players.filter((p) => p.side === side && p !== r).sort((a, b) => near(a) - near(b))[0];
+      const at = who || r;
+      const sx = at.x + (at.x < 26.7 ? 9 : -9);
+      this.flag = { x0: sx, f0: at.f - 4, x: at.x + 0.6, f: at.f + 0.3, t0: this.t, z: 1.5, landed: false };
+      this.flagThrown = true;
+    }
+    const fl = this.flag;
+    const u = clamp((this.t - fl.t0) / 0.55, 0, 1);
+    fl.cx = fl.x0 + (fl.x - fl.x0) * u;
+    fl.cf = fl.f0 + (fl.f - fl.f0) * u;
+    fl.z = 1.4 + 3 * u * (1 - u) - 1.4 * u;
+    fl.landed = u >= 1;
   }
 
   launch(fromX, fromF, land, T, peak) {
@@ -424,11 +451,11 @@ export class KickScene {
           this.endAt(this.t + 1.9);
         } else this.endAt(this.t + 1.2);
       } else {
-        const endF = res.type === 'td' ? -3 : res.type === 'fumble' ? 100 - res.ballOn : 100 - res.ballOn;
+        const endF = res.type === 'td' || (res.runEnd ?? 0) >= 100 ? -3 : 100 - (res.runEnd ?? res.ballOn);
         const endX = clamp(P.land.x + (this.rng.next() - 0.5) * 16, 4, FIELD_W - 4);
         const dur = clamp(Math.abs(P.land.f - endF) / 8.8, 0.6, 5.5);
         this.returner.x = P.land.x; this.returner.f = P.land.f;
-        this.startReturn(endF, endX, dur, res.type === 'td' ? 'td' : res.type === 'fumble' ? 'fumble' : 'tackle');
+        this.startReturn(endF, endX, dur, res.type === 'td' || endF < 0 ? 'td' : res.type === 'fumble' ? 'fumble' : 'tackle');
       }
     }
     if (this.onsideDiver && !this.onsideDiver.down && this.t > b.landT + 0.6) {
@@ -520,11 +547,11 @@ export class KickScene {
         this.muffDiver = rec;
         this.endAt(this.t + 1.8);
       } else {
-        const endF = type === 'td' ? -3 : 100 - res.ballOn;
+        const endF = type === 'td' || (res.runEnd ?? 0) >= 100 ? -3 : 100 - (res.runEnd ?? res.ballOn);
         const endX = clamp(P.land.x + (this.rng.next() - 0.5) * 14, 4, FIELD_W - 4);
         const dur = clamp(Math.abs(P.land.f - endF) / 8.8, 0.5, 5.5);
         this.returner.x = P.land.x; this.returner.f = P.land.f;
-        this.startReturn(endF, endX, dur, type === 'td' ? 'td' : 'tackle');
+        this.startReturn(endF, endX, dur, type === 'td' || endF < 0 ? 'td' : 'tackle');
       }
     }
     if (this.kicked && b.state === 'air' && this.returner) {
@@ -624,5 +651,7 @@ export class KickScene {
     if (b.state !== 'held' || (b.holder && b.holder.role === 'line')) {
       drawFootball(ctx, cam.sx(b.x), cam.sy(b.f), b.z * cam.s * 0.9, b.spin);
     }
+    const fl = this.flag;
+    if (fl) drawFlagAt(ctx, cam, Math.round(cam.sx(fl.cx)), Math.round(cam.sy(fl.cf)), fl.landed ? 0 : Math.max(0.01, fl.z));
   }
 }

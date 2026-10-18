@@ -20,6 +20,7 @@ import { resolveHonors, honorsFor } from '../src/data/honors.js';
 import { catchOdds, tackleOdds, proximity } from '../src/sim/odds.js';
 import { fieldGoal, extraPoint, kickoff } from '../src/game/kicks.js';
 import { PreSnap } from '../src/ui/presnap.js';
+import { onFieldRuling, settleRuling } from '../src/game/replay.js';
 import { makePlaySim } from '../src/game/autoplay.js';
 import { cpuMatchDefense } from '../src/game/cpu.js';
 import { offPlay, defPlay } from '../src/data/playbook.js';
@@ -137,6 +138,11 @@ console.log('play drawing');
   check('tapping a receiver switches him to blocking', tap && tap.assign.t === 'passpro');
   const tap2 = editFromTap(sim, applyEdits(o, { Z: tap.assign }), o, sim.bySlot.Z);
   check('tapping again puts his route back', tap2 && tap2.assign.t === 'route' && tap2.assign.r === o.assign.Z.r);
+  // a saved play (edits baked in, stored as JSON) edited again keeps its first edits
+  const saved = { ...applyEdits(o, JSON.parse(JSON.stringify({ [r1.slot]: r1.assign }))), id: 'my-test', custom: true };
+  const again = applyEdits(saved, { [r2.slot]: r2.assign });
+  const s2 = mk(again, d);
+  check('a saved play edited again keeps its drawn route in the reads', again.editedSlots.includes(r1.slot) && again.editedSlots.includes(r2.slot) && s2.progression.includes(s2.bySlot.X));
   // defense
   const cb = sim.defense.find((q) => q.slot === 'CB_L');
   const target = sim.bySlot.SL || sim.bySlot.Y;
@@ -287,6 +293,48 @@ console.log('Retro Bowl-style passing (optional)');
   }
   check('a throw goes where you aimed it, to the man who will be there', onTarget >= 15 && toHim >= 15, `${onTarget} on target, ${toHim} to him`);
   check('without the setting, the sim ignores aimed throws', mk(5, false).userThrow(20, 10) === false);
+}
+
+console.log('close calls and replay');
+{
+  const g = new Game({ homeTeam: TEAMS[0], awayTeam: TEAMS[1], homeRoster: league[TEAMS[0].id], awayRoster: league[TEAMS[1].id], userSide: null, qLen: 15, seed: 21 });
+  g.next = 'call'; g.phase = 'play'; g.poss = 'home'; g.ballOn = 40; g.down = 3; g.ltg = 46; g.quarter = 1; g.clock = 600;
+  const rec = league[TEAMS[0].id].players.find((p) => p.pos === 'WR');
+  const qb = league[TEAMS[0].id].players.find((p) => p.pos === 'QB');
+  const catchR = { outcome: 'oob', kind: 'pass', yards: 12, spotY: 12.2, incomplete: false, receiver: rec, target: rec, passer: qb, catchY: 12, review: { sideline: true, ball: { x: -0.3, y: 12 } }, fouls: [] };
+  let wrong = 0;
+  let close = 0;
+  for (let i = 0; i < 400; i++) {
+    const c = onFieldRuling(catchR, { toGo: 6, goal: 60 }, makeRng(i + 1));
+    if (c.close) close++;
+    if (c.close && c.close.wrong) {
+      wrong++;
+      if (!c.ruled.incomplete || c.ruled.receiver) throw new Error('a sideline catch ruled wrong should be incomplete');
+    }
+  }
+  check('a catch at the sideline is a close call, sometimes ruled wrong', close === 400 && between(wrong / 400, 0.06, 0.25), `${wrong} wrong of ${close}`);
+  // a spot an inch either side of the line to gain
+  const spotR = { outcome: 'tackle', kind: 'run', yards: 6, spotY: 5.6, incomplete: false, rusher: rec, review: {}, fouls: [] };
+  const sc = onFieldRuling(spotR, { toGo: 6, goal: 60 }, makeRng(3));
+  check('the spot at the line to gain is a close call', sc.close && sc.close.kind === 'spot');
+  // a review that reverses the ruling puts the game back first
+  const snap = g.snapshot();
+  g.applyPlay({ ...spotR, spotY: 5.2, yards: 5, review: null }, offPlay('dive'), defPlay('cov3_43'));
+  const after = g.down;
+  g.restore(snap);
+  g.applyPlay(spotR, offPlay('dive'), defPlay('cov3_43'));
+  check('a reversed spot is applied from the state before the play', after === 4 && g.down === 1 && g.ballOn === 46, `down ${after} -> ${g.down}, ball ${g.ballOn}`);
+  check('the stat book survives the rewind', typeof g.stats.line === 'function' && g.stats.team.home.plays === 1);
+  // challenges: a lost one costs a timeout; a won one earns a third
+  g.chargeChallenge('home', false);
+  check('a challenge that fails costs a timeout', g.timeouts.home === 2 && g.challenges.home === 1);
+  g.chargeChallenge('home', true);
+  check('winning one earns a third challenge', g.challenges.home === 1 && g.timeouts.home === 2);
+  g.quarter = 4; g.clock = 100;
+  check('no coach\'s challenges inside two minutes: the booth reviews', !g.canChallenge('away') && g.inBoothWindow());
+  // CPU games settle rulings without stalling
+  const s = settleRuling(g, spotR, makeRng(5));
+  check('CPU games settle each ruling', s.result && (s.charge === null || typeof s.charge.won === 'boolean'));
 }
 
 console.log('fouls and penalties');

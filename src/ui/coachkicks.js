@@ -59,6 +59,11 @@ export const kickMethods = {
   updateKick(dt) {
     const sc = this.scene;
     sc.update(dt * this.speed);
+    if (sc.flagThrown && !this.flagUp) {
+      // the flag's out: up on the scoreboard right away
+      this.flagUp = true;
+      this.updateScorebug();
+    }
     if (sc.done && !sc.reported) {
       sc.reported = true;
       const out = sc.out;
@@ -74,7 +79,9 @@ export const kickMethods = {
         if ((sc.type === 'fg' || sc.type === 'pat') && good && homeKick) this.crowd.hype = Math.max(this.crowd.hype, 0.6);
         if (td) this.crowd.hype = Math.max(this.crowd.hype, homeKick ? 0 : 1);
       }
-      if (sc.type === 'fg' && out.res?.good) this.banner('Field goal', out.text, 1.8, () => this.advance());
+      const foul = out.res && out.res.foul;
+      if (foul && foul.text) this.penaltyBanner({ name: foul.name, on: foul.side, text: foul.text }, () => this.advance());
+      else if (sc.type === 'fg' && out.res?.good) this.banner('Field goal', out.text, 1.8, () => this.advance());
       else if (sc.type === 'pat') this.banner(out.good ? 'Good' : 'No good', out.text, 1.4, () => this.advance());
       else if (head) this.banner(head, out.text, 2, () => this.advance());
       else this.after(0.6, () => this.advance());

@@ -1,6 +1,7 @@
 // Glue between the rules engine and the play sim, plus a CPU-vs-CPU driver
 // used by tests, "sim to end", and (later) season simulation.
 
+import { settleRuling } from './replay.js';
 import { PlaySim } from '../sim/playsim.js';
 import { offenseLineup, defenseLineup } from './personnel.js';
 import { cpuOffense, cpuDefense, cpuPat, cpuOnside, cpuTimeout } from './cpu.js';
@@ -72,7 +73,11 @@ export function cpuStep(game) {
       const pen = game.preSnapPenalty();
       if (pen && !pen.live) { game.finishNext(); return { kind: 'penalty', pen }; }
       const sim = makePlaySim(game, o, d, null, pen ? { snapFoul: { key: pen.key } } : null);
-      return game.applyPlay(sim.runToEnd(), o, d);
+      // the officials' ruling, and replay if anyone looks at it
+      const { result, charge } = settleRuling(game, sim.runToEnd(), game.rng);
+      const out = game.applyPlay(result, o, d);
+      if (charge) game.chargeChallenge(charge.side, charge.won);
+      return out;
     }
   }
 }

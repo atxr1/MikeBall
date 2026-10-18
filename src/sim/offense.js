@@ -12,7 +12,8 @@ export const offenseMethods = {
     const carrier = this.carrier;
     if (this.phase === 'run' && carrier) {
       if (carrier.side === 'O') {
-        if (p.job.t === 'passpro' && p.target && this.t - this.runT < 0.6 && !this.scramble) return this.passPro(p, dt);
+        // linemen hold their blocks a moment (longer when the QB takes off)
+        if (p.job.t === 'passpro' && p.target && this.t - this.runT < (this.scramble ? 1.0 : 0.6)) return this.passPro(p, dt);
         return this.escort(p, dt, carrier);
       }
       return this.pursue(p, dt, carrier); // turnover: offense chases

@@ -171,7 +171,7 @@ export function playCardSVG(play, side) {
         const p = al[s.slot];
         const j = play.assign[s.slot] || {};
         if (j.t === 'route' || j.t === 'chkrel') {
-          const rp = routePoints(p, j.r, j.side, MID_X);
+          const rp = routePoints(p, j.r, j.side, MID_X, j.pts);
           const idx = prog.indexOf(s.slot);
           const col = idx >= 0 ? READ_COLORS[idx % READ_COLORS.length] : '#ffffff';
           const pts = extend(rp.pts, p, rp.end, 3);
@@ -199,11 +199,11 @@ export function playCardSVG(play, side) {
         const col = zoneColor(z);
         parts.push(`<ellipse cx="${X(z.x)}" cy="${Y(z.y)}" rx="${(z.rx * 0.62).toFixed(2)}" ry="${(z.ry * 0.62).toFixed(2)}" fill="${hexA(col, 0.22)}" stroke="${hexA(col, 0.9)}" stroke-width="0.45"/>`);
         line([d, { x: z.x, y: z.y }], hexA(col, 0.9), 0.5, '1 0.8');
-      } else if (a.t === 'man' && a.man) {
+      } else if (a.t === 'man' && a.man && off[a.man]) {
         const r = off[a.man];
         line([d, { x: r.x, y: r.y + 0.8 }], MAN_COLOR, 0.6, '1.2 0.8');
       } else if (a.t === 'blitz') {
-        line([d, { x: a.gapX, y: 0 }, { x: MID_X, y: -4 }], '#FF2E63', 0.9, null, 'ahr');
+        line([d, { x: a.gapX ?? d.x, y: 0 }, { x: MID_X, y: -4 }], '#FF2E63', 0.9, null, 'ahr');
       } else if (a.t === 'rush') {
         line([d, { x: d.x + (MID_X - d.x) * 0.3, y: -2 }], RUSH_COLOR, 0.8, null, 'ahr');
       } else if (a.t === 'fit') {

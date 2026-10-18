@@ -9,6 +9,7 @@ import { h } from './dom.js';
 import { openRoster } from './roster.js';
 import { ready } from '../render/images.js';
 import { openSettings } from './settings.js';
+import { myPlays, saveMyPlay, deleteMyPlay, askPlayName } from './myplays.js';
 
 export const menuMethods = {
   dialog(title, text, buttons, { keepMode = false } = {}) {
@@ -36,6 +37,41 @@ export const menuMethods = {
     }, { editable: live, onChange: () => { if (this.mode === 'call') this.buildPreview(); } });
   },
 
+  // Save the play you've drawn on to the Mine tab.
+  saveDrawnPlay() {
+    if (this.mode !== 'call' || !this.sel) return;
+    const side = this.drawing.side;
+    const edits = { ...this.drawing.edits };
+    const from = this.sel;
+    const suggestion = from.custom ? from.name : `My ${from.name}`.slice(0, 24);
+    askPlayName(this.root, suggestion, (name) => {
+      const id = saveMyPlay(side, from, edits, name);
+      if (!id) { this.toast('Couldn’t save: storage is full or off', 2); return; }
+      this.toast(`Saved “${name}”`, 1.6);
+      if (this.mode !== 'call') return;
+      this.cat = 'mine';
+      this.sel = myPlays(side).find((p) => p.id === id) || this.sel;
+      this.renderSheet(this.game.poss === this.user);
+    });
+  },
+
+  deleteSavedPlay() {
+    const p = this.sel;
+    if (this.mode !== 'call' || !p || !p.custom) return;
+    const wasEnabled = !this.el.go.disabled;
+    this.dialog('Delete play', `Delete “${p.name}” from your plays?`, [
+      ['Delete', () => {
+        deleteMyPlay(p.id);
+        this.toast(`Deleted “${p.name}”`, 1.4);
+        this.mode = 'call';
+        this.sel = null;
+        this.renderSheet(this.game.poss === this.user);
+        this.setSheetEnabled(true);
+      }],
+      ['Keep it', () => { this.mode = 'call'; if (wasEnabled) this.setSheetEnabled(true); }],
+    ], { keepMode: true });
+  },
+
   openMenu() {
     if (this.paused) return;
     this.paused = true;
@@ -55,6 +91,7 @@ export const menuMethods = {
     // a play that ended but is still on screen (celebration) counts first;
     // a pre-snap foul being shown was already enforced
     this.timers = [];
+    this.review = null; // a ruling not yet reviewed stands
     if (this.preFoulPen) this.preFoulPen = null;
     else if (this.mode === 'play' && this.playEnded && this.scene?.sim?.done) {
       const r = this.scene.sim.result;

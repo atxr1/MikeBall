@@ -27,7 +27,9 @@ const GRAB = 1.9; // yards: how close a stroke must end to "connect" to a player
 
 export function applyEdits(play, edits) {
   if (!play || !edits || !Object.keys(edits).length) return play;
-  return { ...play, assign: { ...(play.assign || {}), ...edits }, editedSlots: Object.keys(edits) };
+  // (a saved play edited again keeps the slots it was already edited in)
+  const slots = new Set([...(play.editedSlots || []), ...Object.keys(edits)]);
+  return { ...play, assign: { ...(play.assign || {}), ...edits }, editedSlots: [...slots] };
 }
 
 // Fewer points for a drawn stroke: drop points closer than `min` yards, then

@@ -586,6 +586,7 @@ export class PlaySim {
     if (this.done) return;
     this.done = true;
     if (!this.preFoul) this.checkLateHitAfterWhistle(outcome, this.ball.holder);
+    if (outcome === 'td' && this.wrap) this.tdContact = true; // in as he was being tackled
     if (this.wrap) {
       // a tackle in progress ended at a boundary: out of bounds or in the end zone
       const w = this.wrap;
@@ -642,6 +643,13 @@ export class PlaySim {
       fumble: this.fumbled ? { by: this.fumbled.by.rec, forcedBy: this.fumbled.forcedBy?.rec, recoveredBy: this.fumbled.recoveredBy.rec, lost: this.fumbled.lost } : null,
       airYards: this.airYards != null ? Math.round(this.airYards) : null,
       catchY: this.catchY,
+      // what the officials have to judge (src/game/replay.js)
+      review: {
+        sideline: !!this.sidelineTry,
+        dive: !!(this.receiver && this.catchInfo && this.catchInfo.kind === 'catch' && (this.catchInfo.reach > 1.35 || this.receiver.diving)),
+        tdContact: !!this.tdContact,
+        ball: this.catchInfo ? { x: this.catchInfo.bx, y: this.catchInfo.by } : null,
+      },
       firstDown: offense && !td && this.opts.toGo != null && spotY >= this.opts.toGo && outcome !== 'incomplete',
       fouls: this.foulsOut(),
       evCounts: this.events.reduce((m, e) => ((m[e.k] = (m[e.k] || 0) + 1), m), {}),

@@ -51,8 +51,10 @@ export const kickingMethods = {
       this.finishNext();
       return { text, headline, kind: 'kickoff', res, kSide, rSide, from: fromYard, returner: ret, next: this.next };
     } else {
-      text = `${nm(k)} kicks off, ${nm(ret)} returns it ${res.returnYds} yards to the ${fieldLabel(res.ballOn, tr, tk)}.`;
+      const end = res.runEnd ?? res.ballOn;
+      text = end >= 100 ? `${nm(k)} kicks off, ${nm(ret)} returns it all the way —` : `${nm(k)} kicks off, ${nm(ret)} returns it ${res.returnYds} yards to the ${fieldLabel(end, tr, tk)}.`;
       this.runClock(clamp(4 + res.returnYds * 0.12, 4, 9));
+      if (res.foul) text += ` ${this.returnFoulText(res, rSide, kSide)}`;
       this.setPossession(rSide, res.ballOn);
     }
     this.addLog(text, 'kick');
@@ -109,12 +111,31 @@ export const kickingMethods = {
       this.finishNext();
       return { text, headline, kind: 'punt', res, side, next: this.next, startBall };
     } else {
-      text = `${nm(p)} punts ${res.gross} yards, ${nm(ret)} returns ${res.returnYds}.`;
+      text = (res.runEnd ?? 0) >= 100 ? `${nm(p)} punts ${res.gross} yards, ${nm(ret)} takes it all the way —` : `${nm(p)} punts ${res.gross} yards, ${nm(ret)} returns ${res.returnYds}.`;
+      if (res.foul) text += ` ${this.returnFoulText(res, opp, side)}`;
       this.changePossession(res.ballOn);
     }
     this.addLog(text, 'kick');
     this.finishNext();
     return { text, headline, kind: 'punt', res, side, next: this.next, startBall };
+  },
+
+  // A flag on a return (src/game/kicks.js withReturnFoul): the text, and the
+  // penalty on the books. rSide returned it, kSide kicked.
+  returnFoulText(res, rSide, kSide) {
+    const f = res.foul;
+    const on = f.on === 'R' ? rSide : kSide;
+    this.stats.team[on].penalties++;
+    this.stats.team[on].penYds += f.yards;
+    const tr = this.teams[rSide].abbr;
+    const tk = this.teams[kSide].abbr;
+    const where = `ball at the ${fieldLabel(res.ballOn, tr, tk)}`;
+    f.side = on;
+    const t = f.on === 'R'
+      ? `FLAG: ${f.name}, ${tr}. ${f.yards < 10 ? 'Half the distance' : '10 yards'} from the spot of the foul${(res.runEnd ?? 0) >= 100 ? ': the touchdown comes back' : ''}, ${where}.`
+      : `FLAG: ${f.name}, ${tk}. ${f.yards} yards from the end of the run, ${where}.`;
+    f.text = t.replace(/^FLAG: /, '');
+    return t;
   },
 
   fieldGoal() {

@@ -62,6 +62,17 @@ export const passingMethods = {
     // Set in the pocket: read and decide.
     const tSet = this.t - p.setT;
     const pressure = this.pressureOn(p);
+    // a free rusher about to get him: he may dump it rather than eat it
+    if (!p.dumpTried && tSet > 0.6 && !this.opts.manualPass) {
+      const f = this.nearestFree(this.defense, p.x, p.y);
+      if (f && dist(f.x, f.y, p.x, p.y) < 2.4 && f.y < p.y + 3) {
+        p.dumpTried = true;
+        if (this.rng.chance(0.28 + p.a.dec / 450)) {
+          p.pending = { away: true, at: this.t + 0.05 };
+          return;
+        }
+      }
+    }
     // pocket movement: slide away from the nearest free rusher
     const threat = this.nearestFree(this.defense, p.x, p.y);
     let mx = this.ballX;
@@ -97,11 +108,21 @@ export const passingMethods = {
     // as the clock in his head runs and the pocket closes.
     const readDur = 0.45 + (100 - p.a.dec) / 260;
     const idx = Math.min(this.progression.length - 1, Math.floor(tSet / readDur));
+    // Under fire with nobody clearly open, he may escape first: a mobile
+    // passer takes off through a lane, a smart one throws it away rather
+    // than take the sack (decided a few times a second).
+    p.escT = (p.escT ?? 0) - dt;
+    let escape = false;
+    if ((pressure > 0.45 || tSet > 0.7) && p.escT <= 0) {
+      p.escT = 0.2;
+      escape = true;
+    }
     if (tSet > 0.12) {
       const base = play.depth === 'short' ? 0.74 : play.depth === 'deep' ? 0.84 : 0.8;
       const need = base - Math.max(0, tSet - 1.5) * 0.12 - pressure * 0.3;
       let best = null;
       let bv = -1e9;
+      let bpe = 0;
       for (let i = 0; i < this.progression.length; i++) {
         const r = this.progression[i];
         // short options underneath stay in his vision while he reads, but
@@ -114,14 +135,15 @@ export const passingMethods = {
         const pe = 1 / (1 + Math.exp(-(o - 1.0) / 0.55));
         if (pe < need) continue;
         const v = pe * (Math.min(Math.max(r.y, 0), 25) * 0.55 + 7) - (1 - pe) * 4 - i * 0.3;
-        if (v > bv) { bv = v; best = r; }
+        if (v > bv) { bv = v; best = r; bpe = pe; }
       }
+      if (escape && (!best || bpe < 0.72) && this.escape(p, pressure, tSet)) return;
       if (best) return this.throwTo(p, best, pressure);
-    }
+    } else if (escape && this.escape(p, pressure, tSet)) return;
     p.decT -= dt;
     if (p.decT > 0) return;
     p.decT = 0.22;
-    if (pressure > 0.65 || tSet > 2.8) {
+    if (pressure > 0.45 || tSet > 2.2) {
       let best = null;
       let bo = -99;
       for (const r of this.progression) {
@@ -129,12 +151,22 @@ export const passingMethods = {
         if (o > bo) { bo = o; best = r; }
       }
       if (best && bo > (tSet > 3.4 ? 0.6 : 1.0)) return this.throwTo(p, best, pressure);
-      const scrP = 0.12 + 0.45 * clamp((p.a.spd - 55) / 35, 0, 1);
-      if (this.rng.chance(scrP) && this.laneOpen(p)) return this.startScramble(p);
-      if (tSet > 4.4 || (pressure > 0.85 && this.rng.chance(0.25))) {
-        if (this.rng.chance(0.55 + p.a.dec / 300)) return this.throwAway(p);
-      }
+      // nothing there and the play's breaking down
+      if (tSet > 3.6 && this.rng.chance(0.45)) return this.throwAway(p);
+      if (this.rng.chance(0.25)) this.escape(p, pressure, tSet);
     }
+  },
+
+  // Take off, or throw it away. Returns true if he did either.
+  escape(p, pressure, tSet) {
+    const mob = clamp((p.a.spd - 55) / 35, 0, 1);
+    // the pocket's collapsing, or the coverage has everyone blanketed
+    const scr = pressure > 0.45 ? 0.08 + 0.35 * mob : 0.05 + 0.3 * mob;
+    const free = this.nearestFree(this.defense, p.x, p.y);
+    const room = !free || dist(free.x, free.y, p.x, p.y) > 2.4; // nobody about to grab him
+    if (room && this.rng.chance(scr) && this.laneOpen(p, 7)) { this.startScramble(p); return true; }
+    if (pressure > 0.5 && tSet > 0.9 && this.rng.chance(0.2 + p.a.dec / 500)) { this.throwAway(p); return true; }
+    return false;
   },
 
   pressureOn(qb) {
@@ -147,13 +179,14 @@ export const passingMethods = {
     return clamp((3.2 - m) / 2.2, 0, 1);
   },
 
-  laneOpen(qb) {
-    // Any of three lanes (middle, left, right) free of unblocked defenders.
+  laneOpen(qb, depth = 5) {
+    // Any of three lanes (middle, left, right) free of unblocked defenders
+    // for `depth` yards.
     for (const lx of [0, -4, 4]) {
       let open = true;
       for (const d of this.defense) {
         if (d.down || d.blk) continue;
-        if (d.y > qb.y - 1 && d.y < qb.y + 5 && Math.abs(d.x - (qb.x + lx)) < 2.2) { open = false; break; }
+        if (d.y > qb.y - 1 && d.y < qb.y + depth && Math.abs(d.x - (qb.x + lx)) < 2.2) { open = false; break; }
       }
       if (open) return true;
     }
@@ -403,7 +436,9 @@ export const passingMethods = {
     const info = { who: r, t: this.t, bx: L.x, by: L.y, bz: ball.z, reach: odds.reach, shoulder: odds.shoulder, p: odds.p, sep, place: odds.place, keep: odds.keep };
     this.catchInfo = info;
     if (L.x < 0 || L.x > FIELD_W) {
-      // on the sideline: he needs a foot down in bounds
+      // on the sideline: he needs a foot down in bounds (a close call for
+      // the officials either way: src/game/replay.js)
+      this.sidelineTry = true;
       if (!this.rng.chance(0.35 + r.a.cth * 0.003) || r.x < 0.2 || r.x > FIELD_W - 0.2) {
         info.kind = 'miss';
         return this.incomplete('out of bounds', null);

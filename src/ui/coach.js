@@ -5,6 +5,7 @@ import { Game, other } from '../game/rules.js';
 import { makePlaySim } from '../game/autoplay.js';
 import { cpuOffense, cpuDefense, cpuPat, cpuOnside, cpuTimeout } from '../game/cpu.js';
 import { OFFENSE_PLAYS, DEFENSE_PLAYS, OFF_CATS, DEF_CATS, offPlay, FORMATIONS } from '../data/playbook.js';
+import { myPlays } from './myplays.js';
 import { fgDistance, maxFgRange, comfortableFgRange } from '../game/kicks.js';
 import { makeRng } from '../core/rng.js';
 import { MID_X, fmtClock, lerp } from '../core/util.js';
@@ -29,6 +30,7 @@ import { presentationMethods } from './presentation.js';
 import { kickMethods } from './coachkicks.js';
 import { menuMethods } from './coachmenus.js';
 import { stageMethods } from './coachstage.js';
+import { replayUiMethods } from './coachreplay.js';
 import { drawFieldArt, playCardSVG } from '../render/playart.js';
 import { DT } from '../sim/playsim.js';
 import { h, clear } from './dom.js';
@@ -312,7 +314,8 @@ export class CoachScreen {
 
   renderSheet(userOff) {
     const g = this.game;
-    const cats = userOff ? OFF_CATS : DEF_CATS;
+    const mine = myPlays(userOff ? 'O' : 'D');
+    const cats = [...(userOff ? OFF_CATS : DEF_CATS), ...(mine.length && !this.twoPoint ? [{ id: 'mine', label: 'Mine' }] : [])];
     if (!this.cat || !cats.find((c) => c.id === this.cat) || this.lastRole !== userOff) {
       this.cat = this.suggestCat(userOff);
     }
@@ -324,7 +327,7 @@ export class CoachScreen {
       b.addEventListener('click', () => { this.cat = c.id; this.renderSheet(userOff); });
       this.el.tabs.append(b);
     }
-    const plays = (userOff ? OFFENSE_PLAYS : DEFENSE_PLAYS).filter((p) => p.cat === this.cat);
+    const plays = this.cat === 'mine' ? mine : (userOff ? OFFENSE_PLAYS : DEFENSE_PLAYS).filter((p) => p.cat === this.cat);
     if (!this.sel || !plays.includes(this.sel) || this.playDisabled(this.sel)) this.sel = this.suggestPlay(plays, userOff);
     clear(this.el.cards);
     for (const p of plays) {
@@ -575,10 +578,12 @@ export class CoachScreen {
     }
     this.cheer(r, g.offense);
     if (this.twoPoint) {
+      this.review = null;
       out = g.applyTwoPoint(r);
       this.twoPoint = false;
     } else {
-      out = g.applyPlay(r, this.liveO, this.liveD);
+      // the officials' ruling (a close one may be wrong: src/game/replay.js)
+      out = g.applyPlay(this.ruleOnPlay(r), this.liveO, this.liveD);
     }
     this.syncHomeScore();
     this.mode = 'idle';
@@ -587,9 +592,10 @@ export class CoachScreen {
     this.setTicker(out.penalty ? `Flag: ${out.penalty.text} — ${out.text.split(' — FLAG: ')[0]}` : out.text);
     if (out.flags && out.flags.includes('twoMinute')) this.twoMinuteCard();
     const head = out.headline;
-    if (out.penalty) this.penaltyBanner(out.penalty, () => this.advance(), out.kind !== 'penalty' ? head : null);
-    else if (head && head !== 'First down') this.banner(head, out.text, 2.1, () => this.advance());
-    else this.after(0.5, () => this.advance());
+    const next = () => this.afterRuling(out);
+    if (out.penalty) this.penaltyBanner(out.penalty, next, out.kind !== 'penalty' ? head : null);
+    else if (head && head !== 'First down') this.banner(head, out.text, 2.1, next);
+    else this.after(0.5, next);
   }
 
   onStageTap() {
@@ -742,4 +748,4 @@ export class CoachScreen {
 
 }
 
-Object.assign(CoachScreen.prototype, playClockMethods, presentationMethods, kickMethods, menuMethods, stageMethods);
+Object.assign(CoachScreen.prototype, playClockMethods, presentationMethods, kickMethods, menuMethods, stageMethods, replayUiMethods);

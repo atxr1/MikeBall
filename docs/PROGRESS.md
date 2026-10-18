@@ -2,6 +2,48 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
+## 2026-10-17 (night) — Challenges and replay, saved plays, return penalties, scrambles
+
+**Done**
+- Close calls and instant replay (`src/game/replay.js`,
+  `src/ui/coachreplay.js`). The sim decides what happened; the officials
+  rule on it and can miss a close one: a toe at the sideline, a diving
+  catch, the spot at the line to gain, the ball breaking the plane while
+  he's tackled, a fumble as the runner goes down. When a ruling goes
+  against you, you see it and what the TV replay seems to show (usually
+  right, not always) and choose to throw the red flag. Two challenges, a
+  third once one wins; a timeout is needed and lost if the ruling stands;
+  none inside two minutes of a half or in overtime, where the booth looks
+  itself. A reversal rewinds the game to before the play
+  (`Game.snapshot/restore`) and applies what really happened. CPU coaches
+  challenge from their own replay look; CPU-vs-CPU games settle rulings the
+  same way (about 0.8 challenges a game, about half reversed).
+- Saved plays (`src/ui/myplays.js`): draw on a play, tap "Save play",
+  name it, and it's in the "Mine" tab on that side of the ball in every
+  game; "Delete play" when one is selected. Stored as the base play plus
+  the drawing in localStorage. Play cards now show drawn routes.
+- Penalties on returns: holding and illegal blocks in the back on kickoff
+  and punt returns (10 yards from the spot of the foul, half the distance
+  inside the 20; a return touchdown comes back), face masks by the cover
+  team (15 from the end of the run). The flag comes out in the kick scene
+  as the runner passes the spot; the penalty banner follows.
+- Quarterbacks escape: a mobile passer takes off through an open lane when
+  nobody's open, and passers throw it away rather than take some sacks.
+  Linemen hold their blocks a beat longer on scrambles. Full CPU games:
+  about 1.6 scrambles, 0.8 throwaways and 2.0 sacks a team; 23–24 points a
+  team.
+
+**Known issues**
+- Scrambles are still short on average (the passer starts deep).
+- Time to throw is quick (median ~1.5 s after the snap).
+- No challenge-flag graphic on the scorebug; the referee isn't shown at
+  the replay monitor.
+
+**Next**
+- Milestone 2 is done. Season mode (milestone 3): schedule, standings,
+  playoffs, saves.
+- Optional: steering the runner in Retro Bowl mode.
+
 ## 2026-10-17 (later) — Optional Retro Bowl-style passing
 
 **Done**

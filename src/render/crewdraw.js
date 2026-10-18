@@ -173,37 +173,41 @@ export function drawFlags(ctx, cam, sim, los, landed) {
   if (!crew) return;
   for (const f of crew.flags) {
     if (f.landed !== landed) continue;
-    const x = Math.round(cam.sx(f.x));
-    const gy = Math.round(cam.sy(los + f.y));
-    if (f.landed) {
-      // the flag on the turf: a crumpled yellow cloth, outlined so it reads
-      // on the grass at phone size
-      ctx.fillStyle = 'rgba(10,30,12,0.45)';
-      ctx.fillRect(x - 3, gy + 2, 8, 1);
-      ctx.fillStyle = '#3a2c00';
-      ctx.fillRect(x - 4, gy - 2, 8, 4);
-      ctx.fillRect(x + 3, gy - 1, 2, 3);
-      ctx.fillStyle = '#ffd81a';
-      ctx.fillRect(x - 3, gy - 1, 6, 2);
-      ctx.fillRect(x + 3, gy, 1, 1);
-      ctx.fillStyle = '#fff3a0';
-      ctx.fillRect(x - 3, gy - 1, 2, 1);
-      ctx.fillStyle = '#c9a400';
-      ctx.fillRect(x + 1, gy, 2, 1);
-    } else {
-      // in the air, tumbling, with its weighted knot
-      const y = gy - Math.round(f.z * cam.s * 0.9);
-      const flip = Math.floor((f.z * 7) % 2);
-      ctx.fillStyle = 'rgba(10,30,12,0.35)';
-      ctx.fillRect(x - 2, gy, 5, 1);
-      ctx.fillStyle = '#3a2c00';
-      ctx.fillRect(x - 3, y - 2, 6, 5);
-      ctx.fillStyle = '#ffd81a';
-      ctx.fillRect(x - 2, y - 1, 4, 3);
-      ctx.fillStyle = flip ? '#fff3a0' : '#c9a400';
-      ctx.fillRect(x - 2, y - 1, 2, 1);
-      ctx.fillStyle = '#3a2c00';
-      ctx.fillRect(x + 2, y + 2 + flip, 2, 2);
-    }
+    drawFlagAt(ctx, cam, Math.round(cam.sx(f.x)), Math.round(cam.sy(los + f.y)), f.landed ? 0 : f.z);
   }
+}
+
+// A penalty flag: on the turf (z 0) or in the air z yards up; x, gy are
+// screen pixels of the spot under it.
+export function drawFlagAt(ctx, cam, x, gy, z = 0) {
+  if (!z) {
+    // on the turf: a crumpled yellow cloth, outlined so it reads on the
+    // grass at phone size
+    ctx.fillStyle = 'rgba(10,30,12,0.45)';
+    ctx.fillRect(x - 3, gy + 2, 8, 1);
+    ctx.fillStyle = '#3a2c00';
+    ctx.fillRect(x - 4, gy - 2, 8, 4);
+    ctx.fillRect(x + 3, gy - 1, 2, 3);
+    ctx.fillStyle = '#ffd81a';
+    ctx.fillRect(x - 3, gy - 1, 6, 2);
+    ctx.fillRect(x + 3, gy, 1, 1);
+    ctx.fillStyle = '#fff3a0';
+    ctx.fillRect(x - 3, gy - 1, 2, 1);
+    ctx.fillStyle = '#c9a400';
+    ctx.fillRect(x + 1, gy, 2, 1);
+    return;
+  }
+  // in the air, tumbling, with its weighted knot
+  const y = gy - Math.round(z * cam.s * 0.9);
+  const flip = Math.floor((z * 7) % 2);
+  ctx.fillStyle = 'rgba(10,30,12,0.35)';
+  ctx.fillRect(x - 2, gy, 5, 1);
+  ctx.fillStyle = '#3a2c00';
+  ctx.fillRect(x - 3, y - 2, 6, 5);
+  ctx.fillStyle = '#ffd81a';
+  ctx.fillRect(x - 2, y - 1, 4, 3);
+  ctx.fillStyle = flip ? '#fff3a0' : '#c9a400';
+  ctx.fillRect(x - 2, y - 1, 2, 1);
+  ctx.fillStyle = '#3a2c00';
+  ctx.fillRect(x + 2, y + 2 + flip, 2, 2);
 }

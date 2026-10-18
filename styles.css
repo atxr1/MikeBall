@@ -400,6 +400,13 @@ table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nu
 }
 .draw-chip.hint { color: var(--dim); font-weight: 600; pointer-events: none; }
 .draw-chip[hidden] { display: none; }
+.save-chip { left: auto; right: 8px; color: var(--yellow); }
+.save-chip.danger { color: #ff8a7a; }
+.name-input {
+  width: 100%; min-height: 48px; margin: 4px 0 14px; padding: 8px 12px;
+  font: 400 20px/1 var(--px); color: var(--chalk); background: var(--night);
+  border: 0; box-shadow: var(--frame); border-radius: 0;
+}
 
 /* Network scorebug (src/ui/broadcast.js): the pixel canvas replaces the
    built-in bug once its art has loaded; the DOM bug stays for screen readers. */
