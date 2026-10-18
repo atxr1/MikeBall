@@ -547,10 +547,13 @@ export class CoachScreen {
       this.updateScorebug();
     }
     if (sim.done && !this.playEnded) {
-      const c = this.celebrationFor(sim);
+      // the officials rule at the whistle; everyone reacts to the ruling
+      this.ruled = this.preFoulPen || this.twoPoint ? null : this.ruleOnPlay(sim.result);
+      const shown = this.ruled || sim.result;
+      const c = this.celebrationFor(sim, shown);
       if (c) {
         sim.celebrate(c);
-        if (c.kind === 'td') this.cheer(sim.result, this.game.offense); // the crowd reacts at the whistle
+        if (c.kind === 'td') this.cheer(shown, this.game.offense); // the crowd reacts at the whistle
         hold = { td: 1.8, big: 1.35, first: 1.15, sack: 1.25, int: 1.3, takeaway: 1.2 }[c.kind] || 0.75;
       }
       // a flag: give the referee time to announce it
@@ -576,14 +579,17 @@ export class CoachScreen {
       this.setTicker(`Flag: ${pen.text}`);
       return this.penaltyBanner(pen, () => this.advance());
     }
-    this.cheer(r, g.offense);
+    // the officials' ruling, made at the whistle (a close one may be wrong:
+    // src/game/replay.js)
+    const ruled = this.ruled || r;
+    this.ruled = null;
+    this.cheer(ruled, g.offense);
     if (this.twoPoint) {
       this.review = null;
       out = g.applyTwoPoint(r);
       this.twoPoint = false;
     } else {
-      // the officials' ruling (a close one may be wrong: src/game/replay.js)
-      out = g.applyPlay(this.ruleOnPlay(r), this.liveO, this.liveD);
+      out = g.applyPlay(ruled, this.liveO, this.liveD);
     }
     this.syncHomeScore();
     this.mode = 'idle';

@@ -46,7 +46,10 @@ export const menuMethods = {
     const suggestion = from.custom ? from.name : `My ${from.name}`.slice(0, 24);
     askPlayName(this.root, suggestion, (name) => {
       const id = saveMyPlay(side, from, edits, name);
-      if (!id) { this.toast('Couldn’t save: storage is full or off', 2); return; }
+      if (typeof id !== 'string') {
+        this.toast(id.error === 'full' ? 'You have 40 saved plays: delete one first' : 'Couldn’t save: storage is full or off', 2.4);
+        return;
+      }
       this.toast(`Saved “${name}”`, 1.6);
       if (this.mode !== 'call') return;
       this.cat = 'mine';
@@ -61,8 +64,7 @@ export const menuMethods = {
     const wasEnabled = !this.el.go.disabled;
     this.dialog('Delete play', `Delete “${p.name}” from your plays?`, [
       ['Delete', () => {
-        deleteMyPlay(p.id);
-        this.toast(`Deleted “${p.name}”`, 1.4);
+        this.toast(deleteMyPlay(p.id) ? `Deleted “${p.name}”` : 'Couldn’t delete: storage is off', 1.6);
         this.mode = 'call';
         this.sel = null;
         this.renderSheet(this.game.poss === this.user);
@@ -92,10 +94,12 @@ export const menuMethods = {
     // a pre-snap foul being shown was already enforced
     this.timers = [];
     this.review = null; // a ruling not yet reviewed stands
+    const ruled = this.ruled;
+    this.ruled = null;
     if (this.preFoulPen) this.preFoulPen = null;
     else if (this.mode === 'play' && this.playEnded && this.scene?.sim?.done) {
       const r = this.scene.sim.result;
-      if (this.twoPoint) { g.applyTwoPoint(r); this.twoPoint = false; } else g.applyPlay(r, this.liveO, this.liveD);
+      if (this.twoPoint) { g.applyTwoPoint(r); this.twoPoint = false; } else g.applyPlay(ruled || r, this.liveO, this.liveD);
     }
     if (this.twoPoint) {
       const sim = makePlaySim(g, cpuOffense(g, g.poss).cat === 'special' ? offPlay('slants') : cpuOffense(g, g.poss), cpuDefense(g, other(g.poss)), null, { noFouls: true });

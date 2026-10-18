@@ -17,7 +17,15 @@ export const replayUiMethods = {
     this.review = null;
     const call = onFieldRuling(r, rulingCtx(g), g.rng);
     if (call.close) {
-      this.review = { close: call.close, truth: r, snap: g.snapshot(), off: g.poss, o: this.liveO, d: this.liveD };
+      const off = g.poss;
+      this.review = {
+        close: call.close, truth: r, snap: g.snapshot(), off, o: this.liveO, d: this.liveD,
+        // as things stood when the ball was snapped
+        booth: g.inBoothWindow(),
+        can: { home: g.canChallenge('home'), away: g.canChallenge('away') },
+        // scoring plays and turnovers are the booth's, any time
+        auto: !!(call.ruled.td || call.ruled.turnover),
+      };
     }
     return call.ruled;
   },
@@ -28,24 +36,26 @@ export const replayUiMethods = {
     this.review = null;
     const g = this.game;
     // a flag that wiped out the play makes the ruling moot
-    if (!rv || (out && out.kind === 'penalty') || g.over) return this.advance();
+    if (!rv || (out && out.kind === 'penalty')) return this.advance();
+    rv.warned = !!(out && out.flags && out.flags.includes('twoMinute'));
     const c = rv.close;
     const wronged = c.favors === 'O' ? other(rv.off) : rv.off;
-    if (g.inBoothWindow()) {
+    if (rv.booth || rv.auto) {
       // the booth looks at close ones itself; it stops the game when it has
       // something to look at
       if (c.wrong || c.lean === 'against') return this.runReview(rv, 'booth');
       return this.advance();
     }
+    if (g.over) return this.advance();
     if (wronged === this.user) {
-      if (!g.canChallenge(this.user)) return this.advance();
+      if (!rv.can[this.user] || !g.canChallenge(this.user)) return this.advance();
       const left = g.challenges[this.user];
       return this.dialog('Close call', `${callText(c)} ${leanText(c)} A challenge costs a timeout if the ruling stands.`, [
         [`Challenge (${left} left)`, () => this.runReview(rv, this.user)],
         ['Let it go', () => this.advance()],
       ]);
     }
-    if (cpuWantsChallenge(g, wronged, c, g.rng)) {
+    if (rv.can[wronged] && cpuWantsChallenge(g, wronged, c, g.rng)) {
       this.toast(`${g.teams[wronged].abbr} throws the red flag`, 1.8);
       return this.runReview(rv, wronged);
     }
@@ -67,9 +77,10 @@ export const replayUiMethods = {
         g.restore(rv.snap);
         out = g.applyPlay(rv.truth, rv.o, rv.d);
         if (!booth) g.chargeChallenge(by, true);
+        const ro = booth ? g.reversalRunoff() : 0;
         this.syncHomeScore();
         const extra = out.headline && !out.text.includes(out.headline.replace('!', '')) ? ` ${out.headline.replace(/!$/, '')}.` : '';
-        text = `After review, the ruling on the field is reversed. ${out.text}${extra}`;
+        text = `After review, the ruling on the field is reversed. ${out.text}${extra}${ro ? ` ${ro}-second runoff.` : ''}`;
         this.setTicker(`Reversed: ${out.text}`);
       } else {
         if (!booth) g.chargeChallenge(by, false);
@@ -77,7 +88,7 @@ export const replayUiMethods = {
         if (!booth) text += ` ${g.teams[by].abbr} is charged a timeout.`;
       }
       this.updateBug();
-      if (out && out.flags && out.flags.includes('twoMinute')) this.twoMinuteCard();
+      if (out && out.flags && out.flags.includes('twoMinute') && !rv.warned) this.twoMinuteCard();
       this.banner(won ? 'Reversed' : rv.close.wrong ? 'Ruling stands' : 'Confirmed', text, 2.6, () => this.advance());
     });
   },

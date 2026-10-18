@@ -132,7 +132,7 @@ export const kickingMethods = {
     const where = `ball at the ${fieldLabel(res.ballOn, tr, tk)}`;
     f.side = on;
     const t = f.on === 'R'
-      ? `FLAG: ${f.name}, ${tr}. ${f.yards < 10 ? 'Half the distance' : '10 yards'} from the spot of the foul${(res.runEnd ?? 0) >= 100 ? ': the touchdown comes back' : ''}, ${where}.`
+      ? `FLAG: ${f.name}, ${tr}. ${f.yards < 10 ? 'Half the distance' : '10 yards'} from ${f.kickEnd ? 'the end of the kick' : 'the spot of the foul'}${(res.runEnd ?? 0) >= 100 ? ': the touchdown comes back' : ''}, ${where}.`
       : `FLAG: ${f.name}, ${tk}. ${f.yards} yards from the end of the run, ${where}.`;
     f.text = t.replace(/^FLAG: /, '');
     return t;

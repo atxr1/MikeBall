@@ -74,9 +74,10 @@ export function cpuStep(game) {
       if (pen && !pen.live) { game.finishNext(); return { kind: 'penalty', pen }; }
       const sim = makePlaySim(game, o, d, null, pen ? { snapFoul: { key: pen.key } } : null);
       // the officials' ruling, and replay if anyone looks at it
-      const { result, charge } = settleRuling(game, sim.runToEnd(), game.rng);
+      const { result, charge, reversed } = settleRuling(game, sim.runToEnd(), game.rng);
       const out = game.applyPlay(result, o, d);
-      if (charge) game.chargeChallenge(charge.side, charge.won);
+      if (reversed) game.reversalRunoff();
+      if (charge && out.kind !== 'penalty') game.chargeChallenge(charge.side, charge.won);
       return out;
     }
   }

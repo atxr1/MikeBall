@@ -67,7 +67,7 @@ export const passingMethods = {
       const f = this.nearestFree(this.defense, p.x, p.y);
       if (f && dist(f.x, f.y, p.x, p.y) < 2.4 && f.y < p.y + 3) {
         p.dumpTried = true;
-        if (this.rng.chance(0.28 + p.a.dec / 450)) {
+        if (this.legalThrowAway(p) && this.rng.chance(0.2 + p.a.dec / 500)) {
           p.pending = { away: true, at: this.t + 0.05 };
           return;
         }
@@ -161,11 +161,28 @@ export const passingMethods = {
   escape(p, pressure, tSet) {
     const mob = clamp((p.a.spd - 55) / 35, 0, 1);
     // the pocket's collapsing, or the coverage has everyone blanketed
-    const scr = pressure > 0.45 ? 0.08 + 0.35 * mob : 0.05 + 0.3 * mob;
+    const scr = pressure > 0.45 ? 0.05 + 0.25 * mob : 0.05 + 0.3 * mob;
     const free = this.nearestFree(this.defense, p.x, p.y);
-    const room = !free || dist(free.x, free.y, p.x, p.y) > 2.4; // nobody about to grab him
-    if (room && this.rng.chance(scr) && this.laneOpen(p, 7)) { this.startScramble(p); return true; }
-    if (pressure > 0.5 && tSet > 0.9 && this.rng.chance(0.2 + p.a.dec / 500)) { this.throwAway(p); return true; }
+    const room = !free || dist(free.x, free.y, p.x, p.y) > 3.2; // nobody about to grab him
+    const lane = room && this.rng.chance(scr) ? this.laneOpen(p, 10) : null;
+    if (lane != null) {
+      // up through the gap he saw, to the line, before he picks his way
+      p.lane = { x: clamp(p.x + lane, 2, FIELD_W - 2), y: 1 };
+      this.startScramble(p);
+      return true;
+    }
+    if (pressure > 0.5 && tSet > 0.9 && this.legalThrowAway(p) && this.rng.chance(0.2 + p.a.dec / 500)) { this.throwAway(p); return true; }
+    return false;
+  },
+
+  // Throwing it away without intentional grounding (Rule 8-2-1): out of the
+  // tackle box, or toward a receiver in the area (at a back's feet).
+  legalThrowAway(p) {
+    if (Math.abs(p.x - this.ballX) > 4.5) return true;
+    for (const r of this.offense) {
+      if (r.down || r.blk || (r.pos !== 'WR' && r.pos !== 'TE' && r.pos !== 'RB')) continue;
+      if (dist(r.x, r.y, p.x, p.y) < 9) return true;
+    }
     return false;
   },
 
@@ -181,16 +198,16 @@ export const passingMethods = {
 
   laneOpen(qb, depth = 5) {
     // Any of three lanes (middle, left, right) free of unblocked defenders
-    // for `depth` yards.
+    // for `depth` yards. Returns the lane's x offset (or null).
     for (const lx of [0, -4, 4]) {
       let open = true;
       for (const d of this.defense) {
         if (d.down || d.blk) continue;
         if (d.y > qb.y - 1 && d.y < qb.y + depth && Math.abs(d.x - (qb.x + lx)) < 2.2) { open = false; break; }
       }
-      if (open) return true;
+      if (open) return lx;
     }
-    return false;
+    return null;
   },
 
   // Where the receiver will be when the ball gets there: the passer throws

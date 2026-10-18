@@ -335,6 +335,23 @@ console.log('close calls and replay');
   // CPU games settle rulings without stalling
   const s = settleRuling(g, spotR, makeRng(5));
   check('CPU games settle each ruling', s.result && (s.charge === null || typeof s.charge.won === 'boolean'));
+  // turnovers (and scores) are the booth's: never a coach's challenge
+  g.quarter = 1; g.clock = 600;
+  const lost = { outcome: 'fumble_lost', kind: 'run', yards: 0, spotY: 3, incomplete: false, turnover: true, rusher: rec, fumble: { lost: true }, review: {}, fouls: [] };
+  let charged = 0;
+  let seen = 0;
+  for (let i = 0; i < 200; i++) {
+    const ruled = onFieldRuling(lost, { toGo: g.ltg - g.ballOn, goal: 100 - g.ballOn }, makeRng(100 + i)).ruled;
+    if (!ruled.turnover) continue; // ruled down by contact: that one the defense has to challenge
+    seen++;
+    if (settleRuling(g, lost, makeRng(100 + i)).charge) charged++;
+  }
+  check('a ruling of a turnover is reviewed by the booth, never challenged', seen > 100 && charged === 0, `${charged} of ${seen}`);
+  // a sideline ball caught in the end zone and ruled a catch is a touchdown
+  const ez = { ...catchR, incomplete: true, receiver: null, review: { sideline: true, ball: { x: -0.2, y: 61 } } };
+  let td = false;
+  for (let i = 0; i < 200 && !td; i++) { const c = onFieldRuling(ez, { toGo: 6, goal: 60 }, makeRng(300 + i)); if (c.close && c.close.wrong) td = c.ruled.td === true; }
+  check('a catch ruled in the end zone is a touchdown', td);
 }
 
 console.log('fouls and penalties');

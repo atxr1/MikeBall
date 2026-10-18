@@ -27,14 +27,33 @@ Newest first. Each session: what got done, what's broken, what's next.
   inside the 20; a return touchdown comes back), face masks by the cover
   team (15 from the end of the run). The flag comes out in the kick scene
   as the runner passes the spot; the penalty banner follows.
-- Quarterbacks escape: a mobile passer takes off through an open lane when
-  nobody's open, and passers throw it away rather than take some sacks.
-  Linemen hold their blocks a beat longer on scrambles. Full CPU games:
-  about 1.6 scrambles, 0.8 throwaways and 2.0 sacks a team; 23–24 points a
-  team.
+- Quarterbacks escape: a mobile passer takes off up through an open lane
+  when nobody's open, and passers throw it away rather than take some
+  sacks, but only where that isn't intentional grounding (outside the
+  tackle box, or with a receiver in the area). Linemen hold their blocks a
+  beat longer on scrambles. Full CPU games: about 1.8 scrambles, 0.6
+  throwaways and 2.0 sacks a team; ~25 points a team.
+- Review fixes: the officials rule at the whistle, so celebrations and the
+  crowd follow the ruling; touchdowns and turnovers are the booth's any
+  time (never a coach's challenge); booth or challenge is decided by the
+  clock when the ball was snapped; a ruling that ends the game in overtime
+  is still reviewed; a catch or recovery ruled in the end zone is a
+  touchdown; a won challenge leaves the clock to the play, a lost one
+  resets the play clock; a booth reversal in the last minute of a half
+  carries a 10-second runoff when the clock would have run; holds on a
+  punt while the ball's in the air are marked from the end of the kick;
+  saving a saved play under its name updates it. The play-by-play now says
+  "a loss of" for negative runs (it used to print the yards without the
+  sign).
 
 **Known issues**
-- Scrambles are still short on average (the passer starts deep).
+- Scrambles are still short on average (about 2 yards; real ~6–7).
+- No intentional-grounding foul: in the pocket with nobody near, the
+  passer just doesn't throw it away.
+- Ruling errors only go one way per kind (e.g. a touchdown is never
+  wrongly awarded), so booth reversals of scores and turnovers don't
+  happen yet.
+- Run balance: outside zone strong, counter and power weak (rules-checker).
 - Time to throw is quick (median ~1.5 s after the snap).
 - No challenge-flag graphic on the scorebug; the referee isn't shown at
   the replay monitor.

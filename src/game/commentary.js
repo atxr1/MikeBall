@@ -22,7 +22,7 @@ function passZone(r, ballX) {
 function yds(n) {
   const a = Math.abs(n);
   if (a === 0) return 'no gain';
-  return `${a} yard${a === 1 ? '' : 's'}`;
+  return `${n < 0 ? 'a loss of ' : ''}${a} yard${a === 1 ? '' : 's'}`;
 }
 
 export function describe(r, ballX = MID_X) {

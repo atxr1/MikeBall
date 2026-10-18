@@ -103,8 +103,9 @@ export const presentationMethods = {
   },
 
   // What the players do after the whistle (see src/sim/celebrate.js).
-  celebrationFor(sim) {
-    const r = sim.result;
+  // r: the ruling on the field (what the players react to), the sim's
+  // result unless the officials saw it differently.
+  celebrationFor(sim, r = sim.result) {
     const g = this.game;
     if (!r) return null;
     const offSide = g.poss;
@@ -115,7 +116,7 @@ export const presentationMethods = {
       return { kind: 'td', leap: atLambeau && !this.twoPoint, salute: team.id === 'DEN' };
     }
     if (r.interception) return { kind: 'int', who: sim.interceptor };
-    if (sim.fumbled && sim.fumbled.lost) return { kind: 'takeaway', who: sim.fumbled.recoveredBy };
+    if (r.fumble && r.fumble.lost && sim.fumbled) return { kind: 'takeaway', who: sim.fumbled.recoveredBy };
     if (r.kind === 'sack' && sim.tackler) return { kind: 'sack', who: sim.tackler };
     if (r.incomplete || r.turnover || r.safety || this.twoPoint) return null;
     if (r.yards >= 20) return { kind: 'big' };

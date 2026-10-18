@@ -168,13 +168,16 @@ export function kickoff(kicker, returner, rng, { onside = false, fromYard = 35 }
 // run. res.runEnd keeps where the runner actually got to (receiving
 // team's frame, yards from its own goal line); res.ballOn is where the
 // ball is put after the flag. catchAt: where he caught it, same frame.
-function withReturnFoul(res, catchAt, rng, pRet) {
+function withReturnFoul(res, catchAt, rng, pRet, punt = false) {
   res.runEnd = res.ballOn;
   if (rng.chance(pRet) && res.ballOn - catchAt > 6) {
-    const spot = Math.round(catchAt + (res.ballOn - catchAt) * rng.float(0.4, 0.95));
+    // on a punt, a hold while the ball's in the air (on a gunner) is marked
+    // from the end of the kick, where he caught it (Rule 9-5)
+    const inAir = punt && rng.chance(0.4);
+    const spot = inAir ? Math.max(1, Math.round(catchAt)) : Math.max(1, Math.round(catchAt + (res.ballOn - catchAt) * rng.float(0.4, 0.95)));
     const y = Math.min(10, Math.floor(spot / 2));
     const kind = rng.chance(0.55) ? 'Holding' : 'Illegal block in the back';
-    res.foul = { name: kind, on: 'R', spot, yards: y };
+    res.foul = { name: kind, on: 'R', spot, yards: y, kickEnd: inAir };
     res.ballOn = clamp(spot - y, 1, 99);
     if (res.td) { res.td = false; res.type = 'return'; }
   } else if (!res.td && rng.chance(0.012)) {
@@ -248,6 +251,6 @@ export function punt(punter, returner, ballOn, rng, ctx = {}) {
   let ret = Math.max(0, rng.normal(6.5 + (r.spd - 85) * 0.25 + (r.elu - 70) * 0.1 + (gap - 5) * 0.55, 4.5));
   if (rng.chance(0.012 + Math.max(0, gap - 6) * 0.004)) ret += rng.int(15, 50);
   const spot = 100 - landing + ret;
-  if (spot >= 100) return withReturnFoul({ type: 'td', ballOn: 100, gross: Math.round(gross), returnYds: Math.round(ret), landing, td: true, hang, gap, op }, 100 - landing, rng, 0.08);
-  return withReturnFoul({ type: 'return', ballOn: clamp(Math.round(spot), 1, 99), gross: Math.round(gross), returnYds: Math.round(ret), landing, hang, gap, op }, 100 - landing, rng, 0.08);
+  if (spot >= 100) return withReturnFoul({ type: 'td', ballOn: 100, gross: Math.round(gross), returnYds: Math.round(ret), landing, td: true, hang, gap, op }, 100 - landing, rng, 0.08, true);
+  return withReturnFoul({ type: 'return', ballOn: clamp(Math.round(spot), 1, 99), gross: Math.round(gross), returnYds: Math.round(ret), landing, hang, gap, op }, 100 - landing, rng, 0.08, true);
 }

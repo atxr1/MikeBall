@@ -329,6 +329,15 @@ export const offenseMethods = {
 
   // ---------------------------------------------------------------- carrier
   carrierThink(p, dt) {
+    // A scrambling quarterback first gets up through the lane he saw.
+    if (p === this.qb && this.scramble && p.lane && !p.lane.done) {
+      const ln = p.lane;
+      if (p.y < ln.y - 0.5 && dist(p.x, p.y, ln.x, ln.y) > 0.8) {
+        this.steer(p, ln.x, ln.y, 1, dt, 0);
+        return;
+      }
+      ln.done = true;
+    }
     // Designed run path before the line.
     if (p.job && p.job.t === 'carry' && p.pts && p.wp < p.pts.length && !this.turnover) {
       const tp = p.pts[p.wp];

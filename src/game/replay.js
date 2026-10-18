@@ -14,6 +14,9 @@
 
 import { StatBook } from './stats.js';
 
+// The parts of Game that change from play to play (src/game/rules.js).
+const STATE_KEYS = ['score', 'qScores', 'quarter', 'clock', 'timeouts', 'challenges', 'challengeWins', 'poss', 'ballOn', 'ballX', 'down', 'ltg', 'clockRunning', 'shortRunoff', 'warned', 'playClock', 'pcStart', 'pcRunoff', 'pcShort', 'ot', 'over', 'top', 'drive', 'patSide', 'freeKick', 'kickingSide', 'phase', 'next'];
+
 // How often each kind of close play is ruled wrong on the field.
 const MISS = { sideline: 0.14, dive: 0.1, spot: 0.1, goal: 0.18, fumble: 0.1 };
 // Clear and obvious: how often replay catches a wrong ruling.
@@ -36,7 +39,7 @@ export function onFieldRuling(r, ctx, rng) {
   if (rv.sideline && rv.ball && r.kind === 'pass' && !r.interception && (r.incomplete || near(r.catchY ?? 0) < 2.5)) {
     const wrong = rng.chance(MISS.sideline);
     if (!wrong) return { ruled: r, close: close('sideline', false, caught ? 'O' : 'D', rng) };
-    const ruled = caught ? asIncomplete(r, 'out of bounds') : asCatchAt(r, rv.ball.y, true);
+    const ruled = caught ? asIncomplete(r, 'out of bounds') : asCatchAt(r, rv.ball.y, true, ctx.goal);
     return { ruled, close: close('sideline', true, caught ? 'D' : 'O', rng) };
   }
   // a diving catch: did he keep control when he hit the ground?
@@ -55,7 +58,7 @@ export function onFieldRuling(r, ctx, rng) {
   if (r.fumble && r.fumble.lost && r.turnover) {
     const wrong = rng.chance(MISS.fumble);
     if (!wrong) return { ruled: r, close: close('fumble', false, 'D', rng) };
-    return { ruled: asDown(r), close: close('fumble', true, 'O', rng) };
+    return { ruled: asDown(r, ctx.goal), close: close('fumble', true, 'O', rng) };
   }
   // the spot against the line to gain (the game rounds to whole yards, so
   // the line is at toGo - 0.5)
@@ -84,18 +87,22 @@ function asIncomplete(r, why) {
   return { ...base(r), kind: 'pass', incomplete: true, why, receiver: null, yards: 0, spotY: 0, td: false, outOfBounds: false, fumble: null, turnover: false, tackler: null, catchY: null };
 }
 
-function asCatchAt(r, y, oob) {
+function asCatchAt(r, y, oob, goal = 100) {
+  // caught in the end zone: a touchdown
+  if (y >= goal) return { ...base(r), kind: 'pass', incomplete: false, why: null, receiver: r.target, yards: Math.round(goal), spotY: goal, td: true, outOfBounds: false, tackler: null, catchY: y };
   return { ...base(r), kind: 'pass', incomplete: false, why: null, receiver: r.target, yards: Math.round(y), spotY: y, td: false, outOfBounds: oob, tackler: null, catchY: y };
 }
 
 function asSpot(r, y) {
-  return { ...base(r), td: false, yards: Math.round(y), spotY: y, outOfBounds: false };
+  return { ...base(r), td: false, yards: Math.round(y), spotY: y, outOfBounds: !!r.outOfBounds };
 }
 
-function asDown(r) {
+function asDown(r, goal = 100) {
   // down by contact where the ball came out: the offense keeps it there
+  // (in the end zone, that's a touchdown)
   const y = r.fumble && r.spotY != null ? r.spotY : 0;
-  return { ...base(r), turnover: false, fumble: null, interception: false, touchback: false, yards: Math.round(y), spotY: y, outOfBounds: false };
+  const td = y >= goal;
+  return { ...base(r), turnover: false, fumble: null, interception: false, touchback: false, td, yards: Math.round(td ? goal : y), spotY: td ? goal : y, outOfBounds: false };
 }
 
 // ---------------------------------------------------------------- words
@@ -112,12 +119,15 @@ const LEAN = {
     D: { against: 'On the replay his second foot looks to come down in bounds.', with: 'The replay shows his foot on the line.', unclear: 'From this angle it’s hard to see his feet.' },
   },
   dive: {
+    O: { against: 'The ball may move as he hits the ground.', with: 'He has it secured before he lands.', unclear: 'His body blocks the camera at the moment he lands.' },
     D: { against: 'The replay suggests he had control all the way to the ground.', with: 'The ball clearly moves when he lands.', unclear: 'His body blocks the camera at the moment he lands.' },
   },
   goal: {
+    O: { against: 'His knee may be down before the ball crosses.', with: 'The ball is over the line before he goes down.', unclear: 'There’s a pile at the goal line; hard to see the ball.' },
     D: { against: 'The replay shows the ball breaking the plane before his knee hit.', with: 'His knee is down before the ball gets to the line.', unclear: 'There’s a pile at the goal line; hard to see the ball.' },
   },
   fumble: {
+    D: { against: 'His knee may be down before the ball comes out.', with: 'The ball is out before he hits the ground.', unclear: 'It’s bang-bang: knee and ball at the same moment.' },
     O: { against: 'The replay shows the ball coming out before his knee touched.', with: 'His knee is down before the ball comes out.', unclear: 'It’s bang-bang: knee and ball at the same moment.' },
   },
   spot: {
@@ -170,7 +180,11 @@ export function settleRuling(game, r, rng) {
   const { ruled, close: c } = onFieldRuling(r, rulingCtx(game), rng);
   if (!c) return { result: r, charge: null };
   const wronged = c.favors === 'O' ? game.defense : game.offense;
-  if (boothReviews(game)) return { result: reviewOverturns(c, rng) ? r : ruled, charge: null };
+  // the booth: late in a half, in overtime, and every score and turnover
+  if (boothReviews(game) || ruled.td || ruled.turnover) {
+    const won = reviewOverturns(c, rng);
+    return { result: won ? r : ruled, charge: null, reversed: won };
+  }
   if (!cpuWantsChallenge(game, wronged, c, rng)) return { result: ruled, charge: null };
   const won = reviewOverturns(c, rng);
   return { result: won ? r : ruled, charge: { side: wronged, won } };
@@ -186,6 +200,15 @@ export const replayMethods = {
     return !this.inBoothWindow() && this.challenges[side] > 0 && this.timeouts[side] > 0;
   },
 
+  // After a reversal in the last minute of a half: if the clock would have
+  // been running on the right ruling, 10 seconds come off. Returns them.
+  reversalRunoff() {
+    if (!((this.quarter === 2 || this.quarter === 4) && this.clock <= 60 && this.clockRunning)) return 0;
+    const sec = Math.min(10, this.clock);
+    this.runClock(sec);
+    return sec;
+  },
+
   // A challenge thrown: one fewer left; a third once one succeeds; a
   // timeout charged if the ruling stands.
   chargeChallenge(side, won) {
@@ -195,35 +218,33 @@ export const replayMethods = {
       this.challengeWins[side]++;
       if (this.challengeWins[side] === 1) this.challenges[side]++;
     } else {
+      // the ruling stands: charged a timeout
       this.timeouts[side] = Math.max(0, this.timeouts[side] - 1);
+      this.clockRunning = false;
+      this.resetPlayClock(25);
     }
-    this.clockRunning = false;
     this.addLog(`${this.teams[side].abbr} challenge: ${won ? 'the ruling is reversed' : `the ruling stands, timeout charged (${this.timeouts[side]} left)`}.`, 'info', { side });
   },
 
-  // Everything about the game state, to put back if a review reverses the
-  // ruling the game moved on with.
+  // The game state, to put back if a review reverses the ruling the game
+  // moved on with. An explicit list of plain-data fields (teams, rosters,
+  // the RNG and the log stay as they are; the log is cut back).
   snapshot() {
-    const keep = {};
-    for (const [k, v] of Object.entries(this)) {
-      if (k === 'teams' || k === 'rosters' || k === 'rng' || k === 'log' || k === 'stats') continue;
-      keep[k] = v;
-    }
+    const data = {};
+    for (const k of STATE_KEYS) data[k] = this[k];
     return {
-      data: structuredClone(keep),
+      data: structuredClone(data),
       stats: { players: structuredClone(this.stats.players), team: structuredClone(this.stats.team) },
-      rng: this.rng.state,
       log: this.log.length,
     };
   },
 
   restore(s) {
     Object.assign(this, structuredClone(s.data));
-    const st = Object.create(StatBook.prototype);
+    const st = new StatBook();
     st.players = structuredClone(s.stats.players);
     st.team = structuredClone(s.stats.team);
     this.stats = st;
-    this.rng.state = s.rng;
     this.log.length = s.log;
   },
 };

@@ -48,19 +48,27 @@ export function myPlays(side) {
 }
 
 // Save the play on the field: the base it started from plus every edit
-// (a saved play edited again keeps its earlier edits).
+// (a saved play edited again keeps its earlier edits; saved under the same
+// name, it's updated rather than copied). Returns the id, or an error:
+// { error: 'full' | 'storage' }.
 export function saveMyPlay(side, play, edits, name) {
   const list = read();
   const baseId = play.custom ? play.baseId : play.id;
-  const prior = play.custom ? (list.find((s) => s.id === play.id)?.edits || {}) : {};
-  const entry = { id: `my-${Date.now().toString(36)}`, name, side, base: baseId, edits: { ...prior, ...edits } };
+  const old = play.custom ? list.find((s) => s.id === play.id) : null;
+  const merged = { ...(old ? old.edits : {}), ...edits };
+  if (old && old.name === name) {
+    old.edits = merged;
+    return write(list) ? old.id : { error: 'storage' };
+  }
+  if (list.length >= MAX) return { error: 'full' };
+  const entry = { id: `my-${Date.now().toString(36)}`, name, side, base: baseId, edits: merged };
   list.push(entry);
-  while (list.length > MAX) list.shift();
-  return write(list) ? entry.id : null;
+  return write(list) ? entry.id : { error: 'storage' };
 }
 
+// Returns false if it couldn't be removed.
 export function deleteMyPlay(id) {
-  write(read().filter((s) => s.id !== id));
+  return write(read().filter((s) => s.id !== id));
 }
 
 // A sheet asking for the play's name. done(name) on save.
