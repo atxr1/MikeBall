@@ -135,7 +135,7 @@ export const ROUTES = {
   stick: { name: 'Stick', pts: [[0, 6], [-1, 6]], end: 'sit' },
   comeback: { name: 'Comeback', pts: [[0, 15], [2.2, 12.5]], end: 'sit' },
   post: { name: 'Post', pts: [[0, 11], [-6, 26]], end: 'continue' },
-  corner: { name: 'Corner', pts: [[0, 10], [6, 20]], end: 'continue' },
+  corner: { name: 'Corner', pts: [[0, 9], [5.5, 16]], end: 'continue' },
   drag: { name: 'Drag', pts: [[-1.2, 2], [-14, 3]], end: 'continue' },
   shallow: { name: 'Shallow', pts: [[-1.5, 3], [-14, 5]], end: 'continue' },
   cross: { name: 'Deep Cross', pts: [[0, 8], [-16, 15]], end: 'continue' },

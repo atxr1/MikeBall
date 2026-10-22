@@ -17,10 +17,10 @@
 import { clamp, dist } from '../core/util.js';
 
 // How much one opponent at `d` yards can affect the moment, before
-// orientation and skill: ~0.8 within half a yard, 0.6 at 1 yd, 0.33 at 2,
-// 0.15 at 3, nothing past about 5.
+// orientation and skill: ~0.8 within half a yard, 0.6 at 1 yd, 0.35 at 2,
+// 0.17 at 3, nothing past about 6.
 export function proximity(d) {
-  return Math.min(0.88, 0.92 * Math.exp(-((Math.max(0, d) / 1.85) ** 1.35)));
+  return Math.min(0.88, 0.92 * Math.exp(-((Math.max(0, d) / 2.05) ** 1.35)));
 }
 
 const unit = (x, y) => {

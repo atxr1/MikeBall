@@ -170,7 +170,7 @@ export const passingMethods = {
         // going back to a read he's left takes a bigger window; a shot deep
         // is worth giving his man a chance on
         const L = this.leadPoint(p, r);
-        if (pe < need + (i < idx ? 0.06 : 0) - (L.y > 16 ? 0.12 : 0)) continue;
+        if (pe < need + (i < idx ? 0.06 : 0) - (L.y > 16 ? 0.05 : 0)) continue;
         // he weighs what it gains against how likely it's caught: an open
         // man deep is still a long throw
         const pc = pe * this.catchable(p, dist(p.x, p.y, L.x, L.y));
@@ -256,8 +256,10 @@ export const passingMethods = {
     if (!r.pts || this.offPlay.screen) return true;
     // a route that just goes: once he's cleared the underneath coverage
     const last = r.pts[r.pts.length - 1];
+    const prev = r.pts.length > 1 ? r.pts[r.pts.length - 2] : { x: r.sx, y: r.sy };
     // (near the goal line, once he's into the end zone)
-    if (r.routeEnd !== 'sit' && last.y - (r.pts.length > 1 ? r.pts[r.pts.length - 2].y : r.sy) > 6 && r.wp >= r.pts.length - 1) return r.y > Math.min(10.5, Math.max(2.5, this.goalY + 0.5));
+    const straight = last.y - prev.y > 6 && Math.abs(last.x - prev.x) < (last.y - prev.y) * 0.35;
+    if (r.routeEnd !== 'sit' && straight && r.wp >= r.pts.length - 1) return r.y > Math.min(10.5, Math.max(2.5, this.goalY + 0.5));
     if (r.pts.length < 2) return true;
     if (r.wp >= r.pts.length - 1) return true;
     if (r.wp === r.pts.length - 2) {
@@ -346,7 +348,7 @@ export const passingMethods = {
   // far less often even when the receiver's open.
   catchable(qb, range) {
     const k = 1.45 - qb.a.tha / 200; // 1 for a 90 passer
-    return clamp(0.97 - Math.max(0, range - 12) * 0.022 * k, 0.3, 0.97);
+    return clamp(0.97 - Math.max(0, range - 12) * 0.026 * k, 0.25, 0.97);
   },
 
   // How hard he's being rushed, 0-1, as he sees it: the closest rusher
