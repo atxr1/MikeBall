@@ -315,7 +315,7 @@ export const passingMethods = {
   escape(p, pressure, tSet) {
     const mob = clamp((p.a.spd - 55) / 35, 0, 1);
     // the pocket's collapsing, or the coverage has everyone blanketed
-    const scr = pressure > 0.5 ? 0.06 + 0.3 * mob : 0.1 + 0.3 * mob;
+    const scr = pressure > 0.5 ? 0.09 + 0.35 * mob : 0.12 + 0.35 * mob;
     const free = this.nearestFree(this.defense, p.x, p.y);
     const room = !free || dist(free.x, free.y, p.x, p.y) > 3.2; // nobody about to grab him
     const lane = room && this.rng.chance(scr) ? this.scrambleLane(p, free) : null;
@@ -382,8 +382,9 @@ export const passingMethods = {
     if (up === 0) return { x: qb.x, y: 1 };
     const away = threat ? Math.sign(qb.x - threat.x) || 1 : 1;
     for (const side of [away, -away]) {
-      const tx = clamp(this.ballX + side * 6.5, 2.5, FIELD_W - 2.5);
-      const ty = Math.min(qb.y + 1.5, -1);
+      // out of the pocket and up at an angle, not flat along the line
+      const tx = clamp(this.ballX + side * 6, 2.5, FIELD_W - 2.5);
+      const ty = Math.min(qb.y + 3.5, -0.5);
       if (this.pathClear(qb.x, qb.y, tx, ty) && this.pathClear(tx, ty, tx + side * 1.5, 4)) return { x: tx, y: ty, edge: true };
     }
     return up != null ? { x: clamp(qb.x + up, 2, FIELD_W - 2), y: 1 } : null;

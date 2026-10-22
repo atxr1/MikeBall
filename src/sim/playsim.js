@@ -96,8 +96,11 @@ export class PlaySim {
       if (offPlay.pa && (d.pos === 'LB' || d.pos === 'S')) e.paFooled = rng.chance(0.8 - e.a.awr / 200);
       // linebackers and box safeties key the linemen: run blocking fires
       // forward, pass protection sets back (a draw fools most of them)
-      if (offPlay.cat === 'run' && (d.pos === 'LB' || (d.pos === 'S' && d.y < 8.5))) {
-        e.readsRun = rng.chance(this.isDraw ? 0.1 + e.a.awr / 500 : 0.5 + e.a.awr / 250);
+      // (a deep safety reads it too, a little less often, and comes down
+      // into the alley rather than the hole)
+      if (offPlay.cat === 'run' && (d.pos === 'LB' || d.pos === 'S')) {
+        const deep = d.pos === 'S' && d.y >= 8.5;
+        e.readsRun = rng.chance(this.isDraw ? 0.1 + e.a.awr / 500 : deep ? 0.3 + e.a.awr / 300 : 0.5 + e.a.awr / 250);
       }
       this.defense.push(e);
     }
@@ -453,7 +456,11 @@ export class PlaySim {
           // far better than one the runner's going past on the open side
           const sealed = ((b.x - d.x) * (c.x - d.x) + (b.y - d.y) * (c.y - d.y)) / (dc || 1) > 0.3;
           rate = sealed ? 0.25 + 0.6 * clamp(w + 0.3, 0, 1) : 0.6 + 1.2 * clamp(w + 0.3, 0, 1);
-          if (pair.level2) rate *= 1.5; // a linebacker fighting off a lineman in space
+          // blocks in space don't hold for long once the runner's there: a
+          // linebacker fighting off a lineman, a corner off a receiver
+          if (pair.level2) rate *= 2.5;
+          else if (b.pos === 'WR') rate *= 2;
+          else if (c.y < 0.5) rate *= 0.65; // a lineman at the point of attack, the back still behind the line
           else if (!pair.run && sealed) rate *= 0.5; // a pass blocker riding him past the scrambling passer
         } else rate = 0.05 + 0.25 * clamp(w + 0.35, 0, 1);
       } else if (b.job?.t === 'draw') {
@@ -472,6 +479,10 @@ export class PlaySim {
         b.stunT = 0.45;
         b.target = null;
         this.events.push({ t: this.t, k: 'shed', who: d });
+        // off the block with the runner right there: he gets a hand on him
+        if (c && c === this.ball.holder && c.side !== d.side && !this.wrap && !c.down && dist(d.x, d.y, c.x, c.y) < 1.7 && d.tackleCD <= 0) {
+          if (this.tryTackle(d, c)) return;
+        }
       }
     }
   }

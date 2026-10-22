@@ -437,11 +437,13 @@ export const offenseMethods = {
     const wantOOB = this.opts.wantOOB && p.side === 'O';
     let bestA = base;
     let bestS = -1e9;
+    // a scrambling passer behind the line wants to get past it first
+    const upW = p === this.qb && this.scramble && p.y < 2 ? 2.6 : 1.2;
     for (let k = -4; k <= 4; k++) {
       const ang = base + k * (Math.PI / 9);
       const cx = Math.cos(ang);
       const cy = Math.sin(ang);
-      let s = Math.sin(ang) * g * 1.2;
+      let s = Math.sin(ang) * g * upW;
       for (const [look, w] of LOOKS) {
         const px = p.x + cx * look;
         const py = p.y + cy * look;

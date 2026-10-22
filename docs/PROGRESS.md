@@ -45,17 +45,27 @@ Newest first. Each session: what got done, what's broken, what's next.
   tacklers; Hail Marys hang so defenders get under them (~10% vs prevent).
 - `tools/aidiag.mjs`: per-play AI diagnostics (in CLAUDE.md).
 
-Numbers (real league): balance mix 4.6 ypc, 62% completions, 7.8 ypa, 6.7%
-sacks; full CPU games ~25 points a team, 67% completions, 8.2 ypa, 2.0
-sacks a team, 4.1 ypc, 15% of throws 20+ air yards.
+- Round 2: linebackers fit a yard deeper and deep safeties read run and
+  fill the alley; blocks in space (linemen on linebackers, receivers on
+  corners) give way as the runner arrives, and a defender coming off a
+  block next to the runner gets a hand on him; linemen at the point of
+  attack shed less while the back's still behind the line. Run gains in
+  CPU games now spread like the NFL's (about 10% negative, 38% 0-2, 24%
+  3-5, 12% 6-9, 13% 10-19, 3% 20+). On a scramble the coverage stays on
+  its men until the passer crosses the line, and he escapes out and up at
+  an angle and then turns upfield: scrambles now average about 6-7 yards.
+
+Numbers (real league): balance mix 4.4 ypc, 62% completions, 7.7 ypa, 6.7%
+sacks, scrambles 2.3% for 6 yards; full CPU games ~23-25 points a team,
+67% completions, ~8 ypa, ~1.6-2 sacks a team, 15% of throws 20+ air yards.
 
 **Known issues**
 - Yards per attempt still high (~8 in games; NFL ~7): too many throws into
-  5+ yard windows, aDOT ~9.
-- Runs are boom-or-bust: too many 0-2 yard and 10+ yard runs, too few 3-9.
-  Counter and power average ~2-3; outside runs against blitzes and
-  goal-line fronts break too often.
-- Scrambles ~2% of dropbacks for ~1.5 yards (NFL ~4%, ~7 yards).
+  5+ yard windows, aDOT ~9; completions ~67%.
+- Some run/defense matchups are lopsided: outside runs against the Mike
+  blitz and 3-4 edge blitz break too often (blitzers run past the play,
+  man-coverage safeties start toward their man).
+- Counter and power still average ~2-3 yards against base defenses.
 - Time to throw ~1.8-2.4 s on deep concepts, quicker on the quick game.
 
 ## 2026-10-17 (night) — Challenges and replay, saved plays, return penalties, scrambles

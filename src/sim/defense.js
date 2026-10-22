@@ -14,10 +14,16 @@ export const defenseMethods = {
     const holder = this.ball.holder;
     if (this.phase === 'run' && carrier) {
       if (carrier.side === 'D') return this.escort(p, dt, carrier);
-      // a scramble: a man in coverage with his back to the passer, running
-      // with his receiver, finds out late
+      // a scramble: the coverage stays on its men until the passer's
+      // crossed the line (he can still throw it), then a man with his back
+      // to him finds out late
+      if (this.scramble && !this.receiver && !this.interceptor && p.assign.t !== 'rush' && p.assign.t !== 'blitz' && p.assign.t !== 'spy') {
+        if (carrier.y < -0.3 && dist(p.x, p.y, carrier.x, carrier.y) > 4.5) return this.coverage(p, dt);
+        if (p.crossT == null) p.crossT = this.t;
+      }
       const late = this.scramble && p.assign.t === 'man' ? (1 - looking(p, carrier.x, carrier.y)) * 0.7 : 0;
-      const knows = (p.readsRun && !this.receiver) || this.t - this.runT > (this.receiver || this.interceptor ? p.ballReact : p.readDelay + late);
+      const since = this.scramble && p.crossT != null ? this.t - p.crossT : this.t - this.runT;
+      const knows = (p.readsRun && !this.receiver) || since > (this.receiver || this.interceptor ? p.ballReact : p.readDelay + late);
       if (knows || p.assign.t === 'rush' || p.assign.t === 'blitz' || dist(p.x, p.y, carrier.x, carrier.y) < 4) {
         if (p.edge && !this.receiver && !this.interceptor && this.setEdge(p, dt, carrier)) return;
         // gap discipline: a lineman against a designed run plays it from the
@@ -31,7 +37,7 @@ export const defenseMethods = {
         // a linebacker fits his gap and waits for the back to come to him
         // rather than running through the line
         if (p.pos === 'LB' && p.assign.t !== 'blitz' && p.assign.t !== 'rush' && this.offPlay.cat === 'run' && !this.receiver && !this.interceptor && carrier.y < 0.3 && p.y > 1) {
-          return this.pursue(p, dt, carrier, 1.6);
+          return this.pursue(p, dt, carrier, 2.6);
         }
         return this.pursue(p, dt, carrier);
       }
@@ -48,7 +54,8 @@ export const defenseMethods = {
       if (rb && rb !== this.qb) {
         const fx = clamp(rb.x + rb.vx * 0.8, 1, FIELD_W - 1);
         const wide = Math.abs(fx - p.x) > 3;
-        return this.steer(p, fx + Math.sign(p.x - fx) * 0.6, Math.min(p.y, wide ? 3.2 : 2.6), wide ? 0.95 : 0.75, dt, 0.5);
+        const fitY = p.pos === 'S' ? 5.5 : wide ? 3.6 : 3.2;
+        return this.steer(p, fx + Math.sign(p.x - fx) * (p.pos === 'S' ? 1.5 : 0.6), Math.min(p.y, fitY), wide || p.pos === 'S' ? 0.95 : 0.75, dt, 0.5);
       }
     }
     if (this.phase === 'air') {
