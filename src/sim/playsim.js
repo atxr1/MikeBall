@@ -14,6 +14,7 @@ import { offenseMethods } from './offense.js';
 import { defenseMethods } from './defense.js';
 import { foulMethods } from './fouls.js';
 import { blockingMethods } from './blocking.js';
+import { catchingMethods } from './catching.js';
 import { Crew } from './officials.js';
 
 export const DT = 1 / 60;
@@ -732,7 +733,7 @@ export class PlaySim {
   }
 }
 
-Object.assign(PlaySim.prototype, contactMethods, celebrateMethods, passingMethods, foulMethods, offenseMethods, defenseMethods, blockingMethods);
+Object.assign(PlaySim.prototype, contactMethods, celebrateMethods, passingMethods, catchingMethods, foulMethods, offenseMethods, defenseMethods, blockingMethods);
 
 
 export function simulatePlay(opts) {

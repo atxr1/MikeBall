@@ -65,6 +65,15 @@ Newest first. Each session: what got done, what's broken, what's next.
   on the line, power aims at the C gap, defenders in front of a runner
   come downhill. The CPU calls the counter less (it's still the weakest
   run, ~2 yards).
+- Screens: the line lets its rushers go just before the throw and gets out
+  in front; the back sets up wider, outside the end man. A back's flat
+  route settles at the line (checkdowns at or behind the line).
+- Intentional grounding (Rule 8-2-1): a passer about to be sacked in the
+  pocket with no receiver near may throw it into the turf; the referee
+  flags it: 10 yards from the previous spot (or at the spot if that's
+  farther back) and loss of down, a turnover on downs on fourth down, a
+  safety from his own end zone; its own referee signal. About 0.1 a game.
+  The catch resolution moved out of passing.js into src/sim/catching.js.
 
 Numbers (real league): balance mix 4.2 ypc (8.6% negative, 2.5% 15+),
 61% completions, 7.3 ypa, 6.8% sacks; full CPU games ~24 points a team,
@@ -127,8 +136,6 @@ Numbers (real league): balance mix 4.2 ypc (8.6% negative, 2.5% 15+),
 
 **Known issues**
 - Scrambles are still short on average (about 2 yards; real ~6–7).
-- No intentional-grounding foul: in the pocket with nobody near, the
-  passer just doesn't throw it away.
 - Ruling errors only go one way per kind (e.g. a touchdown is never
   wrongly awarded), so booth reversals of scores and turnovers don't
   happen yet.

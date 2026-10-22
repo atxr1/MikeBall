@@ -293,6 +293,22 @@ export class Game {
       out.text = `${out.text} — FLAG: ${pen.text}`;
       out.kind = 'penalty';
       out.headline = 'Flag';
+      if (pen.safety) {
+        // intentional grounding in his own end zone
+        out.headline = 'Safety!';
+        this.addScore(def, 2);
+        this.clockRunning = false;
+        if (this.otScore(def, 'safety')) return this.finishOut(out);
+        this.kickingSide = off;
+        this.freeKick = true;
+        this.phase = 'kickoff';
+        this.next = 'kickoff';
+        return this.finishOut(out);
+      }
+      if (pen.downs) {
+        this.changePossession(100 - this.ballOn, this.ballX);
+        return this.finishOut(out);
+      }
       this.finishNext();
       return out;
     }

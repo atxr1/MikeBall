@@ -72,6 +72,11 @@ function signalPose(e, kind, u) {
       // both hands pushing forward from the shoulders
       e.arms[0] = [1, R(-9 + Math.max(0, w) * 2), 1]; e.arms[1] = [-1, R(-9 + Math.max(0, w) * 2), 1];
       return true;
+    case 'grounding':
+      // both arms swung down and across in front, parallel, at an angle
+      e.arms[0] = [R(-3 + w * 2), R(-8 + w * 2), 1];
+      e.arms[1] = [R(-1 + w * 2), R(-10 + w * 2), 1];
+      return true;
     case 'contact':
       // one open hand pushed forward
       e.arms[1] = [-1, R(-8 + Math.max(0, w) * 2), 1];

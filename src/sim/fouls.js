@@ -10,6 +10,8 @@
 //                       ball is gone
 //   face mask           a tackler grabbing the mask on the way down
 //   offensive PI        a receiver pushing off to make his catch
+//   intentional         a passer about to be sacked throwing it into the
+//     grounding         turf from the pocket (src/sim/passing.js)
 //   unnecessary         a late hit on a runner who's down or out of
 //     roughness         bounds (a dead-ball foul, after the whistle)
 //   offside, 12 men,    set up at the snap (setupSnapFoul in playsim.js)
@@ -27,6 +29,7 @@ export const FOULS = {
   dpi: { name: 'Defensive pass interference', on: 'D', yards: 0, spotFoul: true, auto1st: true, signal: 'dpi' },
   holdD: { name: 'Defensive holding', on: 'D', yards: 5, auto1st: true, signal: 'holding' },
   opi: { name: 'Offensive pass interference', on: 'O', yards: 10, signal: 'dpi' },
+  grounding: { name: 'Intentional grounding', on: 'O', yards: 10, signal: 'grounding', lossOfDown: true },
   ur: { name: 'Unnecessary roughness', on: 'D', yards: 15, auto1st: true, signal: 'ur', afterPlay: true, deadBall: true },
   formation: { name: 'Illegal formation', on: 'O', yards: 5, signal: 'falseStart' },
   contact: { name: 'Illegal contact', on: 'D', yards: 5, auto1st: true, signal: 'contact' },
@@ -158,6 +161,6 @@ export const foulMethods = {
 
   // The result's view of the fouls: records instead of sim entities.
   foulsOut() {
-    return (this.fouls || []).map((f) => ({ key: f.key, name: f.name, on: f.on, yards: f.yards, auto1st: !!f.auto1st, spotFoul: !!f.spotFoul, afterPlay: !!f.afterPlay, deadBall: !!f.deadBall, spotY: f.spotY ?? null, player: f.who ? f.who.rec : null, signal: f.signal, dead: !!f.dead }));
+    return (this.fouls || []).map((f) => ({ key: f.key, name: f.name, on: f.on, yards: f.yards, auto1st: !!f.auto1st, spotFoul: !!f.spotFoul, afterPlay: !!f.afterPlay, deadBall: !!f.deadBall, lossOfDown: !!f.lossOfDown, spotY: f.spotY ?? null, player: f.who ? f.who.rec : null, signal: f.signal, dead: !!f.dead }));
   },
 };

@@ -2,7 +2,7 @@
 // online, with a cached copy for offline play. Bump CACHE_VERSION on every
 // release so phones drop the old copy.
 
-const CACHE_VERSION = 'mikeball-v22';
+const CACHE_VERSION = 'mikeball-v23';
 const NET_TIMEOUT_MS = 3500;
 const TEAM_IDS = 'BUF MIA NE NYJ BAL CIN CLE PIT HOU IND JAX TEN DEN KC LV LAC DAL NYG PHI WAS CHI DET GB MIN ATL CAR NO TB ARI LAR SF SEA'.split(' ');
 // Team logos are small and used on every screen, so they're cached up front.
@@ -93,6 +93,7 @@ const SHELL = [
   'src/sim/defense.js',
   'src/sim/blocking.js',
   'src/sim/routes.js',
+  'src/sim/catching.js',
   'src/game/penalties.js',
   'src/game/kicking.js',
   'src/game/replay.js',

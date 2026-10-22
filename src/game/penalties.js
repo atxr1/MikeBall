@@ -86,6 +86,29 @@ export const penaltyMethods = {
     this.pcShort = true;
     const team = this.teams[pen.on].abbr;
     this.stats.team[pen.on].penalties++;
+    if (pen.on === this.poss && pen.lossOfDown) {
+      // Rule 8-2-1: 10 yards from the previous spot, or at the spot of the
+      // foul if that's farther back, and loss of down; thrown from his own
+      // end zone, a safety
+      const spotBack = Math.max(0, Math.round(-(pen.spotY || 0)));
+      if (this.ballOn - spotBack <= 0) {
+        pen.safety = true;
+        pen.text = `${pen.name}, ${team}, in the end zone. Safety.`;
+        this.addLog(`FLAG: ${pen.text}`, 'penalty');
+        return;
+      }
+      const y = spotBack > pen.yards ? spotBack : Math.min(pen.yards, Math.floor(this.ballOn / 2));
+      this.ballOn -= y;
+      this.stats.team[pen.on].penYds += y;
+      this.down++;
+      const where = spotBack > pen.yards ? 'At the spot of the foul' : y < pen.yards ? 'Half the distance to the goal' : `${y} yards`;
+      if (this.down > 4) {
+        pen.downs = true;
+        pen.text = `${pen.name}, ${team}. ${where} and loss of down: turnover on downs.`;
+      } else pen.text = `${pen.name}, ${team}. ${where} and loss of down, ${ordinal(this.down)} down.`;
+      this.addLog(`FLAG: ${pen.text}`, 'penalty');
+      return;
+    }
     if (pen.on === this.poss) {
       const half = Math.floor(this.ballOn / 2);
       const y = Math.min(pen.yards, half);
@@ -169,6 +192,9 @@ export const penaltyMethods = {
     const f = top(onO);
     const pen = { name: f.name, on: off, yards: f.yards, player: f.player, signal: f.signal, key: f.key };
     if (r.turnover || r.safety) return { mode: 'declined', ...pen };
+    // intentional grounding costs the down as well as the yards: always
+    // taken (the play itself was an incompletion)
+    if (f.lossOfDown) return { mode: 'replace', ...pen, lossOfDown: true, spotY: f.spotY ?? 0 };
     if (r.td) return { mode: 'replace', ...pen };
     const gain = r.incomplete ? 0 : r.yards;
     if (this.down >= 3 && !(this.ballOn + gain >= this.ltg)) return { mode: 'declined', ...pen }; // they'd rather have the next down

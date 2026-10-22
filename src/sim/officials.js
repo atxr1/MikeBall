@@ -88,7 +88,7 @@ export class Crew {
   throwFlag(f) {
     const s = this.sim;
     let o;
-    if (f.key === 'rtp' || f.key === 'falseStart') o = f.key === 'rtp' ? this.by.R : (f.x < s.ballX ? this.by.DJ : this.by.LJ);
+    if (f.key === 'rtp' || f.key === 'grounding' || f.key === 'falseStart') o = f.key !== 'falseStart' ? this.by.R : (f.x < s.ballX ? this.by.DJ : this.by.LJ);
     else if (f.key === 'offside' || f.key === 'encroach' || f.key === 'neutral' || f.key === 'formation') o = f.x < s.ballX ? (this.by.DJ.x < s.ballX ? this.by.DJ : this.by.LJ) : (this.by.DJ.x > s.ballX ? this.by.DJ : this.by.LJ);
     else if (f.key === 'subs') o = this.by.BJ;
     else {

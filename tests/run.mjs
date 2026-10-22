@@ -379,6 +379,28 @@ console.log('fouls and penalties');
     const pen = g2.preSnapPenalty();
     check('a false start inside two minutes costs 10 seconds, and the clock starts on the ready signal', pen.key === 'falseStart' && /10-second runoff/.test(pen.text) && g2.clock === 80 && g2.clockRunning, `${pen.text} ${g2.clock} ${g2.clockRunning}`);
   }
+  {
+    // intentional grounding: 10 yards (or the spot) and loss of down
+    const mk = () => {
+      const g3 = new Game({ homeTeam: TEAMS[0], awayTeam: TEAMS[1], homeRoster: league[TEAMS[0].id], awayRoster: league[TEAMS[1].id], userSide: null, qLen: 15, seed: 8 });
+      g3.next = 'call'; g3.phase = 'play'; g3.poss = 'home'; g3.quarter = 1; g3.clock = 600;
+      return g3;
+    };
+    const grd = (spotY) => ({ key: 'grounding', name: 'Intentional grounding', on: 'O', yards: 10, lossOfDown: true, spotY, signal: 'grounding' });
+    const thrown = (spotY) => ({ outcome: 'incomplete', kind: 'pass', yards: 0, spotY: 0, incomplete: true, why: 'thrown away', elapsed: 3, review: {}, fouls: [grd(spotY)] });
+    let ga = mk(); ga.ballOn = 40; ga.down = 2; ga.ltg = 50;
+    ga.applyPlay(thrown(-6), offPlay('dagger'), defPlay('cov3_43'));
+    check('intentional grounding: 10 yards from the previous spot and loss of down', ga.ballOn === 30 && ga.down === 3, `${ga.ballOn} ${ga.down}`);
+    ga = mk(); ga.ballOn = 40; ga.down = 1; ga.ltg = 50;
+    ga.applyPlay(thrown(-14), offPlay('dagger'), defPlay('cov3_43'));
+    check('grounding 14 yards behind the line is marked at the spot', ga.ballOn === 26 && ga.down === 2, `${ga.ballOn} ${ga.down}`);
+    ga = mk(); ga.ballOn = 40; ga.down = 4; ga.ltg = 45;
+    const o4 = ga.applyPlay(thrown(-7), offPlay('dagger'), defPlay('cov3_43'));
+    check('grounding on fourth down turns the ball over', ga.poss === 'away' && /turnover on downs/.test(o4.text), o4.text);
+    ga = mk(); ga.ballOn = 4; ga.down = 2; ga.ltg = 14;
+    ga.applyPlay(thrown(-6), offPlay('dagger'), defPlay('cov3_43'));
+    check('grounding from his own end zone is a safety', ga.score.away === 2 && ga.next === 'kickoff', `${ga.score.away} ${ga.next}`);
+  }
   // fouls come out of plays at about NFL rates
   let flags = 0;
   const rng = makeRng(12);
