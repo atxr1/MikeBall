@@ -1,14 +1,14 @@
 // The odds behind every contested moment: catches, throws, tackles, kick
 // returns. Nothing here is a flat percentage: each one starts from the
 // player's own ability in a clean situation (a wide-open, well-placed ball is
-// caught about 98% of the time) and every opponent nearby takes a share of
+// caught about 95% of the time) and every opponent nearby takes a share of
 // it, by how close he is, which side he's on (in front of the receiver can
 // play the ball; trailing behind him can only reach through), whether he's
 // looking for the ball and how fast he's closing.
 //
 //   p = clean × placement × Π (1 − influence of each opponent)
 //
-// So one defender a yard away and another three yards away turn a 98% catch
+// So one defender a yard away and another three yards away turn a 95% catch
 // into roughly 25%; a defender trailing a step behind matters less than one
 // sitting in the throwing lane.
 //
@@ -44,7 +44,7 @@ export function looking(o, px, py) {
 export function catchOdds(sim, r, ball) {
   const a = r.a;
   // clean: wide open, ball on the numbers, receiver set
-  const clean = clamp(0.93 + a.cth * 0.0007, 0.9, 0.99);
+  const clean = clamp(0.9 + a.cth * 0.0006, 0.88, 0.97);
   // where the ball is compared to where he is
   const reach = dist(r.x, r.y, ball.x, ball.y);
   const reachOK = 1.05 + (r.rec.height ? (r.rec.height - 72) * 0.02 : 0);
@@ -62,12 +62,12 @@ export function catchOdds(sim, r, ball) {
   const sp = Math.hypot(r.vx, r.vy);
   let shoulder = 0;
   if (sp > 1) shoulder = (r.vx * bx + r.vy * by) / sp; // +1: running away from the throw
-  place *= 1 - Math.max(0, shoulder) * (0.04 + clamp((range0 - 15) / 100, 0, 0.12)) + Math.max(0, -shoulder) * 0.02;
+  place *= 1 - Math.max(0, shoulder) * (0.03 + clamp((range0 - 15) / 150, 0, 0.07)) + Math.max(0, -shoulder) * 0.02;
   // fastballs from close range are harder to hold
   const range = dist(ball.fx, ball.fy, ball.x, ball.y);
   place *= 1 - clamp((ball.speed - 18) / 40, 0, 0.08) * clamp((10 - range) / 8, 0, 1);
   // tracking a long ball over distance
-  place *= 1 - clamp((range0 - 18) / 70, 0, 0.25);
+  place *= 1 - clamp((range0 - 20) / 100, 0, 0.12);
   place = clamp(place, 0, 1);
 
   // defenders
@@ -167,7 +167,7 @@ export function pocketPressure(sim, qb, targetX, targetY) {
 // the move or throwing across his body, and whether he's hit as he lets go.
 export function throwError(qb, d, press, moving, across, hit) {
   const acc = (100 - qb.a.tha) * 0.012;
-  let sd = 0.14 + acc + d * 0.013 + Math.max(0, d - 20) * 0.04;
+  let sd = 0.22 + acc + d * 0.013 + Math.max(0, d - 22) * 0.03;
   sd += press.hurry * (0.45 + (100 - qb.a.dec) * 0.004);
   sd += moving * (0.08 + (100 - qb.a.tha) * 0.003) + across * 0.25;
   if (hit) sd = sd * 1.8 + 0.6;
@@ -207,7 +207,7 @@ export function tackleOdds(sim, d, h) {
   }
   const sack = h === sim.qb && sim.phase === 'pre';
   let p = 0.85 + (tk - brk) / 160 + angle + mom + Math.min(help, 2.5) * 0.09
-    - (h.juke > 0 ? 0.25 : 0) - (d.blk ? 0.3 : 0) - (d.stumbleT > 0 ? 0.2 : 0) + (sack ? 0.06 : 0);
+    - (h.juke > 0 ? 0.25 : 0) - (d.blk ? 0.25 : 0) - (d.stumbleT > 0 ? 0.2 : 0) + (sack ? 0.06 : 0);
   return { p: clamp(p, 0.15, 0.97), ahead, side, help, sack };
 }
 

@@ -3,6 +3,7 @@
 
 import { FORMATIONS, ZONES } from '../data/playbook.js';
 import { alignOffense, alignDefense, routePoints, pathPoints } from '../sim/align.js';
+import { settleStep } from '../sim/routes.js';
 import { MID_X, FIELD_W, clamp } from '../core/util.js';
 import * as PX from './pixeldraw.js';
 import { drawText } from './pixelfont.js';
@@ -22,12 +23,15 @@ export function zoneColor(z) {
   return '#FFD23F';
 }
 
+// A route that keeps going gets a short tail the way it finishes; a flat or
+// swing's tail is the drift the receiver actually runs (settleStep).
 function extend(pts, start, end, len) {
-  if (end !== 'continue' || !pts.length) return pts;
+  if ((end !== 'continue' && end !== 'settle') || !pts.length) return pts;
   const a = pts.length > 1 ? pts[pts.length - 2] : start;
   const b = pts[pts.length - 1];
   const dx = b.x - a.x;
   const dy = b.y - a.y;
+  if (end === 'settle') return [...pts, settleStep(b.x, b.y, dx, dy, len * 0.4)];
   const m = Math.hypot(dx, dy) || 1;
   return [...pts, { x: clamp(b.x + (dx / m) * len, 0.8, FIELD_W - 0.8), y: b.y + (dy / m) * len }];
 }
@@ -54,7 +58,7 @@ export function drawFieldArt(ctx, cam, sim, side, los) {
         shadowed(pts, col, { w: 2, dash: j.t === 'chkrel' ? [3, 2] : null });
         const a = pts[pts.length - 2];
         const b = pts[pts.length - 1];
-        if (p.routeEnd === 'continue') PX.arrowHead(ctx, a.x, a.y, b.x, b.y, col, 5);
+        if (p.routeEnd === 'continue' || p.routeEnd === 'settle') PX.arrowHead(ctx, a.x, a.y, b.x, b.y, col, 5);
         else PX.disc(ctx, b.x, b.y, 2, col);
         if (idx >= 0) readTag(ctx, X(p.sx), Y(p.sy) + 3, idx + 1, col);
       } else if (j.t === 'carry') {
@@ -175,7 +179,7 @@ export function playCardSVG(play, side) {
           const idx = prog.indexOf(s.slot);
           const col = idx >= 0 ? READ_COLORS[idx % READ_COLORS.length] : '#ffffff';
           const pts = extend(rp.pts, p, rp.end, 3);
-          line([p, ...pts], col, 0.9, j.t === 'chkrel' ? '1.4 1' : null, rp.end === 'continue' ? `ah${idx >= 0 ? idx % 5 : 'w'}` : null);
+          line([p, ...pts], col, 0.9, j.t === 'chkrel' ? '1.4 1' : null, rp.end === 'continue' || rp.end === 'settle' ? `ah${idx >= 0 ? idx % 5 : 'w'}` : null);
         } else if (j.t === 'carry') {
           line([p, ...pathPoints(j.path, MID_X)], '#ffffff', 1.1, null, 'ahw');
         } else if (j.t === 'pull' || j.t === 'lead') {

@@ -4,6 +4,7 @@
 // moves in src/sim/contact.js). No DOM; seeded RNG only.
 
 import { FIELD_W, clamp, dist } from '../core/util.js';
+import { laneFor, settleStep, SETTLE_FRAC } from './routes.js';
 
 const LOOKS = [[1.5, 1.4], [3.5, 1.0], [6, 0.6]];
 
@@ -14,6 +15,14 @@ export const offenseMethods = {
       if (carrier.side === 'O') {
         // linemen hold their blocks a moment (longer when the QB takes off)
         if (p.job.t === 'passpro' && p.target && this.t - this.runT < (this.scramble ? 1.0 : 0.6)) return this.passPro(p, dt);
+        // a designed run: the blocking scheme plays out (pulls, leads,
+        // climbs) until the back's through the line
+        if (this.offPlay.cat === 'run' && !this.turnover && carrier.y < 2 && this.t - this.runT < 1.6 && p !== carrier) {
+          const j = p.job.t;
+          if (j === 'pull') return p.wp < p.pts.length ? this.followPath(p, dt, 1) : this.runBlock(p, dt);
+          if (j === 'lead') return p.wp < p.pts.length && this.t < 1.6 ? this.followPath(p, dt, 0.95) : this.runBlock(p, dt);
+          if (j === 'zone' || j === 'stalk' || j === 'draw') return this.runBlock(p, dt);
+        }
         return this.escort(p, dt, carrier);
       }
       return this.pursue(p, dt, carrier); // turnover: offense chases
@@ -49,7 +58,7 @@ export const offenseMethods = {
         if (this.t < 1.0) return this.passPro(p, dt);
         return this.releaseScreen(p, dt);
       case 'pull':
-        if (p.wp < p.pts.length) return this.followPath(p, dt, 0.92);
+        if (p.wp < p.pts.length) return this.followPath(p, dt, 1);
         return this.runBlock(p, dt);
       case 'lead':
         if (p.wp < p.pts.length && this.t < 1.6) return this.followPath(p, dt, 0.95);
@@ -84,9 +93,23 @@ export const offenseMethods = {
       this.steer(p, tp.x, tp.y, 0.96, dt, 0);
       if (dist(p.x, p.y, tp.x, tp.y) < 0.7) {
         p.wp++;
-        // cut: lose some speed depending on route running
-        const keep = 0.45 + p.a.rte / 240;
-        if (p.wp < pts.length || p.routeEnd === 'sit') { p.vx *= keep; p.vy *= keep; }
+        // the cut: he plants and goes the new way, losing speed by how sharp
+        // the break is and how well he runs routes
+        const nx = p.wp < pts.length ? pts[p.wp] : null;
+        const sp = Math.hypot(p.vx, p.vy);
+        if (nx && sp > 0.5) {
+          const dx = nx.x - p.x;
+          const dy = nx.y - p.y;
+          const m = Math.hypot(dx, dy) || 1;
+          const ang = Math.acos(clamp((p.vx * dx + p.vy * dy) / (sp * m), -1, 1));
+          const keep = clamp(1 - (ang / Math.PI) * (1.15 - p.a.rte / 200), 0.3, 1);
+          p.vx = (dx / m) * sp * keep;
+          p.vy = (dy / m) * sp * keep;
+          p.cutT = this.t;
+        } else if (p.routeEnd === 'sit') {
+          const keep = 0.35 + p.a.rte / 400;
+          p.vx *= keep; p.vy *= keep;
+        }
       }
       return;
     }
@@ -107,13 +130,24 @@ export const offenseMethods = {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const m = Math.hypot(dx, dy) || 1;
-    let tx = p.x + (dx / m) * 10;
-    const ty = p.y + (dy / m) * 10;
-    if (tx < 1.2 || tx > FIELD_W - 1.2) {
-      tx = clamp(tx, 1.2, FIELD_W - 1.2);
-      return this.steer(p, tx, p.y + 10, 0.96, dt, 0);
+    if (p.routeEnd === 'settle') {
+      // a flat or swing: drift on toward the sideline at a jog, looking
+      // back for the ball; steered along the same path the passer projects
+      // (settleStep), at the pace it assumes
+      const q = settleStep(p.x, p.y, dx, dy, 6);
+      return this.steer(p, q.x, q.y, (SETTLE_FRAC * Math.hypot(q.x - p.x, q.y - p.y)) / 6, dt, 0);
     }
-    this.steer(p, tx, ty, 0.96, dt, 0);
+    // keep going; at the sideline, turn upfield inside it (the passer
+    // projects the same path: alongRoute in src/sim/routes.js)
+    const lane = laneFor(dx, dy);
+    const lo = lane;
+    const hi = FIELD_W - lane;
+    // start the turn early enough to stay in bounds at his speed
+    const room = (p.vx * p.vx) / (2 * p.accel) + 0.3;
+    if ((p.x <= lo + room && dx < 0) || (p.x >= hi - room && dx > 0)) {
+      return this.steer(p, clamp(p.x, lo, hi), p.y + 10, 0.96, dt, 0);
+    }
+    this.steer(p, clamp(p.x + (dx / m) * 10, lo, hi), p.y + (dy / m) * 10, 0.96, dt, 0);
   },
 
   blitzThreat(p) {
@@ -136,35 +170,62 @@ export const offenseMethods = {
     const want = this.drawnTarget(p);
     if (want && !(this.t > 0.6 && want.y > 4 && want.vy > 0)) tgt = p.target = want;
     if (tgt && (tgt.down || (tgt.blk && tgt.blk.b !== p) || (this.t > 0.6 && tgt.y > 4 && tgt.vy > 0))) tgt = p.target = null;
-    if (!tgt && p.retarget <= 0) {
-      p.retarget = 0.15;
-      let best = null;
-      let bd = 1e9;
-      for (const d of this.defense) {
-        if (d.down || d.blk || d.freeT > 0.3) continue;
-        if (d.y > 4.5) continue;
-        if (this.t > 0.3 && d.vy > 1.5) continue; // dropping into coverage
-        let taken = false;
-        for (const o of this.offense) if (o !== p && o.target === d) taken = true;
-        if (taken && p.pos !== 'OL') continue;
-        const lat = Math.abs(d.x - p.x);
-        const range = p.pos === 'OL' ? 3.6 : 6;
-        if (lat > range) continue;
-        const c = lat + Math.abs(d.y - p.y) * 0.5 + (taken ? 3 : 0);
-        if (c < bd) { bd = c; best = d; }
+    // a linebacker who showed blitz and didn't come (a read step, a sugar
+    // look) isn't his problem any more
+    if (tgt && !tgt.blk && this.t > 0.5 && tgt.y > 2 && tgt.vy > -1) tgt = p.target = null;
+    // a blocker already on a man keeps him; one who's free looks for the
+    // most dangerous rusher nobody has: a blitzer coming downhill first
+    if (tgt && !tgt.blk && p.retarget <= 0 && this.t > 0.25) {
+      const loose = this.looseRusher(p);
+      if (loose && loose !== tgt) {
+        let mine = 0;
+        for (const o of this.offense) if (o !== p && o.target === tgt) mine++;
+        if (mine > 0) tgt = p.target = loose; // someone else has my man
       }
-      tgt = p.target = best;
+    }
+    if (!tgt && p.retarget <= 0) {
+      p.retarget = 0.12;
+      tgt = p.target = this.looseRusher(p);
     }
     if (tgt) {
       const dx = qb.x - tgt.x;
       const dy = qb.y - tgt.y;
       const m = Math.hypot(dx, dy) || 1;
+      if (p.pos !== 'OL' && dist(p.x, p.y, tgt.x, tgt.y) > 1.6) {
+        // a back stepping up into the blitzer's path, in front of the passer
+        const k = Math.min(2.2, m * 0.45);
+        return this.steer(p, qb.x - (dx / m) * k, qb.y - (dy / m) * k, 1, dt, 0.2);
+      }
       const ix = tgt.x + (dx / m) * 1.0;
       const iy = tgt.y + (dy / m) * 1.0;
       return this.steer(p, ix, Math.min(iy, p.sy + 0.4), 0.82, dt, 0.25);
     }
     // nobody to block: hold the pocket
     return this.steer(p, p.sx + (qb.x - this.ballX) * 0.5, Math.max(p.sy - 1.8, qb.y + 2), 0.4, dt, 0.5);
+  },
+
+  // The rusher this pass blocker should take: the closest threat to the
+  // passer that nobody else has, a blitzer coming downhill before a man
+  // someone's already on.
+  looseRusher(p) {
+    let best = null;
+    let bd = 1e9;
+    const qb = this.qb;
+    for (const d of this.defense) {
+      if (d.down || (d.blk && d.blk.b !== p) || d.freeT > 0.3) continue;
+      const coming = d.y < 1.6 || (d.vy < -2.5 && d.y < 7) || dist(d.x, d.y, qb.x, qb.y) < 5;
+      if (!coming) continue;
+      if (this.t > 0.3 && d.vy > 1.5) continue; // dropping into coverage
+      let taken = false;
+      for (const o of this.offense) if (o !== p && o.target === d) taken = true;
+      if (taken && p.pos !== 'OL') continue;
+      const lat = Math.abs(d.x - p.x);
+      const range = p.pos === 'OL' ? 4.2 : 7;
+      if (lat > range) continue;
+      const c = lat + Math.abs(d.y - p.y) * 0.4 + (taken ? 6 : 0) - (d.vy < -1 ? 1 : 0);
+      if (c < bd) { bd = c; best = d; }
+    }
+    return best;
   },
 
   releaseScreen(p, dt) {
@@ -332,7 +393,7 @@ export const offenseMethods = {
     // A scrambling quarterback first gets up through the lane he saw.
     if (p === this.qb && this.scramble && p.lane && !p.lane.done) {
       const ln = p.lane;
-      if (p.y < ln.y - 0.5 && dist(p.x, p.y, ln.x, ln.y) > 0.8) {
+      if ((ln.edge || p.y < ln.y - 0.5) && dist(p.x, p.y, ln.x, ln.y) > 0.8) {
         this.steer(p, ln.x, ln.y, 1, dt, 0);
         return;
       }
@@ -359,8 +420,9 @@ export const offenseMethods = {
 
   qbSlide(p) {
     if (p !== this.qb || !this.scramble || p.y < 1) return false;
+    // he gets down when a defender's closing on him, a beat before the hit
     const foe = this.nearestFree(this.defense, p.x, p.y);
-    if (foe && dist(foe.x, foe.y, p.x, p.y) < 1.6 && this.rng.chance(0.5)) {
+    if (foe && dist(foe.x, foe.y, p.x, p.y) < 1.8 && this.rng.chance(0.2)) {
       this.endPlay('tackle', { spotY: p.y, spotX: p.x, slide: true });
       return true;
     }
@@ -403,7 +465,7 @@ export const offenseMethods = {
     const turn = Math.abs(Math.atan2(Math.sin(bestA - cur), Math.cos(bestA - cur)));
     const cutPenalty = turn > 0.8 ? 0.82 + p.a.agi / 600 : 1;
     if (p.secureT > 0) p.secureT -= dt;
-    this.carrierSteer(p, bestA, cutPenalty * 0.9 * (p.secureT > 0 ? 0.55 : 1), dt);
+    this.carrierSteer(p, bestA, cutPenalty * 0.9 * (p.secureT > 0 ? 0.75 : 1), dt);
     this.carrierMoves(p, foes);
   },
 

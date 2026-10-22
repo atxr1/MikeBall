@@ -225,7 +225,7 @@ console.log('catch, tackle and kick odds');
   const ball = { x: 20, y: 12, z: 1.4, fx: 20, fy: -6, t0: 0, speed: 24 };
   const sim = (defs) => ({ defense: defs, t: 1, phase: 'air' });
   const open = catchOdds(sim([]), r, ball).p;
-  check('a wide-open, well-thrown ball is caught about 98% of the time', between(open, 0.95, 0.995), open.toFixed(3));
+  check('a wide-open, well-thrown ball is caught about 95% of the time', between(open, 0.93, 0.98), open.toFixed(3));
   const two = catchOdds(sim([mk('CB', 20.6, 11.2, -Math.PI / 2), mk('S', 22.5, 13.8, -Math.PI / 2)]), r, ball).p;
   check('a defender a yard away and another three away cut it to roughly a quarter', between(two, 0.15, 0.4), two.toFixed(3));
   const front = catchOdds(sim([mk('CB', 20, 10.6, -Math.PI / 2)]), r, ball).p;

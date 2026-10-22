@@ -7,7 +7,8 @@
 //
 // Route points are [outward, depth] relative to where the receiver lines up,
 // where outward = toward his own sideline. `end: 'continue'` keeps running in
-// the last direction; `end: 'sit'` settles in the open spot.
+// the last direction; `end: 'sit'` settles in the open spot; `end: 'settle'`
+// (flats, swings) drifts on toward the sideline at a jog.
 
 const OL = [
   { slot: 'LT', pos: 'OL', dx: -3.9, y: -0.9 },
@@ -124,9 +125,9 @@ export const ROUTES = {
   fade: { name: 'Fade', pts: [[1.8, 8], [3, 30]], end: 'continue' },
   seam: { name: 'Seam', pts: [[0, 6], [-0.6, 30]], end: 'continue' },
   slant: { name: 'Slant', pts: [[0, 1.8], [-5, 7]], end: 'continue' },
-  qout: { name: 'Quick Out', pts: [[0, 5], [4, 5.3]], end: 'continue' },
-  out: { name: 'Out', pts: [[0, 10], [5, 10.3]], end: 'continue' },
-  deepout: { name: 'Deep Out', pts: [[0, 12], [6, 12.3]], end: 'continue' },
+  qout: { name: 'Quick Out', pts: [[0, 5], [4, 5.3]], end: 'sit' },
+  out: { name: 'Out', pts: [[0, 10], [5, 10.3]], end: 'sit' },
+  deepout: { name: 'Deep Out', pts: [[0, 12], [6, 12.3]], end: 'sit' },
   in: { name: 'In', pts: [[0, 10], [-7, 10.3]], end: 'continue' },
   dig: { name: 'Dig', pts: [[0, 14], [-8, 14.5]], end: 'continue' },
   curl: { name: 'Curl', pts: [[0, 11], [-0.8, 9.2]], end: 'sit' },
@@ -138,8 +139,8 @@ export const ROUTES = {
   drag: { name: 'Drag', pts: [[-1.2, 2], [-14, 3]], end: 'continue' },
   shallow: { name: 'Shallow', pts: [[-1.5, 3], [-14, 5]], end: 'continue' },
   cross: { name: 'Deep Cross', pts: [[0, 8], [-16, 15]], end: 'continue' },
-  flat: { name: 'Flat', pts: [[3, 1], [8, 2.5]], end: 'continue' },
-  swing: { name: 'Swing', pts: [[3, -1], [7, 0.5]], end: 'continue' },
+  flat: { name: 'Flat', pts: [[3, 1], [8, 2.5]], end: 'settle' },
+  swing: { name: 'Swing', pts: [[3, -1], [7, 0.5]], end: 'settle' },
   wheel: { name: 'Wheel', pts: [[3, 0], [6, 3], [6.5, 25]], end: 'continue' },
   screen: { name: 'Screen', pts: [[3, -1.6], [6, -1.4]], end: 'sit' },
 };
@@ -180,7 +181,7 @@ export const OFFENSE_PLAYS = [
     QB: { t: 'handoff' },
     RB: { t: 'carry', path: [[0.4, -5.6], [2.4, -0.8], [2.6, 3]], handT: 0.55 },
     FB: { t: 'lead', to: [4.4, -0.2] },
-    LG: { t: 'pull', path: [[-1.95, -2.2], [3.2, -1.8], [3.4, 1.0]] },
+    LG: { t: 'pull', path: [[-1.2, -1.5], [3.0, -1.3], [3.5, 1.0]] },
     Y: { t: 'zone', dir: 1 }, X: BLOCK, Z: BLOCK,
   }),
   run('toss_l', 'Toss Left', 'i_form', -1, {
@@ -197,8 +198,8 @@ export const OFFENSE_PLAYS = [
   }),
   run('counter', 'Counter', 'gun_doubles', 1, {
     QB: { t: 'handoff' },
-    RB: { t: 'carry', path: [[-2.3, -4.7], [-0.4, -4.4], [2.6, -0.6], [2.8, 3]], handT: 0.7 },
-    LG: { t: 'pull', path: [[-1.95, -2.2], [3.0, -1.9], [3.3, 1.0]] },
+    RB: { t: 'carry', path: [[-2.2, -5.0], [-0.2, -4.6], [2.4, -1.4], [2.9, 3]], handT: 0.65 },
+    LG: { t: 'pull', path: [[-1.2, -1.5], [2.9, -1.3], [3.5, 1.0]] },
     Y: { t: 'zone', dir: 1 }, X: BLOCK, Z: BLOCK, SL: BLOCK,
   }),
   run('draw', 'HB Draw', 'gun_doubles', 0, {
@@ -296,14 +297,14 @@ export const ZONES = {
   q2: { x: 20.5, y: 15, rx: 6.5, ry: 9, deep: true },
   q3: { x: 32.8, y: 15, rx: 6.5, ry: 9, deep: true },
   q4: { x: 45.3, y: 14, rx: 7, ry: 9, deep: true },
-  flatL: { x: 7, y: 5, rx: 6, ry: 4.5 },
-  flatR: { x: 46.3, y: 5, rx: 6, ry: 4.5 },
-  curlL: { x: 14, y: 10, rx: 5, ry: 4.5 },
-  curlR: { x: 39.3, y: 10, rx: 5, ry: 4.5 },
-  hookL: { x: 20.5, y: 8, rx: 4.5, ry: 4 },
-  hookM: { x: 26.67, y: 8.5, rx: 4.5, ry: 4 },
-  hookR: { x: 32.8, y: 8, rx: 4.5, ry: 4 },
-  tampaMid: { x: 26.67, y: 13, rx: 4.5, ry: 6 },
+  flatL: { x: 7, y: 6, rx: 6, ry: 4.5 },
+  flatR: { x: 46.3, y: 6, rx: 6, ry: 4.5 },
+  curlL: { x: 14, y: 11, rx: 5, ry: 4.5 },
+  curlR: { x: 39.3, y: 11, rx: 5, ry: 4.5 },
+  hookL: { x: 20.5, y: 9.5, rx: 4.5, ry: 4 },
+  hookM: { x: 26.67, y: 10, rx: 4.5, ry: 4 },
+  hookR: { x: 32.8, y: 9.5, rx: 4.5, ry: 4 },
+  tampaMid: { x: 26.67, y: 14, rx: 4.5, ry: 6 },
 };
 
 const RUSH = { t: 'rush' };

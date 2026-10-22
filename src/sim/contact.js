@@ -150,14 +150,16 @@ export const contactMethods = {
     for (const d of foes) {
       if (d.down || d.stumbleT > 0 || d.tackleCD > 0 || d.wrapOn) continue;
       const dd = dist(d.x, d.y, h.x, h.y);
-      if (dd > (d.blk ? 0.85 : 1.2)) {
-        if (!d.blk && dd < 2.1 && (h.side !== 'O' || h.y > 1.5) && this.rng.chance(dt * 3.5)) {
-          const closing = ((h.x - d.x) * (d.vx - h.vx) + (h.y - d.y) * (d.vy - h.vy)) / dd;
-          if (closing > 0.3 && this.tryDive(d, h)) return;
+      if (dd > (d.blk ? 1.05 : 1.2)) {
+        // a dive is the last resort, for a runner about to get by him or
+        // away from him; one he'll meet on his feet he tackles standing up
+        if (!d.blk && dd < 2.1 && (h.side !== 'O' || h.y > 1.5) && this.rng.chance(dt * 3.5) && this.gettingAway(d, h)) {
+          if (this.tryDive(d, h)) return;
         }
         continue;
       }
-      if (d.blk && !this.rng.chance(0.35)) {
+      // a blocked man can still reach out for a runner going by him
+      if (d.blk && !this.rng.chance(0.5)) {
         d.tackleCD = 0.5;
         continue;
       }
@@ -191,6 +193,9 @@ export const contactMethods = {
     const front = sp > 0.5 ? (dx * h.vx + dy * h.vy) / (dd * sp) : 0;
     const side = sp > 0.5 ? Math.abs(dx * h.vy - dy * h.vx) / (dd * sp) : 0;
     const power = h.pos === 'RB' || h.pos === 'TE' || h.pos === 'QB' ? 1 : 0.5;
+    // a tackler coming in low from in front can be hurdled by a nimble
+    // runner
+    const low = d.stumbleT > 0 || d.diveT > 0 || d.pos === 'CB' || d.pos === 'S';
     const k = sack
       ? 'shrug'
       : this.rng.weighted(
@@ -198,6 +203,7 @@ export const contactMethods = {
           ['truck', front > 0.5 ? Math.max(0, h.a.str - 55) * 2 * power : 0],
           ['stiff', side > 0.45 ? Math.max(0, h.a.str - 40) : 0],
           ['spin', h.a.agi * 0.35],
+          ['hurdle', front > 0.6 && low ? Math.max(0, h.a.agi - 72) * 0.8 : 0],
           ['shrug', 40],
         ],
         (x) => x[1],
@@ -217,6 +223,11 @@ export const contactMethods = {
       }
       h.vx *= 0.86;
       h.vy *= 0.86;
+    } else if (k === 'hurdle') {
+      // he went low and the runner went over him
+      this.knockDown(d, 1.0, d.vx * 0.3, d.vy * 0.3);
+      h.vx *= 0.88;
+      h.vy *= 0.88;
     } else if (k === 'spin') {
       d.stumbleT = 0.5;
       h.juke = 0.3;
@@ -229,6 +240,20 @@ export const contactMethods = {
     }
     this.startMove(h, k, d, 0, 'tackle');
     this.events.push({ t: this.t, k: 'broken', who: h, on: d });
+  },
+
+  // Will the runner pass out of his reach in the next moment (closest
+  // approach farther than an arm's length)?
+  gettingAway(d, h) {
+    const rx = h.x - d.x;
+    const ry = h.y - d.y;
+    const vx = h.vx - d.vx;
+    const vy = h.vy - d.vy;
+    const v2 = vx * vx + vy * vy;
+    const tc = v2 > 1e-6 ? clamp(-(rx * vx + ry * vy) / v2, 0, 0.35) : 0;
+    const cx = rx + vx * tc;
+    const cy = ry + vy * tc;
+    return Math.hypot(cx, cy) > 1.15;
   },
 
   tryDive(d, h) {
@@ -274,13 +299,15 @@ export const contactMethods = {
       w.vx = d.vx * 0.12;
       w.vy = d.vy * 0.12;
     } else if (kind === 'wrap') {
-      w.T = 0.22 + rng.next() * 0.14;
-      w.fwd = 0.12;
-      h.vx *= 0.35;
-      h.vy *= 0.35;
+      // he keeps his legs going: a runner with a head of steam falls
+      // forward for a little more
+      w.T = 0.3 + rng.next() * 0.25;
+      w.fwd = 0.3;
+      h.vx *= 0.7;
+      h.vy *= 0.7;
     } else if (kind === 'drag') {
-      w.T = 0.45 + rng.next() * 0.35;
-      w.fwd = 0.22;
+      w.T = 0.5 + rng.next() * 0.4;
+      w.fwd = 0.38;
       w.breakP = clamp(0.06 + (h.a.str - d.a.tkl) / 250, 0.02, 0.16);
       h.vx *= 0.5;
       h.vy *= 0.5;

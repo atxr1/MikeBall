@@ -13,6 +13,7 @@ import { passingMethods } from './passing.js';
 import { offenseMethods } from './offense.js';
 import { defenseMethods } from './defense.js';
 import { foulMethods } from './fouls.js';
+import { blockingMethods } from './blocking.js';
 import { Crew } from './officials.js';
 
 export const DT = 1 / 60;
@@ -85,13 +86,29 @@ export class PlaySim {
       bySlot[s.slot] = e;
       this.offense.push(e);
     }
+    // a draw: the line shows pass, the back gets it late
+    this.isDraw = this.offense.some((p) => p.job.t === 'draw');
     for (const d of Object.values(this.defAlign)) {
       const e = mkEnt(defLineup[d.slot], 'D', d.slot, d.pos, d.x, d.y);
       e.assign = d.assign;
       e.readDelay = 0.12 + (100 - e.a.awr) / 280 + (d.pos === 'CB' ? 0.35 : d.pos === 'S' ? 0.15 : 0);
       e.ballReact = 0.14 + (100 - e.a.awr) / 380;
       if (offPlay.pa && (d.pos === 'LB' || d.pos === 'S')) e.paFooled = rng.chance(0.8 - e.a.awr / 200);
+      // linebackers and box safeties key the linemen: run blocking fires
+      // forward, pass protection sets back (a draw fools most of them)
+      if (offPlay.cat === 'run' && (d.pos === 'LB' || (d.pos === 'S' && d.y < 8.5))) {
+        e.readsRun = rng.chance(this.isDraw ? 0.1 + e.a.awr / 500 : 0.5 + e.a.awr / 250);
+      }
       this.defense.push(e);
+    }
+    // the men setting the edge: the widest of the front on each side
+    for (const side of [-1, 1]) {
+      let edge = null;
+      for (const e of this.defense) {
+        if (e.y > 2 || (e.pos !== 'DL' && e.pos !== 'LB') || (e.x - ballX) * side < 0) continue;
+        if (!edge || (e.x - ballX) * side > (edge.x - ballX) * side) edge = e;
+      }
+      if (edge) edge.edge = side;
     }
     this.bySlot = bySlot;
     this.defBySlot = Object.fromEntries(this.defense.map((d) => [d.slot, d]));
@@ -155,34 +172,14 @@ export class PlaySim {
       // QB sneak: QB is the runner from the snap.
       this.ball.state = 'held';
       this.ball.holder = qb;
+      this.carrier = qb;
+      this.phase = 'run';
+      this.runT = 0;
+      this.rusher = qb;
     }
 
     // Initial pass-pro / run-block targets
     this.assignInitialBlocks();
-  }
-
-  assignInitialBlocks() {
-    const rushers = this.defense.filter((d) => d.y < 1.6);
-    const blockers = this.offense.filter((p) => p.pos === 'OL');
-    const taken = new Map();
-    // drawn blocking assignments first
-    for (const b of this.offense) {
-      const t = b.job.target && this.defBySlot[b.job.target];
-      if (t) { b.target = t; taken.set(t, b); }
-    }
-    if (this.offPlay.cat === 'pass' || this.offPlay.cat === 'special') {
-      // Greedy by lateral distance; one blocker per rusher first.
-      const pairs = [];
-      for (const b of blockers) for (const r of rushers) pairs.push({ b, r, c: Math.abs(b.x - r.x) });
-      pairs.sort((a, b) => a.c - b.c);
-      const usedB = new Set([...taken.values()]);
-      for (const { b, r, c } of pairs) {
-        if (usedB.has(b) || taken.has(r) || c > 3.5) continue;
-        b.target = r;
-        usedB.add(b);
-        taken.set(r, b);
-      }
-    }
   }
 
   // ---------------------------------------------------------------- main loop
@@ -375,8 +372,25 @@ export class PlaySim {
       dPow = d.a.str * 0.6 + d.a.agi * 0.4;
       bPow = b.a.str * 0.6 + b.a.tkl * 0.4;
     }
-    const open = this.phase === 'run' && !!(this.receiver || this.interceptor || (this.carrier && Math.abs(this.carrier.y) > 4));
-    const pair = { b, d, t: 0, run, open, w: (dPow - bPow) / 100 + this.rng.normal(0, 0.06) + (open ? 0.08 : 0) };
+    // open-field blocking: after a catch or a turnover, or a runner well
+    // past the line (not one still deep in the backfield)
+    const open = this.phase === 'run' && !!(this.receiver || this.interceptor || (this.carrier && this.carrier.side === 'O' && this.carrier.y > 4));
+    // a lineman climbing to a linebacker in space has the harder job: a
+    // quick linebacker who sees him coming slips him altogether
+    const level2 = run && b.side === 'O' && d.pos !== 'DL' && d.y > 1.5 && b.pos === 'OL';
+    // a reach block (the man's already playside of him on a run going
+    // wide) is the hardest block there is
+    const dir = this.offPlay.dir || 0;
+    const reach = run && b.side === 'O' && dir && (d.x - b.x) * dir > 0.6 && this.offPlay.cat === 'run';
+    if (level2 && this.rng.chance(clamp(0.12 + (d.a.agi - b.a.agi) / 250 + (d.a.awr - 70) / 400, 0.08, 0.4))) {
+      d.freeT = 0.45;
+      b.stunT = 0.3;
+      b.target = null;
+      this.events.push({ t: this.t, k: 'shed', who: d });
+      return;
+    }
+    const pair = { b, d, t: 0, run, open, level2, w: (dPow - bPow) / 100 + this.rng.normal(0, 0.06) + (open ? 0.08 : 0) + (level2 ? 0.12 : 0) + (reach ? 0.12 : 0) };
+    d.engaged = true;
     b.blk = pair;
     d.blk = pair;
     b.target = d;
@@ -392,6 +406,11 @@ export class PlaySim {
 
   defGoal(d) {
     const h = this.ball.holder;
+    // a draw: the line invites the rush upfield and wide of the passer
+    if (h === this.qb && d.blk && d.blk.b.job?.t === 'draw' && this.phase === 'pre') {
+      const side = Math.sign(d.x - h.x) || 1;
+      return { x: h.x + side * 2.6, y: h.y - 1, vx: 0, vy: 0 };
+    }
     if (h && h.side !== d.side) return h;
     if (this.ball.state === 'air') return { x: this.ball.tx, y: this.ball.ty, vx: 0, vy: 0 };
     return this.qb;
@@ -410,19 +429,40 @@ export class PlaySim {
       dx /= m; dy /= m;
       const w = pair.w;
       const spd = clamp(0.3 + 2.4 * w, -1.6, 1.7);
-      this.accelTo(d, dx * spd, dy * spd, dt, 20);
+      let vx = dx * spd;
+      let vy = dy * spd;
+      if (pair.run && goal === this.carrier) {
+        // against the run he works down the line with the ball, riding the
+        // blocker, easier sideways than straight ahead
+        const lat = clamp(1.0 + 3 * w, 0, 2.6);
+        const gx = goal.x - d.x;
+        vx = Math.abs(gx) < 0.3 ? vx : Math.sign(gx) * Math.max(Math.abs(vx), Math.min(lat, Math.abs(gx) * 3));
+      }
+      this.accelTo(d, vx, vy, dt, 20);
       // blocker sits between defender and the goal
-      const bx = d.x + dx * 0.95;
+      const bx = d.x + (pair.run && goal === this.carrier ? Math.sign(goal.x - d.x) * 0.6 : dx * 0.95);
       const by = d.y + dy * 0.95;
       this.accelTo(b, d.vx + (bx - b.x) * 6, d.vy + (by - b.y) * 6, dt, 30);
       // shed
       const c = this.carrier;
       let rate;
       if (c && c.side !== d.side) {
-        const near = dist(d.x, d.y, c.x, c.y) < 2.5;
-        rate = near ? 0.3 + 0.8 * clamp(w + 0.3, 0, 1) : 0.05 + 0.25 * clamp(w + 0.35, 0, 1);
+        const dc = dist(d.x, d.y, c.x, c.y);
+        if (dc < 2.5) {
+          // the runner coming by: a blocker in the way (leverage) holds him
+          // far better than one the runner's going past on the open side
+          const sealed = ((b.x - d.x) * (c.x - d.x) + (b.y - d.y) * (c.y - d.y)) / (dc || 1) > 0.3;
+          rate = sealed ? 0.25 + 0.6 * clamp(w + 0.3, 0, 1) : 0.6 + 1.2 * clamp(w + 0.3, 0, 1);
+          if (pair.level2) rate *= 1.5; // a linebacker fighting off a lineman in space
+          else if (!pair.run && sealed) rate *= 0.5; // a pass blocker riding him past the scrambling passer
+        } else rate = 0.05 + 0.25 * clamp(w + 0.35, 0, 1);
+      } else if (b.job?.t === 'draw') {
+        // a draw's line sits and invites the rush rather than battling it
+        rate = 0.05 + 0.25 * clamp(w + 0.35, 0, 1);
       } else {
-        rate = 0.07 + 0.45 * clamp(w + 0.35, 0, 1);
+        // a pass rusher works his moves: the longer the block goes on, the
+        // likelier he wins it
+        rate = (0.08 + 0.58 * clamp(w + 0.35, 0, 1)) * (0.6 + 0.5 * Math.min(pair.t, 2));
       }
       if (pair.open) rate += 0.8;
       if (this.rng.next() < rate * dt) {
@@ -437,14 +477,16 @@ export class PlaySim {
   }
 
   // ---------------------------------------------------------------- physics
-  steer(p, tx, ty, frac, dt, arrive) {
+  // accMul: a defensive back breaking on a cut or a throw plants and
+  // drives harder than a player just running
+  steer(p, tx, ty, frac, dt, arrive, accMul = 1) {
     let dx = tx - p.x;
     let dy = ty - p.y;
     const d = Math.hypot(dx, dy);
     let spd = p.maxSpd * frac * (p.jamT > 0 ? 0.35 : 1);
     if (arrive > 0 && d < arrive) spd *= d / arrive;
     if (d > 1e-4) { dx /= d; dy /= d; } else { dx = 0; dy = 0; }
-    this.accelTo(p, dx * spd, dy * spd, dt, p.accel);
+    this.accelTo(p, dx * spd, dy * spd, dt, p.accel * accMul);
   }
 
   brake(p, dt, decel) {
@@ -511,6 +553,9 @@ export class PlaySim {
       if (t && this.canBeBlocked(t) && dist(b.x, b.y, t.x, t.y) < 1.15) { this.engage(b, t); continue; }
       if (this.t < 0.15) continue;
       if (b.job.t === 'route' && this.phase !== 'run') continue;
+      // a run blocker with a man to get to goes to him rather than taking
+      // whoever he brushes past
+      if (t && this.canBeBlocked(t) && this.offPlay.cat === 'run' && this.t - (this.runT || 0) < 1.2) continue;
       for (const d of this.defense) {
         if (!this.canBeBlocked(d)) continue;
         if (dist(b.x, b.y, d.x, d.y) < 0.95 && (d.assign.t === 'rush' || d.assign.t === 'blitz' || this.phase === 'run')) { this.engage(b, d); break; }
@@ -662,7 +707,7 @@ export class PlaySim {
   }
 }
 
-Object.assign(PlaySim.prototype, contactMethods, celebrateMethods, passingMethods, foulMethods, offenseMethods, defenseMethods);
+Object.assign(PlaySim.prototype, contactMethods, celebrateMethods, passingMethods, foulMethods, offenseMethods, defenseMethods, blockingMethods);
 
 
 export function simulatePlay(opts) {

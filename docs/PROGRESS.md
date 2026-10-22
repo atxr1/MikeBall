@@ -2,6 +2,62 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
+## 2026-10-21 — Player AI polish, round 1
+
+**Done**
+- Pass protection (`src/sim/blocking.js`): the line takes the men on the
+  line in order across (no crossed faces), the widest extra rusher is left
+  for a back. Before, a 3-4 front's outside linebackers were never picked
+  up and got home on a quarter of dropbacks.
+- Run blocking by scheme: zone (each man takes the defender on him or in
+  his playside gap, the rest climb to linebackers), gap (down blocks, the
+  man beside the puller covers his gap, the lead back kicks out the end
+  man, the puller leads up on the playside linebacker); draws and sneaks
+  use man protection. Blocking keeps going after the handoff (it used to
+  stop the moment the back had the ball). Fixed the open-field block flag
+  firing for backs behind the line, which made every block after a deep
+  handoff easy to shed. Second-level blocks can be slipped by a quick
+  linebacker; reach blocks are harder; a blocked defender can reach for a
+  runner going by.
+- Run defense (`src/sim/defense.js`): linebackers and box safeties read run
+  off the line's blocking and fill (following the back's first steps, so a
+  counter step moves them), fit their gap instead of running through the
+  line; the end men keep outside leverage and set the edge; linemen play
+  the run from the line instead of running into the backfield.
+- Coverage: deep zones keep everything in front and split two verticals;
+  underneath zones carry verticals and read the quarterback's eyes; zone
+  drops are deeper (hooks ~10, curls 11); man defenders stay on top by a
+  cushion, plant on stopping routes and drive on throws.
+- Quarterback (`src/sim/passing.js`): drops take realistic time with a
+  hitch; reads are timed to when each route is readable (verticals once
+  past ~10 yards, sooner near the goal line), and he can see two routes at
+  the same level at once (seam-seam); hot throws only against rushers
+  nobody blocked; he feels pressure a beat late and later still from the
+  blind side; he weighs the window against how catchable the throw is at
+  that range (he takes fewer hopeful deep shots); scrambles happen under
+  real pressure or when nobody's open for a while, up through a gap or out
+  around the end; slides are less hair-trigger.
+- Routes (`src/sim/routes.js`): flats and swings settle instead of turning
+  into wheel routes; outs settle at the sideline; the passer projects
+  exactly what the receiver runs.
+- Pass rush wins grow over the length of a block (capped); dives are a last
+  resort; tackles carry the runner forward a little more; hurdles over low
+  tacklers; Hail Marys hang so defenders get under them (~10% vs prevent).
+- `tools/aidiag.mjs`: per-play AI diagnostics (in CLAUDE.md).
+
+Numbers (real league): balance mix 4.6 ypc, 62% completions, 7.8 ypa, 6.7%
+sacks; full CPU games ~25 points a team, 67% completions, 8.2 ypa, 2.0
+sacks a team, 4.1 ypc, 15% of throws 20+ air yards.
+
+**Known issues**
+- Yards per attempt still high (~8 in games; NFL ~7): too many throws into
+  5+ yard windows, aDOT ~9.
+- Runs are boom-or-bust: too many 0-2 yard and 10+ yard runs, too few 3-9.
+  Counter and power average ~2-3; outside runs against blitzes and
+  goal-line fronts break too often.
+- Scrambles ~2% of dropbacks for ~1.5 yards (NFL ~4%, ~7 yards).
+- Time to throw ~1.8-2.4 s on deep concepts, quicker on the quick game.
+
 ## 2026-10-17 (night) — Challenges and replay, saved plays, return penalties, scrambles
 
 **Done**
