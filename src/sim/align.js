@@ -289,9 +289,11 @@ export function routePoints(start, routeKey, side, ballX, custom = null) {
   const route = ROUTES[routeKey];
   const s = side || (start.x < ballX ? 'L' : 'R');
   const out = s === 'L' ? -1 : 1;
+  // a back out of the backfield runs his flat at the line, not past it
+  const back = start.y < -2.5 && routeKey === 'flat';
   const pts = route.pts.map(([o, dy]) => ({
     x: clamp(start.x + o * out, 1, FIELD_W - 1),
-    y: dy,
+    y: back ? dy - 2 : dy,
   }));
   return { pts, end: route.end, name: route.name };
 }
