@@ -24,6 +24,7 @@ import { onFieldRuling, settleRuling } from '../src/game/replay.js';
 import { makePlaySim } from '../src/game/autoplay.js';
 import { cpuMatchDefense } from '../src/game/cpu.js';
 import { offPlay, defPlay } from '../src/data/playbook.js';
+import { protectionPairs } from '../src/sim/blocking.js';
 
 let failed = 0;
 let passed = 0;
@@ -57,6 +58,39 @@ check('yards per carry 3.0-6.0', between(ypc, 3.0, 6.0), ypc.toFixed(2));
 check('completion 50-72%', between(comp, 0.5, 0.72), (comp * 100).toFixed(1));
 check('sack rate 3-12%', between(sackRate, 0.03, 0.12), (sackRate * 100).toFixed(1));
 check('INT rate 1-5%', between(intRate, 0.01, 0.05), (intRate * 100).toFixed(1));
+
+console.log('player AI');
+{
+  // protection: linemen pair with the rushers in order across; with more
+  // rushers than linemen the widest goes unblocked (a back's man)
+  const at = (xs) => xs.map((x) => ({ x }));
+  const B = at([22.8, 24.7, 26.7, 28.6, 30.6]);
+  const R5 = at([20.4, 23.2, 26.7, 30.1, 33.0]);
+  const p5 = protectionPairs(B, R5, 26.7);
+  check('five linemen take a 3-4 front\'s five rushers in order (the edge rushers too)', p5.length === 5 && p5.every(([b, r]) => B.indexOf(b) === R5.indexOf(r)));
+  const R6 = at([18.0, 22.0, 25.0, 28.0, 31.0, 34.5]);
+  const p6 = protectionPairs(B, R6, 26.7);
+  check('six rushers: the widest is left for the back', p6.length === 5 && !p6.some(([, r]) => r === R6[0]), p6.map(([, r]) => r.x).join(','));
+  // the passer projects each receiver where he really goes: settle,
+  // continue and sit route ends
+  const real = existsSync('assets/data/league.json') ? fromLeagueJson(JSON.parse(readFileSync('assets/data/league.json', 'utf8'))) : null;
+  const L = real ? real.rosters : league;
+  const lid = Object.keys(L);
+  let worst = 0;
+  for (const [pid, slot] of [['curl_flat', 'Y'], ['quick_outs', 'SL'], ['four_verts', 'X'], ['mesh', 'SL'], ['curl_flat', 'X']]) {
+    const o = offPlay(pid);
+    for (let k = 0; k < 4; k++) {
+      const sim = new PlaySim({ offPlay: o, defPlay: defPlay('cov3_43'), offLineup: offenseLineup(L[lid[k]], o.formation), defLineup: defenseLineup(L[lid[k + 9]], '43'), ballOn: 30, ballX: [20, 26.67, 33.3, 26.67][k], rng: makeRng(70 + k), noFouls: true });
+      sim.opts.manualPass = true;
+      const r = sim.bySlot[slot];
+      while (sim.t < 1.6) sim.step();
+      const P = sim.routeAhead(r, 0.6);
+      while (sim.t < 2.2) sim.step();
+      worst = Math.max(worst, Math.hypot(P.x - r.x, P.y - r.y));
+    }
+  }
+  check('the passer\'s projection of a route matches where the receiver runs (within 1.5 yd)', worst < 1.5, worst.toFixed(2));
+}
 
 console.log('full CPU games');
 const pts = [];

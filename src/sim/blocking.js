@@ -59,7 +59,7 @@ export const blockingMethods = {
     // the playside end man
     let emol = null;
     for (const d of front) if (dir && (!emol || (d.x - emol.x) * dir > 0)) emol = d;
-    if (puller && emol && free(emol) && (d => (d.x - ballX) * dir > 1)(emol)) {
+    if (puller && emol && free(emol) && (emol.x - ballX) * dir > 1) {
       take(lead || puller, emol);
     }
     const line = this.offense
@@ -113,16 +113,14 @@ export const blockingMethods = {
 };
 
 // The best order-preserving pairing of blockers to rushers (both sorted
-// left to right; a blocker can be { x } standing in for where he's
-// stepping to): every man of the smaller group is paired, by lateral
+// left to right): every man of the smaller group is paired, by lateral
 // distance, and a rusher left over is the one farthest from the ball.
-// For a run (dir = the way it goes), the one left over is the backside man.
-export function protectionPairs(B, R, ballX, dir = 0) {
+export function protectionPairs(B, R, ballX) {
   const n = B.length;
   const m = R.length;
   const INF = 1e9;
   const skipB = n > m ? 0 : INF;
-  const skipR = (j) => (m > n ? (dir ? (R[j].x - ballX) * dir * 0.3 : -Math.abs(R[j].x - ballX) * 0.3) : INF);
+  const skipR = (j) => (m > n ? -Math.abs(R[j].x - ballX) * 0.3 : INF);
   const f = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(INF));
   f[0][0] = 0;
   for (let i = 0; i <= n; i++) {
