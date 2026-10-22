@@ -408,7 +408,9 @@ export const offenseMethods = {
         if (dist(d.x, d.y, tp.x, tp.y) < 1.5) { clogged = true; break; }
       }
       if (!clogged) {
-        this.steer(p, tp.x, tp.y, 1, dt, 0);
+        // (a gap run's back is patient behind the line, letting the pullers
+        // get there first)
+        this.steer(p, tp.x, tp.y, tp.y < -1 ? p.job.pace || 1 : 1, dt, 0);
         if (dist(p.x, p.y, tp.x, tp.y) < 0.8) p.wp++;
         return;
       }

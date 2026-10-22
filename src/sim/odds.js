@@ -206,8 +206,8 @@ export function tackleOdds(sim, d, h) {
     if (dd < 3) help += Math.exp(-dd / 1.1);
   }
   const sack = h === sim.qb && sim.phase === 'pre';
-  let p = 0.85 + (tk - brk) / 160 + angle + mom + Math.min(help, 2.5) * 0.09
-    - (h.juke > 0 ? 0.25 : 0) - (d.blk ? 0.25 : 0) - (d.stumbleT > 0 ? 0.2 : 0) + (sack ? 0.06 : 0);
+  let p = 0.9 + (tk - brk) / 160 + angle + mom + Math.min(help, 2.5) * 0.09
+    - (h.juke > 0 ? 0.25 : 0) - (d.blk ? 0.3 : 0) - (d.stumbleT > 0 ? 0.2 : 0) + (sack ? 0.06 : 0);
   return { p: clamp(p, 0.15, 0.97), ahead, side, help, sack };
 }
 

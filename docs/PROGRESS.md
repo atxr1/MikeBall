@@ -55,17 +55,30 @@ Newest first. Each session: what got done, what's broken, what's next.
   its men until the passer crosses the line, and he escapes out and up at
   an angle and then turns upfield: scrambles now average about 6-7 yards.
 
-Numbers (real league): balance mix 4.4 ypc, 62% completions, 7.7 ypa, 6.7%
-sacks, scrambles 2.3% for 6 yards; full CPU games ~23-25 points a team,
-67% completions, ~8 ypa, ~1.6-2 sacks a team, 15% of throws 20+ air yards.
+- Round 3: only straight verticals wait to clear the underneath coverage
+  (corners and posts are read at the break); fewer hopeful deep shots; the
+  corner route is shorter. Tackling: standing tackles are surer (about 84%
+  of tries made, close to the NFL's), a blocked defender reaching for a
+  runner just gets him or doesn't (no broken-tackle move for it), run
+  blocks before the handoff use run-block odds (they were using pass-rush
+  odds), kick-out blocks drive the end man out of the hole, ends squeeze
+  on the line, power aims at the C gap, defenders in front of a runner
+  come downhill. The CPU calls the counter less (it's still the weakest
+  run, ~2 yards).
+
+Numbers (real league): balance mix 4.2 ypc (8.6% negative, 2.5% 15+),
+61% completions, 7.3 ypa, 6.8% sacks; full CPU games ~24 points a team,
+64-67% completions, ~7.4-7.7 ypa, ~11.5 yards a catch, ~2 sacks a team,
+13% of throws 20+ air yards, scrambles ~7 yards.
 
 **Known issues**
-- Yards per attempt still high (~8 in games; NFL ~7): too many throws into
-  5+ yard windows, aDOT ~9; completions ~67%.
+- aDOT still ~9 (NFL ~8): too few throws behind the line (6% vs ~17%);
+  yards after the catch ~4 (NFL ~5).
 - Some run/defense matchups are lopsided: outside runs against the Mike
   blitz and 3-4 edge blitz break too often (blitzers run past the play,
   man-coverage safeties start toward their man).
-- Counter and power still average ~2-3 yards against base defenses.
+- The counter still averages ~2 yards (the end man gets to the hole as
+  the puller does); runs gain 10-19 yards a bit too often (~16%).
 - Time to throw ~1.8-2.4 s on deep concepts, quicker on the quick game.
 
 ## 2026-10-17 (night) — Challenges and replay, saved plays, return penalties, scrambles

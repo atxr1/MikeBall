@@ -179,7 +179,7 @@ export const OFFENSE_PLAYS = [
   }),
   run('power_r', 'Power Right', 'i_form', 1, {
     QB: { t: 'handoff' },
-    RB: { t: 'carry', path: [[0.4, -5.6], [2.4, -0.8], [2.6, 3]], handT: 0.55 },
+    RB: { t: 'carry', path: [[0.6, -5.6], [3.3, -0.8], [3.7, 3]], handT: 0.55 },
     FB: { t: 'lead', to: [4.4, -0.2] },
     LG: { t: 'pull', path: [[-1.2, -1.5], [3.0, -1.3], [3.5, 1.0]] },
     Y: { t: 'zone', dir: 1 }, X: BLOCK, Z: BLOCK,

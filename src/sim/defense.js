@@ -34,6 +34,11 @@ export const defenseMethods = {
           if (p.edge && (carrier.x - this.ballX) * p.edge > -1) return this.steer(p, this.ballX + p.edge * Math.max(4.6, (carrier.x - this.ballX) * p.edge + 1.2), -0.3, 0.8, dt, 0.4);
           return this.pursue(p, dt, carrier, -0.5);
         }
+        // the end man squeezing a run his way does it on the line, not in
+        // the backfield (he spills the back outside)
+        if (p.edge && p.assign.t === 'rush' && this.offPlay.cat === 'run' && !this.receiver && !this.interceptor && carrier.y < -0.5 && (carrier.x - this.ballX) * p.edge > 0) {
+          return this.pursue(p, dt, carrier, -0.4);
+        }
         // a linebacker fits his gap and waits for the back to come to him
         // rather than running through the line
         if (p.pos === 'LB' && p.assign.t !== 'blitz' && p.assign.t !== 'rush' && this.offPlay.cat === 'run' && !this.receiver && !this.interceptor && carrier.y < 0.3 && p.y > 1) {
@@ -157,7 +162,9 @@ export const defenseMethods = {
         if (cand.length) T = Math.min(...cand);
       }
     }
-    T = Math.min(T, 1.8);
+    // a defender in front of a runner comes downhill to meet him rather
+    // than waiting for him deep
+    T = Math.min(T, this.offPlay.cat === 'run' && !this.receiver && !this.interceptor && c.side === 'O' && p.y > c.y + 3 ? 1.0 : 1.8);
     const tx = c.x + c.vx * T * 0.92;
     const ty = Math.max(minY, c.y + c.vy * T * 0.92);
     this.steer(p, clamp(tx, -1, FIELD_W + 1), ty, 1, dt, 0);

@@ -100,7 +100,7 @@ export class PlaySim {
       // into the alley rather than the hole)
       if (offPlay.cat === 'run' && (d.pos === 'LB' || d.pos === 'S')) {
         const deep = d.pos === 'S' && d.y >= 8.5;
-        e.readsRun = rng.chance(this.isDraw ? 0.1 + e.a.awr / 500 : deep ? 0.3 + e.a.awr / 300 : 0.5 + e.a.awr / 250);
+        e.readsRun = rng.chance(this.isDraw ? 0.1 + e.a.awr / 500 : deep ? 0.45 + e.a.awr / 300 : 0.5 + e.a.awr / 250);
       }
       this.defense.push(e);
     }
@@ -385,7 +385,7 @@ export class PlaySim {
     // wide) is the hardest block there is
     const dir = this.offPlay.dir || 0;
     const reach = run && b.side === 'O' && dir && (d.x - b.x) * dir > 0.6 && this.offPlay.cat === 'run';
-    if (level2 && this.rng.chance(clamp(0.12 + (d.a.agi - b.a.agi) / 250 + (d.a.awr - 70) / 400, 0.08, 0.4))) {
+    if (level2 && this.rng.chance(clamp(0.2 + (d.a.agi - b.a.agi) / 250 + (d.a.awr - 70) / 400, 0.1, 0.45))) {
       d.freeT = 0.45;
       b.stunT = 0.3;
       b.target = null;
@@ -434,7 +434,12 @@ export class PlaySim {
       const spd = clamp(0.3 + 2.4 * w, -1.6, 1.7);
       let vx = dx * spd;
       let vy = dy * spd;
-      if (pair.run && goal === this.carrier) {
+      if (pair.run && goal === this.carrier && (b.job?.t === 'pull' || b.job?.t === 'lead') && d.edge) {
+        // a kick-out: the puller or lead back hits the end man from the
+        // inside and drives him out of the hole
+        vx = d.edge * clamp(1.2 - 3 * w, -0.4, 2);
+        vy = Math.min(vy, 0.2);
+      } else if (pair.run && goal === this.carrier) {
         // against the run he works down the line with the ball, riding the
         // blocker, easier sideways than straight ahead
         const lat = clamp(1.0 + 3 * w, 0, 2.6);
@@ -443,7 +448,8 @@ export class PlaySim {
       }
       this.accelTo(d, vx, vy, dt, 20);
       // blocker sits between defender and the goal
-      const bx = d.x + (pair.run && goal === this.carrier ? Math.sign(goal.x - d.x) * 0.6 : dx * 0.95);
+      const kick = pair.run && goal === this.carrier && (b.job?.t === 'pull' || b.job?.t === 'lead') && d.edge;
+      const bx = d.x + (kick ? -d.edge * 0.8 : pair.run && goal === this.carrier ? Math.sign(goal.x - d.x) * 0.6 : dx * 0.95);
       const by = d.y + dy * 0.95;
       this.accelTo(b, d.vx + (bx - b.x) * 6, d.vy + (by - b.y) * 6, dt, 30);
       // shed
@@ -462,10 +468,11 @@ export class PlaySim {
           else if (b.pos === 'WR') rate *= 2;
           else if (c.y < 0.5) rate *= 0.65; // a lineman at the point of attack, the back still behind the line
           else if (!pair.run && sealed) rate *= 0.5; // a pass blocker riding him past the scrambling passer
-        } else rate = 0.05 + 0.25 * clamp(w + 0.35, 0, 1);
-      } else if (b.job?.t === 'draw') {
-        // a draw's line sits and invites the rush rather than battling it
-        rate = 0.05 + 0.25 * clamp(w + 0.35, 0, 1);
+        } else rate = 0.12 + 0.36 * clamp(w + 0.35, 0, 1);
+      } else if (b.job?.t === 'draw' || (pair.run && this.offPlay.cat === 'run')) {
+        // a draw's line sits and invites the rush rather than battling it;
+        // a run block before the handoff is a run block, not pass pro
+        rate = 0.12 + 0.36 * clamp(w + 0.35, 0, 1);
       } else {
         // a pass rusher works his moves: the longer the block goes on, the
         // likelier he wins it

@@ -108,6 +108,7 @@ export function cpuOffense(game, side) {
     if (tg <= 1 && p.shortYardage) return 4;
     if (p.shortYardage) return s.ballOn >= 95 ? 2 : 0.15;
     if (p.id === 'draw') return s.down >= 2 && tg >= 7 ? 2 : 0.6;
+    if (p.id === 'counter') return 0.5; // a change-up, not a staple
     return 1;
   });
 }

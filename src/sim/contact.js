@@ -163,13 +163,22 @@ export const contactMethods = {
         d.tackleCD = 0.5;
         continue;
       }
+      if (d.blk) {
+        // a blocked man reaching out: he gets him or he doesn't, no move
+        // from the runner to show for it
+        if (this.rng.chance(tackleOdds(this, d, h).p)) {
+          if (this.tryTackle(d, h, true)) return;
+        }
+        d.tackleCD = 0.5;
+        continue;
+      }
       if (this.tryTackle(d, h)) return;
     }
   },
 
-  tryTackle(d, h) {
+  tryTackle(d, h, sure = false) {
     const o = tackleOdds(this, d, h);
-    if (this.rng.chance(o.p)) {
+    if (sure || this.rng.chance(o.p)) {
       const n = 1 + (o.help > 0.6 ? 1 : 0);
       if (this.rng.chance(fumbleOdds(h, d, n, null, o.sack))) {
         this.fumble(h, o.sack ? 'strip sack' : 'fumble', d);
