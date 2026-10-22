@@ -4,7 +4,7 @@
 // moves in src/sim/contact.js). No DOM; seeded RNG only.
 
 import { FIELD_W, clamp, dist } from '../core/util.js';
-import { laneFor, settleStep, SETTLE_FRAC } from './routes.js';
+import { laneFor, settleStep, SETTLE_FRAC, ENDLINE_FRAC, endLineSide } from './routes.js';
 
 const LOOKS = [[1.5, 1.4], [3.5, 1.0], [6, 0.6]];
 
@@ -94,8 +94,10 @@ export const offenseMethods = {
     const pts = p.pts;
     if (p.wp < pts.length) {
       const tp = pts[p.wp];
-      this.steer(p, tp.x, tp.y, 0.96, dt, 0);
-      if (dist(p.x, p.y, tp.x, tp.y) < 0.7) {
+      // a point at the back of the end zone: he pulls up into it rather
+      // than running out the back
+      this.steer(p, tp.x, tp.y, 0.96, dt, tp.back ? 3 : 0);
+      if (dist(p.x, p.y, tp.x, tp.y) < (tp.back ? 1 : 0.7)) {
         p.wp++;
         // the cut: he plants and goes the new way, losing speed by how sharp
         // the break is and how well he runs routes
@@ -138,7 +140,7 @@ export const offenseMethods = {
       // a flat or swing: drift on toward the sideline at a jog, looking
       // back for the ball; steered along the same path the passer projects
       // (settleStep), at the pace it assumes
-      const q = settleStep(p.x, p.y, dx, dy, 6);
+      const q = settleStep(p.x, p.y, dx, dy, 6, this.backY);
       return this.steer(p, q.x, q.y, (SETTLE_FRAC * Math.hypot(q.x - p.x, q.y - p.y)) / 6, dt, 0);
     }
     // keep going; at the sideline, turn upfield inside it (the passer
@@ -146,6 +148,12 @@ export const offenseMethods = {
     const lane = laneFor(dx, dy);
     const lo = lane;
     const hi = FIELD_W - lane;
+    // at the back of the end zone he works along the end line the way the
+    // route was angling, or sits down there (alongRoute again)
+    if (p.y >= this.backY - (Math.max(0, p.vy) ** 2) / (2 * p.accel) - 0.3) {
+      const side = endLineSide(dx / m);
+      return this.steer(p, clamp(p.x + side * 5, lo, hi), this.backY, side ? ENDLINE_FRAC : 0.6, dt, side ? 0 : 1.2);
+    }
     // start the turn early enough to stay in bounds at his speed
     const room = (p.vx * p.vx) / (2 * p.accel) + 0.3;
     if ((p.x <= lo + room && dx < 0) || (p.x >= hi - room && dx > 0)) {

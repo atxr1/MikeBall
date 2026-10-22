@@ -167,7 +167,7 @@ export function pocketPressure(sim, qb, targetX, targetY) {
 // the move or throwing across his body, and whether he's hit as he lets go.
 export function throwError(qb, d, press, moving, across, hit) {
   const acc = (100 - qb.a.tha) * 0.012;
-  let sd = 0.22 + acc + d * 0.013 + Math.max(0, d - 22) * 0.03;
+  let sd = 0.22 + acc + d * 0.013 + Math.max(0, d - 22) * 0.045;
   sd += press.hurry * (0.45 + (100 - qb.a.dec) * 0.004);
   sd += moving * (0.25 + (100 - qb.a.tha) * 0.006) + across * 0.3;
   if (hit) sd = sd * 1.8 + 0.6;

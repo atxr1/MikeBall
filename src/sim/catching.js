@@ -3,7 +3,7 @@
 // decided from everyone around the ball by src/sim/odds.js. No DOM; every
 // random draw comes from the sim's seeded RNG.
 
-import { FIELD_W, dist } from '../core/util.js';
+import { FIELD_W, clamp, dist } from '../core/util.js';
 import { catchOdds, missCause, interceptOdds, strayIntOdds } from './odds.js';
 
 export const catchingMethods = {
@@ -12,18 +12,28 @@ export const catchingMethods = {
   trackBall(p, dt) {
     const b = this.ball;
     const tLeft = b.t0 + b.T - this.t;
-    if (!p.diving && tLeft < 0.34 && tLeft > 0.05) {
-      const gap = dist(p.x + p.vx * tLeft, p.y + p.vy * tLeft, b.tx, b.ty);
-      if (gap > 1.05 && gap < 3.4) {
+    // until he's picked up the flight of the ball he runs to where it was
+    // meant to go (his route); then he adjusts to where it's really going,
+    // so a throw that's off is harder to get to the later he sees it
+    const read = this.t - b.t0 > 0.18 + (100 - p.a.cth) / 400 || b.ax == null;
+    const gx = read ? b.tx : b.ax;
+    const gy = read ? b.ty : b.ay;
+    const d = dist(p.x, p.y, gx, gy);
+    if (read && !p.diving && tLeft < 0.34 && tLeft > 0.05) {
+      // he can't get there on his feet: he lays out for it
+      const short = d - Math.max(Math.hypot(p.vx, p.vy), p.maxSpd * 0.85) * tLeft;
+      if (short > 0.75 && short < 3.1) {
         p.diving = { t0: this.t };
-        const d = dist(p.x, p.y, b.tx, b.ty) || 1;
         const v = Math.max(Math.hypot(p.vx, p.vy), Math.min(9, (d - 0.4) / tLeft));
-        p.vx = ((b.tx - p.x) / d) * v;
-        p.vy = ((b.ty - p.y) / d) * v;
+        p.vx = ((b.tx - p.x) / (d || 1)) * v;
+        p.vy = ((b.ty - p.y) / (d || 1)) * v;
       }
     }
     if (p.diving) return this.brake(p, dt, 3);
-    return this.steer(p, b.tx, b.ty, 1, dt, 0.4);
+    // he times his run to get there with the ball: a ball thrown ahead of
+    // him he catches in stride, one he'd get to early he settles under
+    const need = d / Math.max(tLeft, 0.05);
+    return this.steer(p, gx, gy, clamp((need * 1.08) / p.maxSpd, 0.3, 1), dt, 0.4);
   },
 
   // ---------------------------------------------------------------- catch
@@ -133,8 +143,8 @@ export const catchingMethods = {
     this.catchY = r.y;
     r.moveCD = 0.6;
     r.secureT = 0.25;
-    r.vx *= 0.7;
-    r.vy *= 0.7;
+    r.vx *= 0.82;
+    r.vy *= 0.82;
     if (r.diving) this.layOut(r);
     this.events.push({ t: this.t, k: 'catch', who: r });
     for (const p of this.offense) if (p !== r) p.target = null;

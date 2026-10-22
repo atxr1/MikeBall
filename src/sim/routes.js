@@ -14,9 +14,33 @@ export const SIDE_LANE = 1.8;
 export const FLAT_LANE = 4.5;
 export const laneFor = (dx, dy) => (Math.abs(dx) > Math.abs(dy) * 1.5 ? FLAT_LANE : SIDE_LANE);
 
+// In the end zone he can't go past the end line: a receiver working
+// toward it pulls up this far inside, then works along it the way his route
+// was angling, at this fraction of his speed (or sits there if he was going
+// straight up).
+export const BACK_ROOM = 1.4;
+export const ENDLINE_FRAC = 0.5;
+export const endLineSide = (dx) => (Math.abs(dx) > 0.25 ? Math.sign(dx) : 0);
+
 // Where a receiver gets to going (dx, dy) for `left` yards from (x, y):
-// straight on, or up the sideline once he reaches it.
-export function alongRoute(x, y, dx, dy, left, lane = laneFor(dx, dy)) {
+// straight on, or up the sideline once he reaches it, and along the end
+// line (backY) once he gets there.
+export function alongRoute(x, y, dx, dy, left, lane = laneFor(dx, dy), backY = Infinity, side = endLineSide(dx)) {
+  const P = alongField(x, y, dx, dy, left, lane);
+  if (P.y <= backY) return P;
+  // how far he goes before he gets to the line
+  let lo = 0;
+  let hi = y >= backY ? 0 : left;
+  for (let k = 0; k < 14 && hi > 0; k++) {
+    const m = (lo + hi) / 2;
+    if (alongField(x, y, dx, dy, m, lane).y > backY) hi = m;
+    else lo = m;
+  }
+  const Q = hi > 0 ? alongField(x, y, dx, dy, hi, lane) : { x, y };
+  return { x: clamp(Q.x + side * (left - hi) * ENDLINE_FRAC, lane, FIELD_W - lane), y: backY };
+}
+
+function alongField(x, y, dx, dy, left, lane) {
   const lo = lane;
   const hi = FIELD_W - lane;
   if (Math.abs(dx) > 1e-3) {
@@ -42,7 +66,7 @@ export function settleDir(dx, dy) {
   const k = Math.hypot(ux, uy) || 1;
   return [ux / k, uy / k];
 }
-export function settleStep(x, y, dx, dy, d) {
+export function settleStep(x, y, dx, dy, d, backY = Infinity) {
   const [ux, uy] = settleDir(dx, dy);
-  return { x: clamp(x + ux * d, FLAT_LANE, FIELD_W - FLAT_LANE), y: y + uy * d };
+  return { x: clamp(x + ux * d, FLAT_LANE, FIELD_W - FLAT_LANE), y: Math.min(y + uy * d, Math.max(y, backY)) };
 }

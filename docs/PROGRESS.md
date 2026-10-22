@@ -2,7 +2,7 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
-## 2026-10-21 — Player AI polish, round 1
+## 2026-10-21 — Player AI polish, rounds 1-4
 
 **Done**
 - Pass protection (`src/sim/blocking.js`): the line takes the men on the
@@ -80,14 +80,40 @@ Newest first. Each session: what got done, what's broken, what's next.
   line, then turn and block (scramble drill). Throws on the move are less
   accurate.
 
-Numbers (real league): balance mix 4.2 ypc (8.6% negative, 2.5% 15+),
-61% completions, 7.3 ypa, 6.8% sacks; full CPU games ~24 points a team,
-64-67% completions, ~7.4-7.7 ypa, ~11.5 yards a catch, ~2 sacks a team,
-13% of throws 20+ air yards, scrambles ~7 yards.
+- Round 4, the end zone and the catch:
+  - Nobody runs out the back of the end zone any more (before, a defender
+    did on almost every pass from the 5). Near the goal line the defense
+    squeezes its depth (alignment and zone drops) toward the line in
+    proportion to the field left; routes that would go past the end line
+    end along it, the receiver pulling up 1.4 yards inside it and working
+    along it the way the route was angling (or sitting there on a
+    vertical), and the passer projects the same thing (`alongRoute`,
+    `src/sim/routes.js`). Anyone without the ball brakes in time to stop
+    short of the end line.
+  - Receivers time their run to the ball: they used to sprint at the
+    catch point and overshoot it, then lay out backwards (most of the
+    "incomplete" throws to backs in the flat were this). They run to where
+    the ball was meant to go until they've picked up its flight (quicker
+    with good hands), then adjust to where it's really going, so an
+    off-target throw is still hard to get to. They keep more speed through
+    a clean catch.
+  - Zone defenders play with their eyes on the passer (they face him while
+    they drop, so they see the throw sooner); deep defenders pedal until a
+    receiver eats up their cushion, then turn and run. Defenders who saw
+    the ball in the air react at the catch without a second delay.
+  - Deep throws are a little less accurate; the passer takes a slightly
+    smaller chance on deep windows.
+
+Numbers (real league): balance mix 4.1 ypc, 62% completions, 6.8 ypa,
+7% sacks; 48 full CPU games: ~22.5 points a team, 67% completions,
+7.5 ypa, 11.1 yards a catch, 2.3% interceptions, ~2.2 sacks a team, aDOT
+8.5, 13% of throws 20+ air yards (38% caught), 4.5 yards after the catch,
+4.2 a carry. From the 5: about 43% of dropbacks score (was 52%).
 
 **Known issues**
-- aDOT still ~9 (NFL ~8): too few throws behind the line (6% vs ~17%);
-  yards after the catch ~4 (NFL ~5).
+- aDOT ~8.5 (NFL ~8): too few throws behind the line (~10% vs ~17%);
+  yards after the catch ~4.5 (NFL ~5); completions a couple of points
+  high in full games.
 - Some run/defense matchups are lopsided: outside runs against the Mike
   blitz and 3-4 edge blitz break too often (blitzers run past the play,
   man-coverage safeties start toward their man).

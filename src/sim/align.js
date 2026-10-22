@@ -58,8 +58,17 @@ export function resolveZone(name, strength, ballX) {
   return { key, x: clamp(z.x + shift, 3, FIELD_W - 3), y: z.y, rx: z.rx, ry: z.ry, deep: !!z.deep };
 }
 
+// Near the goal line there's less field behind the defense: everything
+// deeper than the box squeezes toward the line in proportion, so the
+// deepest help lines up and drops inside the end line. goalY: yards from
+// the line of scrimmage to the goal line. squeezeK: the factor (1 with
+// room to spare).
+export const squeezeK = (goalY) => clamp((goalY + 5) / 20, 0.3, 1);
+export const squeezeY = (y, k) => (y > 4 && k < 1 ? 4 + (y - 4) * k : y);
+
 // Returns {slot: {slot, pos, x, y, assign}} for the defense.
-export function alignDefense(play, offAlign, ballX) {
+export function alignDefense(play, offAlign, ballX, goalY = 100) {
+  const k = squeezeK(goalY);
   const front = FRONTS[play.front];
   const strength = strengthOf(offAlign, ballX);
   const sS = strength === 'R' ? 1 : -1;
@@ -176,6 +185,7 @@ export function alignDefense(play, offAlign, ballX) {
     const a = d.assign;
     // drawn assignments come with their own zone spot or rush lane
     if (a.t === 'zone' && !a.zone) a.zone = resolveZone(a.z, strength, ballX);
+    if (a.t === 'zone' && k < 1) a.zone = { ...a.zone, y: squeezeY(a.zone.y, k), ry: Math.max(2.5, a.zone.ry * k) };
     if (a.t === 'blitz') {
       if (a.gapX == null) a.gapX = gapX(a.gap, offAlign, sS);
       d.y = Math.min(d.y, 3.2);
@@ -200,9 +210,10 @@ export function alignDefense(play, offAlign, ballX) {
     }
   }
 
+  const list = Object.values(out);
+  for (const d of list) d.y = squeezeY(d.y, k);
   // nobody lines up on top of a teammate: the deeper man steps back and
   // toward the middle of the field
-  const list = Object.values(out);
   for (let pass = 0; pass < 3; pass++) {
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {

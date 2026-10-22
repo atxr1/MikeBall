@@ -13,7 +13,7 @@
 
 import { FIELD_W, clamp, dist } from '../core/util.js';
 import { pocketPressure, throwError, looking } from './odds.js';
-import { SIDE_LANE, laneFor, alongRoute, SETTLE_FRAC, settleStep } from './routes.js';
+import { SIDE_LANE, laneFor, alongRoute, SETTLE_FRAC, settleStep, endLineSide } from './routes.js';
 
 // How open the window looks to the passer, 0-1, from openness() (yards of
 // room the closest defender can't make up while the ball's in the air).
@@ -176,7 +176,7 @@ export const passingMethods = {
         // going back to a read he's left takes a bigger window; a shot deep
         // is worth giving his man a chance on
         const L = this.leadPoint(p, r);
-        if (pe < need + (i < idx ? 0.06 : 0) - (L.y > 16 ? 0.05 : 0)) continue;
+        if (pe < need + (i < idx ? 0.06 : 0) - (L.y > 16 ? 0.02 : 0)) continue;
         // he weighs what it gains against how likely it's caught: an open
         // man deep is still a long throw
         const pc = pe * this.catchable(p, dist(p.x, p.y, L.x, L.y));
@@ -446,7 +446,7 @@ export const passingMethods = {
       P = this.routeAhead(r, T);
     }
     // he throws it to the field side of a receiver near the sideline
-    return { x: clamp(P.x, SIDE_LANE + 0.6, FIELD_W - SIDE_LANE - 0.6), y: Math.min(P.y, this.goalY + 8), T };
+    return { x: clamp(P.x, SIDE_LANE + 0.6, FIELD_W - SIDE_LANE - 0.6), y: Math.min(P.y, this.backY - 0.3), T };
   },
 
   routeAhead(r, T) {
@@ -457,13 +457,15 @@ export const passingMethods = {
       if (sat) return { x: r.x, y: r.y };
       const sp = Math.hypot(r.vx, r.vy) || 1;
       let lane = SIDE_LANE;
+      let side = 0;
       if (pts && pts.length) {
         const a = pts.length > 1 ? pts[pts.length - 2] : { x: r.sx, y: r.sy };
         const b = pts[pts.length - 1];
-        if (r.routeEnd === 'settle') return settleStep(r.x, r.y, b.x - a.x, b.y - a.y, r.maxSpd * SETTLE_FRAC * T);
+        if (r.routeEnd === 'settle') return settleStep(r.x, r.y, b.x - a.x, b.y - a.y, r.maxSpd * SETTLE_FRAC * T, this.backY);
         lane = laneFor(b.x - a.x, b.y - a.y);
+        side = endLineSide((b.x - a.x) / (Math.hypot(b.x - a.x, b.y - a.y) || 1));
       }
-      return alongRoute(r.x, r.y, r.vx / sp, r.vy / sp, sp * T, lane);
+      return alongRoute(r.x, r.y, r.vx / sp, r.vy / sp, sp * T, lane, this.backY, side);
     }
     let x = r.x;
     let y = r.y;
@@ -482,8 +484,10 @@ export const passingMethods = {
     // past the last point he carries on the way the route finished
     const a = pts.length > 1 ? pts[pts.length - 2] : { x: r.sx, y: r.sy };
     const b = pts[pts.length - 1];
-    if (r.routeEnd === 'settle') return settleStep(x, y, b.x - a.x, b.y - a.y, (left / sp) * r.maxSpd * SETTLE_FRAC);
-    return alongRoute(x, y, dx, dy, left, laneFor(b.x - a.x, b.y - a.y));
+    if (r.routeEnd === 'settle') return settleStep(x, y, b.x - a.x, b.y - a.y, (left / sp) * r.maxSpd * SETTLE_FRAC, this.backY);
+    const lx = b.x - a.x;
+    const ly = b.y - a.y;
+    return alongRoute(x, y, dx, dy, left, laneFor(lx, ly), this.backY, endLineSide(lx / (Math.hypot(lx, ly) || 1)));
   },
 
   // How far short of the catch point L this defender will be when the
@@ -608,6 +612,7 @@ export const passingMethods = {
     b.holder = null;
     b.fx = qb.x; b.fy = qb.y;
     b.tx = tx; b.ty = ty;
+    b.ax = L.x; b.ay = L.y; // where he meant it to go
     b.tz = clamp(1.4 + this.rng.normal(0, err.heightSd) + (hit ? 0.5 : 0), 0.25, 3.4);
     b.t0 = this.t;
     b.speed = speed;

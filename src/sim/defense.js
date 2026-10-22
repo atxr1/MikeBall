@@ -23,7 +23,9 @@ export const defenseMethods = {
       }
       const late = this.scramble && p.assign.t === 'man' ? (1 - looking(p, carrier.x, carrier.y)) * 0.7 : 0;
       const since = this.scramble && p.crossT != null ? this.t - p.crossT : this.t - this.runT;
-      const knows = (p.readsRun && !this.receiver) || since > (this.receiver || this.interceptor ? p.ballReact : p.readDelay + late);
+      // (one who's been watching the ball in the air saw the catch)
+      const sawIt = this.receiver && p.seeBall != null && this.runT - this.ball.t0 > p.seeBall;
+      const knows = (p.readsRun && !this.receiver) || sawIt || since > (this.receiver || this.interceptor ? p.ballReact : p.readDelay + late);
       if (knows || p.assign.t === 'rush' || p.assign.t === 'blitz' || dist(p.x, p.y, carrier.x, carrier.y) < 4) {
         if (p.edge && !this.receiver && !this.interceptor && this.setEdge(p, dt, carrier)) return;
         // gap discipline: a lineman against a designed run plays it from the
@@ -202,6 +204,9 @@ export const defenseMethods = {
 
   zoneCover(p, dt) {
     const z = p.assign.zone || { x: p.sx, y: p.sy + 4, rx: 5, ry: 4 };
+    // a zone defender plays with his eyes on the passer (src/sim/playsim.js
+    // integrate turns him to face him while he's not flat out running)
+    if (this.phase === 'pre' && this.ball.holder === this.qb) p.eyesAt = this.t;
     let thr = null;
     let best = -1e9;
     let second = null;
@@ -228,7 +233,10 @@ export const defenseMethods = {
       if (second && second.y > z.y - z.ry * 0.5 && Math.abs(second.x - thr.x) < z.rx * 1.6) x = thr.x * 0.6 + second.x * 0.4;
       let y = Math.max(thr.y + 2.8 + Math.max(0, thr.vy) * 0.45, z.y - z.ry * 0.4);
       if (thr.vy > 2 && thr.y > p.y - 12) y = Math.max(y, p.y);
-      return this.steer(p, x, y, 1, dt, 0.4);
+      // he pedals, reading the passer, until the man's eating up his
+      // cushion; then he turns and runs
+      const pedal = this.phase === 'pre' && p.y - thr.y > 6 + Math.max(0, thr.vy) * 0.6;
+      return this.steer(p, x, y, pedal ? 0.62 : 1, dt, 0.4);
     }
     if (!thr) {
       // nobody in his zone: carry a receiver running up through it (sink

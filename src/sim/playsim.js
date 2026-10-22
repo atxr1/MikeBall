@@ -16,6 +16,7 @@ import { foulMethods } from './fouls.js';
 import { blockingMethods } from './blocking.js';
 import { catchingMethods } from './catching.js';
 import { Crew } from './officials.js';
+import { BACK_ROOM } from './routes.js';
 
 export const DT = 1 / 60;
 const HIST = 40;
@@ -50,6 +51,8 @@ export class PlaySim {
     this.ballX = opts.ballX;
     this.goalY = 100 - opts.ballOn; // offense scores at y >= goalY
     this.ownGoalY = -opts.ballOn; // safety if downed at y <= ownGoalY
+    this.endY = this.goalY + 10; // the end line at the back of the end zone
+    this.backY = this.endY - BACK_ROOM; // as deep as a receiver works
     this.t = 0;
     this.phase = 'pre';
     this.done = false;
@@ -75,7 +78,7 @@ export class PlaySim {
     const { offPlay, defPlay, offLineup, defLineup, rng } = this.opts;
     const ballX = this.ballX;
     this.offAlign = alignOffense(offPlay.formation, ballX);
-    const dal = alignDefense(defPlay, this.offAlign, ballX);
+    const dal = alignDefense(defPlay, this.offAlign, ballX, this.goalY);
     this.defAlign = dal.players;
     this.strength = dal.strength;
     const bySlot = {};
@@ -127,15 +130,14 @@ export class PlaySim {
     // Offensive job setup
     for (const p of this.offense) {
       const j = p.job;
-      if (j.t === 'route') {
+      if (j.t === 'route' || j.t === 'chkrel') {
         const rp = routePoints(p, j.r, j.side, ballX, j.pts);
+        // near the goal line a route runs out of field at the back of the
+        // end zone: it ends along the end line
+        for (const q of rp.pts) if (q.y > this.backY) { q.y = this.backY; q.back = true; }
         p.pts = rp.pts;
         p.routeEnd = rp.end;
-        p.released = true;
-      } else if (j.t === 'chkrel') {
-        const rp = routePoints(p, j.r, j.side, ballX, j.pts);
-        p.pts = rp.pts;
-        p.routeEnd = rp.end;
+        if (j.t === 'route') p.released = true;
       } else if (j.t === 'carry' || j.t === 'pull' || j.t === 'pafake') {
         p.pts = pathPoints(j.path, ballX);
       } else if (j.t === 'lead') {
@@ -506,12 +508,25 @@ export class PlaySim {
   // accMul: a defensive back breaking on a cut or a throw plants and
   // drives harder than a player just running
   steer(p, tx, ty, frac, dt, arrive, accMul = 1) {
+    // nobody without the ball has a reason to run out the back of the end
+    // zone: he pulls up short of the end line in time to stop
+    let brake = false;
+    if (this.ball.holder !== p) {
+      const cap = this.endY - 0.5;
+      if (ty > cap) ty = cap;
+      brake = p.vy > 0 && p.y + (p.vy * p.vy) / (2 * p.accel * accMul) > cap;
+    }
     let dx = tx - p.x;
     let dy = ty - p.y;
     const d = Math.hypot(dx, dy);
     let spd = p.maxSpd * frac * (p.jamT > 0 ? 0.35 : 1);
     if (arrive > 0 && d < arrive) spd *= d / arrive;
     if (d > 1e-4) { dx /= d; dy /= d; } else { dx = 0; dy = 0; }
+    if (brake) {
+      // stopping comes first; he steers sideways with what's left
+      p.vy = Math.max(0, p.vy - p.accel * accMul * dt * 1.2);
+      return this.accelTo(p, dx * spd, Math.min(p.vy, dy * spd), dt, p.accel * accMul * 0.5);
+    }
     this.accelTo(p, dx * spd, dy * spd, dt, p.accel * accMul);
   }
 
@@ -534,7 +549,15 @@ export class PlaySim {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       const sp = Math.hypot(p.vx, p.vy);
-      if (sp > 0.4 && !p.down) {
+      // eyes on the passer (a zone defender dropping): he faces him rather
+      // than the way he's going, unless he's turned and running flat out
+      const eyes = p.eyesAt === this.t && sp < 6.2 && this.qb;
+      if (eyes && !p.down) {
+        const target = Math.atan2(this.qb.y - p.y, this.qb.x - p.x);
+        let da = target - p.face;
+        da = Math.atan2(Math.sin(da), Math.cos(da));
+        p.face += da * Math.min(1, dt * 10);
+      } else if (sp > 0.4 && !p.down) {
         const target = Math.atan2(p.vy, p.vx);
         let da = target - p.face;
         da = Math.atan2(Math.sin(da), Math.cos(da));
