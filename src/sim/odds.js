@@ -169,7 +169,7 @@ export function throwError(qb, d, press, moving, across, hit) {
   const acc = (100 - qb.a.tha) * 0.012;
   let sd = 0.22 + acc + d * 0.013 + Math.max(0, d - 22) * 0.03;
   sd += press.hurry * (0.45 + (100 - qb.a.dec) * 0.004);
-  sd += moving * (0.08 + (100 - qb.a.tha) * 0.003) + across * 0.25;
+  sd += moving * (0.25 + (100 - qb.a.tha) * 0.006) + across * 0.3;
   if (hit) sd = sd * 1.8 + 0.6;
   return { sideSd: sd, depthSd: sd * 1.15, heightSd: 0.12 + sd * 0.22 };
 }

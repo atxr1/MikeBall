@@ -15,6 +15,10 @@ export const offenseMethods = {
       if (carrier.side === 'O') {
         // linemen hold their blocks a moment (longer when the QB takes off)
         if (p.job.t === 'passpro' && p.target && this.t - this.runT < (this.scramble ? 1.0 : 0.6)) return this.passPro(p, dt);
+        // scramble drill: while the passer's still behind the line, the
+        // receivers stay on their routes (he can still throw it); once he
+        // crosses, they turn and block for him
+        if (this.scramble && carrier === this.qb && carrier.y < -0.3 && p.pts && p.released) return this.runRoute(p, dt);
         // a designed run: the blocking scheme plays out (pulls, leads,
         // climbs) until the back's through the line
         if (this.offPlay.cat === 'run' && !this.turnover && carrier.y < 2 && this.t - this.runT < 1.6 && p !== carrier) {
@@ -390,6 +394,9 @@ export const offenseMethods = {
 
   // ---------------------------------------------------------------- carrier
   carrierThink(p, dt) {
+    // A scrambling quarterback still behind the line can throw on the run
+    // to a man who's come open (src/sim/passing.js throwOnTheRun).
+    if (p === this.qb && this.scramble && this.throwOnTheRun(p, dt)) return;
     // A scrambling quarterback first gets up through the lane he saw.
     if (p === this.qb && this.scramble && p.lane && !p.lane.done) {
       const ln = p.lane;

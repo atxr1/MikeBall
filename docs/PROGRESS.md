@@ -74,6 +74,11 @@ Newest first. Each session: what got done, what's broken, what's next.
   farther back) and loss of down, a turnover on downs on fourth down, a
   safety from his own end zone; its own referee signal. About 0.1 a game.
   The catch resolution moved out of passing.js into src/sim/catching.js.
+- Throwing on the run: a scrambling passer still behind the line keeps
+  looking downfield and throws to a man who comes open (about 4 in 10
+  scrambles); the receivers stay on their routes until he crosses the
+  line, then turn and block (scramble drill). Throws on the move are less
+  accurate.
 
 Numbers (real league): balance mix 4.2 ypc (8.6% negative, 2.5% 15+),
 61% completions, 7.3 ypa, 6.8% sacks; full CPU games ~24 points a team,

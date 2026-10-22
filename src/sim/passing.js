@@ -647,6 +647,42 @@ export const passingMethods = {
     this.events.push({ t: this.t, k: 'throwaway', who: qb });
   },
 
+  // On the move out of the pocket, still behind the line: he keeps looking
+  // downfield and throws to a man who's come open (the coverage stays on
+  // its men until he crosses: src/sim/defense.js). Returns true once the
+  // ball's gone. Throwing on the run is less accurate (throwError).
+  throwOnTheRun(p, dt) {
+    if (this.opts.manualPass || p.y > -0.3 || this.ball.holder !== p) {
+      p.pending = null;
+      return false;
+    }
+    if (p.pending) {
+      if (this.t < p.pending.at) return false;
+      const r = p.pending.r;
+      p.pending = null;
+      this.scramble = false;
+      this.carrier = null;
+      this.throwNow(p, r);
+      return true;
+    }
+    p.runLookT = (p.runLookT ?? 0.35) - dt;
+    if (p.runLookT > 0) return false;
+    p.runLookT = 0.2;
+    let best = null;
+    let bv = 0;
+    for (const r of this.eligible) {
+      if (r.down || r.blk || !r.released) continue;
+      const pe = windowOpen(this.openness(p, r));
+      if (pe < 0.82) continue;
+      const L = this.leadPoint(p, r);
+      if (L.y < 1) continue; // nothing short of the line: he'd just run
+      const v = pe * this.catchable(p, dist(p.x, p.y, L.x, L.y)) * (Math.min(L.y, 25) + 6);
+      if (v > bv) { bv = v; best = r; }
+    }
+    if (best && this.rng.chance(0.35 + p.a.dec / 300)) p.pending = { r: best, at: this.t + 0.14 };
+    return false;
+  },
+
   startScramble(qb) {
     this.scramble = true;
     this.carrier = qb;
