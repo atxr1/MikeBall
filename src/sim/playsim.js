@@ -425,6 +425,13 @@ export class PlaySim {
       const { b, d } = pair;
       pair.t += dt;
       if (b.down || d.down || d === this.ball.holder) { this.breakBlock(pair); continue; }
+      // a screen: the line lets its men go and gets out in front
+      if (b.job?.t === 'screenOL' && this.phase === 'pre' && this.t > 0.95) {
+        this.breakBlock(pair);
+        d.freeT = 0.4;
+        b.target = null;
+        continue;
+      }
       const goal = this.defGoal(d);
       let dx = goal.x - d.x;
       let dy = goal.y - d.y;

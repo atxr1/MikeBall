@@ -55,7 +55,7 @@ export const offenseMethods = {
       case 'draw':
         return this.passPro(p, dt);
       case 'screenOL':
-        if (this.t < 1.0) return this.passPro(p, dt);
+        if (this.t < 0.95) return this.passPro(p, dt);
         return this.releaseScreen(p, dt);
       case 'pull':
         if (p.wp < p.pts.length) return this.followPath(p, dt, 1);

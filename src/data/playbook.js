@@ -142,7 +142,7 @@ export const ROUTES = {
   flat: { name: 'Flat', pts: [[3, 1], [8, 2.5]], end: 'settle' },
   swing: { name: 'Swing', pts: [[3, -1], [7, 0.5]], end: 'settle' },
   wheel: { name: 'Wheel', pts: [[3, 0], [6, 3], [6.5, 25]], end: 'continue' },
-  screen: { name: 'Screen', pts: [[3, -1.6], [6, -1.4]], end: 'sit' },
+  screen: { name: 'Screen', pts: [[3.5, -2.6], [9, -2.2]], end: 'sit' },
 };
 
 // --- Offensive plays -------------------------------------------------------
