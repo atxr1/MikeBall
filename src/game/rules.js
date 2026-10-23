@@ -296,6 +296,7 @@ export class Game {
       if (pen.safety) {
         // intentional grounding in his own end zone
         out.headline = 'Safety!';
+        out.flagHeadline = true;
         this.addScore(def, 2);
         this.clockRunning = false;
         if (this.otScore(def, 'safety')) return this.finishOut(out);

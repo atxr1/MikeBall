@@ -157,7 +157,7 @@ export const passingMethods = {
       if (r) return this.throwTo(p, r, pressure);
     }
     if (tSet > 0.12) {
-      const base = play.depth === 'short' ? 0.74 : play.depth === 'deep' ? 0.84 : 0.8;
+      const base = play.depth === 'short' ? 0.67 : play.depth === 'deep' ? 0.77 : 0.73;
       const need = base - Math.max(0, tSet - 1.5) * 0.12 - pressure * 0.3;
       let best = null;
       let bv = -1e9;
@@ -455,14 +455,16 @@ export const passingMethods = {
     if (!pts || r.wp >= pts.length) {
       const sat = r.routeEnd === 'sit' && pts && r.wp >= pts.length;
       if (sat) return { x: r.x, y: r.y };
-      const sp = Math.hypot(r.vx, r.vy) || 1;
+      // (on the end line he's already slowed to work along it: alongRoute
+      // wants his running speed)
+      const sp = r.y >= this.backY - 0.3 ? r.maxSpd : Math.hypot(r.vx, r.vy) || 1;
       let lane = SIDE_LANE;
       let side = 0;
       if (pts && pts.length) {
         const a = pts.length > 1 ? pts[pts.length - 2] : { x: r.sx, y: r.sy };
         const b = pts[pts.length - 1];
         if (r.routeEnd === 'settle') return settleStep(r.x, r.y, b.x - a.x, b.y - a.y, r.maxSpd * SETTLE_FRAC * T, this.backY);
-        lane = laneFor(b.x - a.x, b.y - a.y);
+        lane = r.routeLane ?? laneFor(b.x - a.x, b.y - a.y);
         side = endLineSide((b.x - a.x) / (Math.hypot(b.x - a.x, b.y - a.y) || 1));
       }
       return alongRoute(r.x, r.y, r.vx / sp, r.vy / sp, sp * T, lane, this.backY, side);
@@ -487,7 +489,7 @@ export const passingMethods = {
     if (r.routeEnd === 'settle') return settleStep(x, y, b.x - a.x, b.y - a.y, (left / sp) * r.maxSpd * SETTLE_FRAC, this.backY);
     const lx = b.x - a.x;
     const ly = b.y - a.y;
-    return alongRoute(x, y, dx, dy, left, laneFor(lx, ly), this.backY, endLineSide(lx / (Math.hypot(lx, ly) || 1)));
+    return alongRoute(x, y, dx, dy, left, r.routeLane ?? laneFor(lx, ly), this.backY, endLineSide(lx / (Math.hypot(lx, ly) || 1)));
   },
 
   // How far short of the catch point L this defender will be when the
@@ -632,6 +634,9 @@ export const passingMethods = {
   // grounding: thrown into the turf with no receiver near, from inside the
   // tackle box (Rule 8-2-1), flagged by the referee where he threw it.
   throwAwayNow(qb, grounding = false) {
+    // (it may have become a legal throwaway as he wound up: out of the
+    // tackle box, or a receiver came into the area)
+    if (grounding && this.legalThrowAway(qb)) grounding = false;
     const side = qb.x < this.ballX ? -1 : 1;
     const b = this.ball;
     b.state = 'air';
@@ -657,7 +662,9 @@ export const passingMethods = {
   // its men until he crosses: src/sim/defense.js). Returns true once the
   // ball's gone. Throwing on the run is less accurate (throwError).
   throwOnTheRun(p, dt) {
-    if (this.opts.manualPass || p.y > -0.3 || this.ball.holder !== p) {
+    // once he's crossed the line it's a run, even if he drifts back
+    if (p.y > -0.3) this.qbCrossed = true;
+    if (this.opts.manualPass || this.qbCrossed || this.ball.holder !== p) {
       p.pending = null;
       return false;
     }
@@ -667,6 +674,7 @@ export const passingMethods = {
       p.pending = null;
       this.scramble = false;
       this.carrier = null;
+      this.rusher = null;
       this.throwNow(p, r);
       return true;
     }

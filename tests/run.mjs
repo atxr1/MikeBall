@@ -90,6 +90,29 @@ console.log('player AI');
     }
   }
   check('the passer\'s projection of a route matches where the receiver runs (within 1.5 yd)', worst < 1.5, worst.toFixed(2));
+
+  // near the goal line: routes end along the end line, the passer projects
+  // the same, and nobody without the ball runs out the back
+  let worstEZ = 0;
+  let outBack = 0;
+  for (const ballOn of [96, 98]) {
+    for (const [pid, slot] of [['four_verts', 'X'], ['smash', 'SL'], ['dagger', 'X'], ['mesh', 'Z']]) {
+      const o = offPlay(pid);
+      for (let k = 0; k < 3; k++) {
+        const sim = new PlaySim({ offPlay: o, defPlay: defPlay('cov3_43'), offLineup: offenseLineup(L[lid[k]], o.formation), defLineup: defenseLineup(L[lid[k + 9]], '43'), ballOn, ballX: [20, 26.67, 33.3][k], rng: makeRng(80 + k), noFouls: true });
+        sim.opts.manualPass = true;
+        const r = sim.bySlot[slot];
+        const look = (t) => { while (sim.t < t && !sim.done) { sim.step(); for (const p of sim.players) if (p.y > sim.endY + 0.3 && p !== sim.ball.holder) outBack++; } };
+        look(1.8);
+        const P = sim.routeAhead(r, 0.6);
+        look(2.4);
+        if (!sim.done) worstEZ = Math.max(worstEZ, Math.hypot(P.x - r.x, P.y - r.y));
+        look(4.5);
+      }
+    }
+  }
+  check('in the end zone the passer\'s projection still holds (within 2 yd)', worstEZ < 2, worstEZ.toFixed(2));
+  check('nobody runs out the back of the end zone', outBack === 0, outBack);
 }
 
 console.log('full CPU games');
@@ -434,6 +457,15 @@ console.log('fouls and penalties');
     ga = mk(); ga.ballOn = 4; ga.down = 2; ga.ltg = 14;
     ga.applyPlay(thrown(-6), offPlay('dagger'), defPlay('cov3_43'));
     check('grounding from his own end zone is a safety', ga.score.away === 2 && ga.next === 'kickoff', `${ga.score.away} ${ga.next}`);
+    ga = mk(); ga.ballOn = 5; ga.down = 2; ga.ltg = 15;
+    ga.applyPlay(thrown(-4.6), offPlay('dagger'), defPlay('cov3_43'));
+    // (4.6 yards back isn't more than 10, so it's half the distance from
+    // the previous spot)
+    check('grounding at his own half-yard line is not a safety', ga.score.away === 0 && ga.ballOn === 3 && ga.down === 3, `${ga.score.away} ${ga.ballOn} ${ga.down}`);
+    ga = mk(); ga.ballOn = 40; ga.down = 2; ga.ltg = 50;
+    const hold = { key: 'holdO', name: 'Offensive holding', on: 'O', yards: 10, signal: 'holding' };
+    ga.applyPlay({ ...thrown(-6), fouls: [hold, grd(-6)] }, offPlay('dagger'), defPlay('cov3_43'));
+    check('holding and grounding on one play: the defense takes the loss of down', ga.ballOn === 30 && ga.down === 3, `${ga.ballOn} ${ga.down}`);
   }
   // fouls come out of plays at about NFL rates
   let flags = 0;

@@ -18,7 +18,7 @@ export const offenseMethods = {
         // scramble drill: while the passer's still behind the line, the
         // receivers stay on their routes (he can still throw it); once he
         // crosses, they turn and block for him
-        if (this.scramble && carrier === this.qb && carrier.y < -0.3 && p.pts && p.released) return this.runRoute(p, dt);
+        if (this.scramble && carrier === this.qb && carrier.y < -0.3 && !this.qbCrossed && p.pts && p.released) return this.runRoute(p, dt);
         // a designed run: the blocking scheme plays out (pulls, leads,
         // climbs) until the back's through the line
         if (this.offPlay.cat === 'run' && !this.turnover && carrier.y < 2 && this.t - this.runT < 1.6 && p !== carrier) {
@@ -145,14 +145,14 @@ export const offenseMethods = {
     }
     // keep going; at the sideline, turn upfield inside it (the passer
     // projects the same path: alongRoute in src/sim/routes.js)
-    const lane = laneFor(dx, dy);
+    const lane = p.routeLane ?? laneFor(dx, dy);
     const lo = lane;
     const hi = FIELD_W - lane;
     // at the back of the end zone he works along the end line the way the
     // route was angling, or sits down there (alongRoute again)
     if (p.y >= this.backY - (Math.max(0, p.vy) ** 2) / (2 * p.accel) - 0.3) {
       const side = endLineSide(dx / m);
-      return this.steer(p, clamp(p.x + side * 5, lo, hi), this.backY, side ? ENDLINE_FRAC : 0.6, dt, side ? 0 : 1.2);
+      return this.steer(p, clamp(p.x + side * 5, lo, hi), this.backY, side ? ENDLINE_FRAC : 0.6, dt, side ? 0.8 : 1.2);
     }
     // start the turn early enough to stay in bounds at his speed
     const room = (p.vx * p.vx) / (2 * p.accel) + 0.3;
@@ -416,16 +416,41 @@ export const offenseMethods = {
     }
     // Designed run path before the line.
     if (p.job && p.job.t === 'carry' && p.pts && p.wp < p.pts.length && !this.turnover) {
-      const tp = p.pts[p.wp];
+      let tp = p.pts[p.wp];
+      // a gap run: he reads the kick-out block on the end man, inside it
+      // when it's driving him out, around it when the end man's squeezed
+      // down inside the puller
+      const kick = tp.y > -2.5 ? this.kickOutBlock() : null;
+      let wait = false;
+      if (kick) {
+        const dir = this.offPlay.dir;
+        // the hole: between the block inside it (the down block) and the
+        // kick-out; too tight (the end man's squeezed down) and he bounces
+        // around the kick-out instead
+        const kin = Math.min(kick.b.x * dir, kick.d.x * dir);
+        const kout = Math.max(kick.b.x * dir, kick.d.x * dir);
+        let inner = -1e9;
+        for (const pair of this.blocks) {
+          if (pair === kick.pair || Math.abs(pair.d.y) > 2) continue;
+          const x = pair.d.x * dir;
+          if (x < kin && x > inner) inner = x;
+        }
+        const room = kin - Math.max(inner, this.ballX * dir) - 1.0;
+        const hx = room > 1.4 ? (kin + Math.max(inner, this.ballX * dir)) / 2 : kout + 1.4;
+        tp = { x: clamp(hx * dir + (tp.y > 0 ? dir * 0.4 : 0), 1, FIELD_W - 1), y: tp.y };
+        // patient until the puller's on his man
+        wait = !kick.pair && dist(p.x, p.y, tp.x, tp.y) < 2.5;
+      }
       let clogged = false;
       for (const d of this.defense) {
-        if (d.down || d.blk) continue;
-        if (dist(d.x, d.y, tp.x, tp.y) < 1.5) { clogged = true; break; }
+        if (d.down) continue;
+        // (a man tied up in a block right in the hole fills it too)
+        if (dist(d.x, d.y, tp.x, tp.y) < (d.blk ? 1.0 : 1.5)) { clogged = true; break; }
       }
       if (!clogged) {
         // (a gap run's back is patient behind the line, letting the pullers
         // get there first)
-        this.steer(p, tp.x, tp.y, tp.y < -1 ? p.job.pace || 1 : 1, dt, 0);
+        this.steer(p, tp.x, tp.y, wait ? 0.55 : tp.y < -1 ? p.job.pace || 1 : 1, dt, 0);
         if (dist(p.x, p.y, tp.x, tp.y) < 0.8) p.wp++;
         return;
       }
@@ -433,6 +458,21 @@ export const offenseMethods = {
     }
     if (this.qbSlide(p)) return;
     this.freeRun(p, dt);
+  },
+
+  // The kick-out on a gap run: a puller or lead back engaged with the end
+  // man on the side the run's going.
+  // Returns { b, d, pair } (pair null until he gets there), or null.
+  kickOutBlock() {
+    const dir = this.offPlay.dir;
+    if (this.offPlay.cat !== 'run' || !dir) return null;
+    for (const b of this.offense) {
+      const j = b.job?.t;
+      if ((j !== 'pull' && j !== 'lead') || b.down) continue;
+      const d = b.blk ? b.blk.d : b.target;
+      if (d && d.edge === dir && !d.down) return { b, d, pair: b.blk && b.blk.d === d ? b.blk : null };
+    }
+    return null;
   },
 
   qbSlide(p) {

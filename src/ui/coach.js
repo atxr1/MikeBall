@@ -599,7 +599,7 @@ export class CoachScreen {
     if (out.flags && out.flags.includes('twoMinute')) this.twoMinuteCard();
     const head = out.headline;
     const next = () => this.afterRuling(out);
-    if (out.penalty) this.penaltyBanner(out.penalty, next, out.kind !== 'penalty' ? head : null);
+    if (out.penalty) this.penaltyBanner(out.penalty, next, out.kind !== 'penalty' || out.flagHeadline ? head : null);
     else if (head && head !== 'First down') this.banner(head, out.text, 2.1, next);
     else this.after(0.5, next);
   }

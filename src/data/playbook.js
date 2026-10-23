@@ -198,8 +198,9 @@ export const OFFENSE_PLAYS = [
   }),
   run('counter', 'Counter', 'gun_doubles', 1, {
     QB: { t: 'handoff' },
-    RB: { t: 'carry', path: [[-2.2, -5.0], [-0.2, -4.6], [2.4, -1.4], [2.9, 3]], handT: 0.65 },
-    LG: { t: 'pull', path: [[-1.2, -1.5], [2.9, -1.3], [3.5, 1.0]] },
+    RB: { t: 'carry', path: [[-2.2, -5.0], [-0.2, -4.6], [3.3, -1.3], [3.9, 3]], handT: 0.65 },
+    LG: { t: 'pull', path: [[-1.2, -1.5], [3.4, -1.5], [4.6, -0.6]] },
+    LT: { t: 'pull', path: [[-3.0, -1.7], [2.4, -1.8], [3.0, 1.2]] },
     Y: { t: 'zone', dir: 1 }, X: BLOCK, Z: BLOCK, SL: BLOCK,
   }),
   run('draw', 'HB Draw', 'gun_doubles', 0, {

@@ -16,7 +16,7 @@ import { foulMethods } from './fouls.js';
 import { blockingMethods } from './blocking.js';
 import { catchingMethods } from './catching.js';
 import { Crew } from './officials.js';
-import { BACK_ROOM } from './routes.js';
+import { BACK_ROOM, laneFor } from './routes.js';
 
 export const DT = 1 / 60;
 const HIST = 40;
@@ -134,6 +134,10 @@ export class PlaySim {
         const rp = routePoints(p, j.r, j.side, ballX, j.pts);
         // near the goal line a route runs out of field at the back of the
         // end zone: it ends along the end line
+        // (the sideline he'd turn up keeps to the route as drawn)
+        const n = rp.pts.length;
+        const a = n > 1 ? rp.pts[n - 2] : p;
+        p.routeLane = laneFor(rp.pts[n - 1].x - a.x, rp.pts[n - 1].y - a.y);
         for (const q of rp.pts) if (q.y > this.backY) { q.y = this.backY; q.back = true; }
         p.pts = rp.pts;
         p.routeEnd = rp.end;
@@ -396,6 +400,8 @@ export class PlaySim {
       return;
     }
     const pair = { b, d, t: 0, run, open, level2, w: (dPow - bPow) / 100 + this.rng.normal(0, 0.06) + (open ? 0.08 : 0) + (level2 ? 0.12 : 0) + (reach ? 0.12 : 0) };
+    // leverage: the side of him the blocker got to (0 square on him)
+    pair.lev = Math.abs(b.x - d.x) > 0.3 ? Math.sign(b.x - d.x) : 0;
     d.engaged = true;
     b.blk = pair;
     d.blk = pair;
@@ -415,7 +421,7 @@ export class PlaySim {
     // a draw: the line invites the rush upfield and wide of the passer
     if (h === this.qb && d.blk && d.blk.b.job?.t === 'draw' && this.phase === 'pre') {
       const side = Math.sign(d.x - h.x) || 1;
-      return { x: h.x + side * 2.6, y: h.y - 1, vx: 0, vy: 0 };
+      return { x: h.x + side * 3.6, y: h.y - 1.2, vx: 0, vy: 0 };
     }
     if (h && h.side !== d.side) return h;
     if (this.ball.state === 'air') return { x: this.ball.tx, y: this.ball.ty, vx: 0, vy: 0 };
@@ -451,15 +457,18 @@ export class PlaySim {
         vy = Math.min(vy, 0.2);
       } else if (pair.run && goal === this.carrier) {
         // against the run he works down the line with the ball, riding the
-        // blocker, easier sideways than straight ahead
-        const lat = clamp(1.0 + 3 * w, 0, 2.6);
+        // blocker, easier sideways than straight ahead; but not across the
+        // blocker's face: with the runner on the blocker's side of him he's
+        // walled off, and only a man who's winning the block works through
         const gx = goal.x - d.x;
+        const walled = pair.lev && Math.sign(gx) === pair.lev && Math.abs(gx) > 0.5;
+        const lat = walled ? clamp(0.2 + 2 * w, 0, 1.4) : clamp(1.0 + 3 * w, 0, 2.6);
         vx = Math.abs(gx) < 0.3 ? vx : Math.sign(gx) * Math.max(Math.abs(vx), Math.min(lat, Math.abs(gx) * 3));
       }
       this.accelTo(d, vx, vy, dt, 20);
       // blocker sits between defender and the goal
       const kick = pair.run && goal === this.carrier && (b.job?.t === 'pull' || b.job?.t === 'lead') && d.edge;
-      const bx = d.x + (kick ? -d.edge * 0.8 : pair.run && goal === this.carrier ? Math.sign(goal.x - d.x) * 0.6 : dx * 0.95);
+      const bx = d.x + (kick ? -d.edge * 0.8 : pair.run && goal === this.carrier ? (pair.lev || Math.sign(goal.x - d.x)) * 0.6 : dx * 0.95);
       const by = d.y + dy * 0.95;
       this.accelTo(b, d.vx + (bx - b.x) * 6, d.vy + (by - b.y) * 6, dt, 30);
       // shed
@@ -641,10 +650,13 @@ export class PlaySim {
     const h = this.ball.holder;
     if (!h || this.ball.state !== 'held') return;
     const offenseBall = h.side === 'O';
-    if (offenseBall && h.y >= this.goalY && (this.phase === 'run' || h === this.carrier)) {
+    // a touchdown is the ball breaking the plane: it's carried a little in
+    // front of him, and a runner going down near the line reaches it out
+    const reach = this.wrap && this.wrap.h === h ? 0.7 : 0.35;
+    if (offenseBall && h.y + reach >= this.goalY && (this.phase === 'run' || h === this.carrier)) {
       return this.endPlay('td', { spotY: this.goalY, spotX: h.x });
     }
-    if (!offenseBall && h.y <= this.ownGoalY) {
+    if (!offenseBall && h.y - reach <= this.ownGoalY) {
       return this.endPlay('td', { spotY: this.ownGoalY, spotX: h.x, defTD: true });
     }
     if (h.x < 0 || h.x > FIELD_W) {

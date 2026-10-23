@@ -2,7 +2,7 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
-## 2026-10-21 — Player AI polish, rounds 1-4
+## 2026-10-21 — Player AI polish, rounds 1-5
 
 **Done**
 - Pass protection (`src/sim/blocking.js`): the line takes the men on the
@@ -103,23 +103,56 @@ Newest first. Each session: what got done, what's broken, what's next.
     the ball in the air react at the catch without a second delay.
   - Deep throws are a little less accurate; the passer takes a slightly
     smaller chance on deep windows.
+- Round 5, the run game and review fixes:
+  - Blocks keep their leverage: a defender can't slide across his
+    blocker's face to the runner (only a man who's winning the block works
+    through); the runner on his free side, he flows easily. Interior
+    linemen hold their gap until the back's close. A back reads the
+    kick-out on a gap run: inside it when it's driving the end man out,
+    around it when the end man has squeezed down; he waits a beat for the
+    puller. A blocked defender standing in the hole counts as a clogged
+    hole. The counter is now a GT counter (guard kicks out, tackle leads
+    through): ~2.8 yards a carry, up from ~1.6.
+  - A touchdown is the ball breaking the plane (carried a little in front
+    of the runner; a runner going down at the line reaches it out).
+  - Coverage: a green-dog linebacker goes back to his back if the back
+    releases after all; a man defender mirrors a back from the line
+    instead of following him into the backfield (where he got blocked);
+    underneath zones widen with a back releasing into the flat under them;
+    near the goal line underneath zones sit at the goal line and deep
+    defenders and man defenders play tighter (no deep to give up); a catch
+    at the back line needs a foot down. The passer takes slightly tighter
+    windows.
+  - From the review: the passer's projection of a receiver on the end
+    line no longer halves his speed, and the route keeps the sideline it
+    was drawn to (corner routes no longer wobble on two-point tries);
+    grounding at the half-yard line is half the distance, not a safety (it
+    was rounding); with holding and grounding on one play the defense
+    takes the loss of down; a throw that became a legal throwaway as he
+    wound up isn't flagged; no throws on the run once he's crossed the
+    line (even drifting back), and the coverage doesn't go back to its men;
+    a grounding safety shows the "Safety!" headline. End-line math is
+    straight geometry (no bisection allocating in the hot path).
+  - Tests: end-zone projection and nobody out the back; grounding at the
+    half-yard line; holding plus grounding.
 
-Numbers (real league): balance mix 4.1 ypc, 62% completions, 6.8 ypa,
-7% sacks; 48 full CPU games: ~22.5 points a team, 67% completions,
-7.5 ypa, 11.1 yards a catch, 2.3% interceptions, ~2.2 sacks a team, aDOT
-8.5, 13% of throws 20+ air yards (38% caught), 4.5 yards after the catch,
-4.2 a carry. From the 5: about 43% of dropbacks score (was 52%).
+Numbers (real league, 4 x 48 CPU games): ~23.5 points a team, 68%
+completions, 7.7 ypa, 11.3 yards a catch, 2.2% interceptions, ~2 sacks a
+team, 4.4 a carry, aDOT 8.7, 14% of throws 20+ air yards (40% caught),
+4.7 yards after the catch. From the 5: ~44% of dropbacks and ~25% of runs
+score.
 
 **Known issues**
-- aDOT ~8.5 (NFL ~8): too few throws behind the line (~10% vs ~17%);
-  yards after the catch ~4.5 (NFL ~5); completions a couple of points
-  high in full games.
-- Some run/defense matchups are lopsided: outside runs against the Mike
-  blitz and 3-4 edge blitz break too often (blitzers run past the play,
-  man-coverage safeties start toward their man).
-- The counter still averages ~2 yards (the end man gets to the hole as
-  the puller does); runs gain 10-19 yards a bit too often (~16%).
-- Time to throw ~1.8-2.4 s on deep concepts, quicker on the quick game.
+- Completions ~68% (NFL ~64-65%): backs out of the backfield are open too
+  often (24% of targets, 87% caught; NFL ~19%, ~77%). Red-zone passing too
+  easy (inside the 10: ~46% of throws score vs ~37%).
+- Too few penalties (4.5 a team vs 6.4), fumbles lost (0.2 vs 0.5) and
+  field goals too accurate (88-91% vs 84%; rules-checker, 2026-10-23).
+- From playtesting: the selected play card can be scrolled out of view
+  after a change of possession; on goal-to-go verticals the receivers line
+  up along the end line and stand; players freeze in block poses for the
+  whole post-whistle hold.
+- The counter is still the weakest run (~2.8 yards).
 
 ## 2026-10-17 (night) — Challenges and replay, saved plays, return penalties, scrambles
 

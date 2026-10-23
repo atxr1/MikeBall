@@ -72,6 +72,10 @@ export const catchingMethods = {
         info.kind = 'miss';
         return this.incomplete('out of bounds', null);
       }
+    } else if (L.y > this.endY - 0.7 && !this.rng.chance(0.55 + r.a.cth * 0.003)) {
+      // at the back of the end zone: a foot down before the end line
+      info.kind = 'miss';
+      return this.incomplete('out of bounds', null);
     }
     if (this.rng.chance(odds.p)) {
       info.kind = 'catch';

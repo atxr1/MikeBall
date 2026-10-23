@@ -185,7 +185,13 @@ export function alignDefense(play, offAlign, ballX, goalY = 100) {
     const a = d.assign;
     // drawn assignments come with their own zone spot or rush lane
     if (a.t === 'zone' && !a.zone) a.zone = resolveZone(a.z, strength, ballX);
-    if (a.t === 'zone' && k < 1) a.zone = { ...a.zone, y: squeezeY(a.zone.y, k), ry: Math.max(2.5, a.zone.ry * k) };
+    if (a.t === 'zone' && k < 1) {
+      // (the underneath zones sit on the goal line: anything short of it
+      // has to be stopped short of it)
+      let y = squeezeY(a.zone.y, k);
+      if (!a.zone.deep) y = Math.min(y, Math.max(3, goalY - 1));
+      a.zone = { ...a.zone, y, ry: Math.max(2.5, a.zone.ry * k) };
+    }
     if (a.t === 'blitz') {
       if (a.gapX == null) a.gapX = gapX(a.gap, offAlign, sS);
       d.y = Math.min(d.y, 3.2);

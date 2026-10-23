@@ -25,19 +25,23 @@ export const endLineSide = (dx) => (Math.abs(dx) > 0.25 ? Math.sign(dx) : 0);
 // Where a receiver gets to going (dx, dy) for `left` yards from (x, y):
 // straight on, or up the sideline once he reaches it, and along the end
 // line (backY) once he gets there.
+// `left` is at his running speed; along the end line he goes at
+// ENDLINE_FRAC of it.
 export function alongRoute(x, y, dx, dy, left, lane = laneFor(dx, dy), backY = Infinity, side = endLineSide(dx)) {
   const P = alongField(x, y, dx, dy, left, lane);
   if (P.y <= backY) return P;
-  // how far he goes before he gets to the line
-  let lo = 0;
-  let hi = y >= backY ? 0 : left;
-  for (let k = 0; k < 14 && hi > 0; k++) {
-    const m = (lo + hi) / 2;
-    if (alongField(x, y, dx, dy, m, lane).y > backY) hi = m;
-    else lo = m;
+  // how far he goes before he gets to the line (the path is two straight
+  // pieces: on his way, then up the sideline)
+  let l = 0;
+  if (y < backY) {
+    const toEdge = Math.abs(dx) > 1e-3 ? ((dx < 0 ? lane : FIELD_W - lane) - x) / dx : Infinity;
+    if (toEdge < 0) l = (backY - y) / 0.95;
+    else if (dy > 0 && (backY - y) / dy <= toEdge) l = (backY - y) / dy;
+    else l = toEdge + (backY - (y + dy * toEdge)) / 0.95;
+    l = clamp(l, 0, left);
   }
-  const Q = hi > 0 ? alongField(x, y, dx, dy, hi, lane) : { x, y };
-  return { x: clamp(Q.x + side * (left - hi) * ENDLINE_FRAC, lane, FIELD_W - lane), y: backY };
+  const Q = l > 0 ? alongField(x, y, dx, dy, l, lane) : { x, y };
+  return { x: clamp(Q.x + side * (left - l) * ENDLINE_FRAC, lane, FIELD_W - lane), y: backY };
 }
 
 function alongField(x, y, dx, dy, left, lane) {

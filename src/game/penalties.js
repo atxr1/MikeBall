@@ -90,8 +90,9 @@ export const penaltyMethods = {
       // Rule 8-2-1: 10 yards from the previous spot, or at the spot of the
       // foul if that's farther back, and loss of down; thrown from his own
       // end zone, a safety
+      // (the end zone is judged where he really was, before rounding)
       const spotBack = Math.max(0, Math.round(-(pen.spotY || 0)));
-      if (this.ballOn - spotBack <= 0) {
+      if (this.ballOn + (pen.spotY || 0) <= 0) {
         pen.safety = true;
         pen.text = `${pen.name}, ${team}, in the end zone. Safety.`;
         this.addLog(`FLAG: ${pen.text}`, 'penalty');
@@ -188,8 +189,9 @@ export const penaltyMethods = {
       if (penGain >= playGain || (pen.auto1st && !playFirst)) return { mode: 'replace', ...pen };
       return { mode: 'declined', ...pen };
     }
-    // a foul on the offense: the defense picks
-    const f = top(onO);
+    // a foul on the offense: the defense picks (grounding's loss of down
+    // makes it the one they take over another foul of the same size)
+    const f = onO.find((x) => x.lossOfDown && x.yards >= top(onO).yards - 0.01) || top(onO);
     const pen = { name: f.name, on: off, yards: f.yards, player: f.player, signal: f.signal, key: f.key };
     if (r.turnover || r.safety) return { mode: 'declined', ...pen };
     // intentional grounding costs the down as well as the yards: always

@@ -18,7 +18,7 @@ export const defenseMethods = {
       // crossed the line (he can still throw it), then a man with his back
       // to him finds out late
       if (this.scramble && !this.receiver && !this.interceptor && p.assign.t !== 'rush' && p.assign.t !== 'blitz' && p.assign.t !== 'spy') {
-        if (carrier.y < -0.3 && dist(p.x, p.y, carrier.x, carrier.y) > 4.5) return this.coverage(p, dt);
+        if (carrier.y < -0.3 && !this.qbCrossed && dist(p.x, p.y, carrier.x, carrier.y) > 4.5) return this.coverage(p, dt);
         if (p.crossT == null) p.crossT = this.t;
       }
       const late = this.scramble && p.assign.t === 'man' ? (1 - looking(p, carrier.x, carrier.y)) * 0.7 : 0;
@@ -34,7 +34,10 @@ export const defenseMethods = {
         if ((p.pos === 'DL' || (p.edge && p.assign.t === 'rush')) && this.offPlay.cat === 'run' && !this.receiver && !this.interceptor && carrier.y < 0 && dist(p.x, p.y, carrier.x, carrier.y) > 3.2) {
           // (the end man stays outside the tackle while he does)
           if (p.edge && (carrier.x - this.ballX) * p.edge > -1) return this.steer(p, this.ballX + p.edge * Math.max(4.6, (carrier.x - this.ballX) * p.edge + 1.2), -0.3, 0.8, dt, 0.4);
-          return this.pursue(p, dt, carrier, -0.5);
+          // (and holds his gap, a yard or so either side of where he lined
+          // up, until the back's close enough to go and get)
+          const hold = Math.abs(carrier.x - p.x) > 2.5 ? 1.2 : 99;
+          return this.pursue(p, dt, carrier, -0.5, p.sx - hold, p.sx + hold);
         }
         // the end man squeezing a run his way does it on the line, not in
         // the backfield (he spills the back outside)
@@ -108,6 +111,14 @@ export const defenseMethods = {
   // ---------------------------------------------------------------- defense behaviors
   rush(p, dt, holder) {
     const qb = holder || this.qb;
+    // a green dog whose back has released after all, before he's into the
+    // backfield: back on him
+    const dog = p.assign.dog;
+    if (dog && dog.released && !dog.down && p.y > -0.5 && this.phase === 'pre') {
+      p.assign = { t: 'man', man: dog.slot };
+      p.target = dog;
+      return this.manCover(p, dt);
+    }
     // a lineman who's read run block (the line fired out at him) attacks
     // his gap but stays at the line, a yard in
     if ((p.pos === 'DL' || p.edge) && this.offPlay.cat === 'run' && !this.isDraw && this.t > 0.3 && p.assign.t === 'rush') {
@@ -144,7 +155,7 @@ export const defenseMethods = {
     return true;
   },
 
-  pursue(p, dt, c, minY = -99) {
+  pursue(p, dt, c, minY = -99, minX = -1, maxX = FIELD_W + 1) {
     if (p.stunT > 0) return this.brake(p, dt, 5);
     // Solve for the earliest intercept: |r + v*t| = s*t
     const rx = c.x - p.x;
@@ -169,7 +180,7 @@ export const defenseMethods = {
     T = Math.min(T, this.offPlay.cat === 'run' && !this.receiver && !this.interceptor && c.side === 'O' && p.y > c.y + 3 ? 1.0 : 1.8);
     const tx = c.x + c.vx * T * 0.92;
     const ty = Math.max(minY, c.y + c.vy * T * 0.92);
-    this.steer(p, clamp(tx, -1, FIELD_W + 1), ty, 1, dt, 0);
+    this.steer(p, clamp(tx, Math.max(-1, minX), Math.min(FIELD_W + 1, maxX)), ty, 1, dt, 0);
   },
 
   manCover(p, dt) {
@@ -177,7 +188,7 @@ export const defenseMethods = {
     if (!r) return this.zoneCover(p, dt);
     // receiver stayed in to block -> green-dog rush (LB) or rob the middle (DB)
     if (!r.released && this.t > 0.9) {
-      if (p.pos === 'LB') { p.assign = { t: 'rush' }; return this.rush(p, dt, this.ball.holder || this.qb); }
+      if (p.pos === 'LB') { p.assign = { t: 'rush', dog: r }; return this.rush(p, dt, this.ball.holder || this.qb); }
       p.assign = { t: 'zone', zone: { x: this.ballX, y: 9, rx: 5, ry: 4 } };
       return this.zoneCover(p, dt);
     }
@@ -190,10 +201,13 @@ export const defenseMethods = {
     // the route comes on) and steers by where the receiver was heading a
     // moment ago: a cut leaves him going the old way for that moment
     const startCush = p.assign.press ? 1.0 : Math.max(1.5, p.sy - r.sy - 1);
-    const cushion = Math.max(1.4, startCush - this.t * 3.5);
+    // (near the end line nobody's going deep: he plays tighter)
+    const cushion = Math.max(clamp((this.endY - r.y - 1) * 0.25, 0.6, 1.4), startCush - this.t * 3.5);
     const inward = r.x > this.ballX ? -1 : 1;
     const tx = r.x + lvx * 0.15 + inward * 0.5;
-    const ty = r.y + lvy * 0.15 + cushion;
+    // (a back still in the backfield he mirrors from the line, rather than
+    // walking in among the blockers after him)
+    const ty = Math.max(r.y + lvy * 0.15 + cushion, r.released ? (r.y < 0 ? 1.0 : -99) : 1.6);
     // reading the receiver's hips: when he sits down or comes back, a good
     // man defender plants and drives on it
     let drive = 1.2 + p.a.mcv / 250;
@@ -221,6 +235,11 @@ export const defenseMethods = {
       } else if (inside < 1) {
         const s = -inside;
         if (s > best) { best = s; thr = r; }
+      } else if (r.sy < -2.5 && r.y < z.y && r.y > -3 && Math.abs(r.x - z.x) < z.rx * 1.6 && (r.x - this.ballX) * (z.x - this.ballX) > 0) {
+        // a back out of the backfield into the flat under him: he widens
+        // with him (anyone in the zone itself comes first)
+        const s = -1.5 - Math.abs(r.x - z.x) / z.rx;
+        if (s > best) { best = s; thr = r; }
       }
     }
     const qb = this.qb;
@@ -231,7 +250,10 @@ export const defenseMethods = {
       // when the ball goes
       let x = thr.x + (this.ballX - thr.x) * 0.06;
       if (second && second.y > z.y - z.ry * 0.5 && Math.abs(second.x - thr.x) < z.rx * 1.6) x = thr.x * 0.6 + second.x * 0.4;
-      let y = Math.max(thr.y + 2.8 + Math.max(0, thr.vy) * 0.45, z.y - z.ry * 0.4);
+      // (with the end line close behind him there's nothing deep to give
+      // up: he plays tighter on top)
+      const room = clamp((this.endY - thr.y - 2) / 6, 0, 1);
+      let y = Math.max(thr.y + 0.7 + room * (2.1 + Math.max(0, thr.vy) * 0.45), z.y - z.ry * 0.4);
       if (thr.vy > 2 && thr.y > p.y - 12) y = Math.max(y, p.y);
       // he pedals, reading the passer, until the man's eating up his
       // cushion; then he turns and runs
