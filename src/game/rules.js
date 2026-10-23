@@ -179,7 +179,7 @@ export class Game {
     const before = this.clock;
     this.clock = Math.max(0, this.clock - sec);
     this.addTop(before - this.clock);
-    if ((this.quarter === 2 || this.quarter === 4) && !this.warned && before > 120 && this.clock <= 120) {
+    if ((this.quarter === 2 || this.quarter >= 4) && !this.warned && before > 120 && this.clock <= 120) {
       this.warned = true;
       this.clockRunning = false;
       return true;
@@ -215,7 +215,7 @@ export class Game {
         this.pcRunoff += run;
         const before = this.clock;
         const after = before - run;
-        if ((this.quarter === 2 || this.quarter === 4) && !this.warned && before > 120 && after <= 120) {
+        if ((this.quarter === 2 || this.quarter >= 4) && !this.warned && before > 120 && after <= 120) {
           this.addTop(before - 120);
           this.clock = 120;
           this.warned = true;
@@ -271,6 +271,7 @@ export class Game {
     const ballXBefore = this.ballX;
     const playTime = r.kind === 'kneel' ? 1.5 : r.kind === 'spike' ? 1 : r.elapsed * 1.4 + 1.2;
     const runningAtSnap = this.clockRunning;
+    this.untimed = false; // (an untimed down is played once)
     const warned = this.runClock(playTime);
     const out = { text: describe(r, ballXBefore), kind: 'play', yards: 0, flags: [] };
 
@@ -295,6 +296,13 @@ export class Game {
       if (pen.lossOfDown && pen.on === this.poss && !pen.safety && !pen.downs && runningAtSnap && !warned) {
         const ro = this.runoff(pen.on, true);
         if (ro) pen.text += ` ${ro}-second runoff.`;
+      }
+      // a half can't end on an accepted foul by the defense: one more play,
+      // with no time on the clock (Rule 4-8-2)
+      if (this.clock <= 0 && pen.mode === 'replace' && pen.on === def && !pen.safety && this.poss === off) {
+        this.untimed = true;
+        this.clockRunning = false;
+        pen.text += ' Untimed down.';
       }
       out.penalty = pen;
       out.text = `${out.text} — FLAG: ${pen.text}`;
@@ -456,7 +464,7 @@ export class Game {
     this.pcShort = false;
     if (this.over) this.next = 'final';
     else if (this.phase === 'pat') this.next = 'pat';
-    else if (this.clock <= 0) this.next = 'endQuarter';
+    else if (this.clock <= 0 && !this.untimed) this.next = 'endQuarter';
     else if (this.phase === 'kickoff') this.next = 'kickoff';
     else this.next = 'call';
   }
@@ -618,7 +626,7 @@ export class Game {
       this.quarter = 5;
       this.clock = 600;
       this.timeouts = { home: 2, away: 2 };
-      this.warned = true;
+      this.warned = false; // overtime has its own two-minute warning
       const recv = this.rng.chance(0.5) ? 'home' : 'away';
       this.kickingSide = other(recv);
       this.phase = 'kickoff';

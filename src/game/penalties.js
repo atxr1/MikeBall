@@ -40,7 +40,7 @@ export const penaltyMethods = {
   // clockAfterFoul.
   runoff(side, wasRunning) {
     if (side !== this.poss || !wasRunning) return 0;
-    if (!((this.quarter === 2 || this.quarter === 4) && this.clock <= 120)) return 0;
+    if (!((this.quarter === 2 || this.quarter >= 4) && this.clock <= 120)) return 0;
     const sec = Math.min(10, this.clock);
     this.runClock(sec);
     this.clockRunning = this.clock > 0;

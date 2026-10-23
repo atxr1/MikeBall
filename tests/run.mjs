@@ -466,6 +466,16 @@ console.log('fouls and penalties');
     const hold = { key: 'holdO', name: 'Offensive holding', on: 'O', yards: 10, signal: 'holding' };
     ga.applyPlay({ ...thrown(-6), fouls: [hold, grd(-6)] }, offPlay('dagger'), defPlay('cov3_43'));
     check('holding and grounding on one play: the defense takes the loss of down', ga.ballOn === 30 && ga.down === 3, `${ga.ballOn} ${ga.down}`);
+    // a half can't end on an accepted defensive foul: an untimed down
+    ga = mk(); ga.quarter = 2; ga.clock = 3; ga.ballOn = 60; ga.down = 1; ga.ltg = 70; ga.clockRunning = true;
+    const holdD = { key: 'holdD', name: 'Defensive holding', on: 'D', yards: 5, auto1st: true, signal: 'holding' };
+    ga.applyPlay({ outcome: 'incomplete', kind: 'pass', yards: 0, spotY: 0, incomplete: true, elapsed: 4, review: {}, fouls: [holdD] }, offPlay('dagger'), defPlay('cov3_43'));
+    const untimed = ga.next === 'call' && ga.clock === 0 && ga.ballOn === 65;
+    ga.applyPlay({ outcome: 'tackle', kind: 'run', yards: 3, spotY: 3, elapsed: 4, review: {}, fouls: [] }, offPlay('dive'), defPlay('cov3_43'));
+    check('a defensive foul on the last play of a half gives an untimed down, then the half ends', untimed && ga.next === 'endQuarter', `${untimed} ${ga.next}`);
+    ga = mk(); ga.quarter = 5; ga.clock = 125; ga.clockRunning = true; ga.ot = { stage: 'first', first: 'home', second: 'away' };
+    const otOut = ga.applyPlay({ outcome: 'tackle', kind: 'run', yards: 3, spotY: 3, elapsed: 4, review: {}, fouls: [] }, offPlay('dive'), defPlay('cov3_43'));
+    check('overtime has a two-minute warning', otOut.flags.includes('twoMinute') && !ga.clockRunning, `${otOut.flags} ${ga.clockRunning}`);
   }
   // fouls come out of plays at about NFL rates
   let flags = 0;

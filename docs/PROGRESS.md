@@ -156,6 +156,9 @@ Newest first. Each session: what got done, what's broken, what's next.
     to be hit and nobody's open; a pocket throwaway that's legal only
     because a man's in the area goes at his feet; blocking backs and tight
     ends count as receivers in the area.
+  - Rules: a half can't end on an accepted defensive foul (an untimed
+    down, Rule 4-8-2); overtime has its own two-minute warning (and the
+    late-half runoffs).
   - Rates toward the league's: pass interference, defensive holding and
     illegal contact, roughing the passer called about twice as often;
     fumbles a bit more often; long field goals harder (50+ about 70%,
@@ -173,8 +176,6 @@ goals ~86%. From the 5: ~44% of dropbacks and ~25% of runs score.
   easy (inside the 10: ~46% of throws score vs ~37%).
 - Still a few too few penalties (~5 a team vs 6.4: no delay of game,
   illegal shift or block in the back yet).
-- Rules gaps: no untimed down after an accepted defensive foul on the
-  last play of a half; no two-minute warning in overtime.
 - The counter is still the weakest run (~2.8 yards).
 
 ## 2026-10-17 (night) — Challenges and replay, saved plays, return penalties, scrambles

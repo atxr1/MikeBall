@@ -15,7 +15,7 @@
 import { StatBook } from './stats.js';
 
 // The parts of Game that change from play to play (src/game/rules.js).
-const STATE_KEYS = ['score', 'qScores', 'quarter', 'clock', 'timeouts', 'challenges', 'challengeWins', 'poss', 'ballOn', 'ballX', 'down', 'ltg', 'clockRunning', 'shortRunoff', 'warned', 'playClock', 'pcStart', 'pcRunoff', 'pcShort', 'ot', 'over', 'top', 'drive', 'patSide', 'freeKick', 'kickingSide', 'phase', 'next'];
+const STATE_KEYS = ['score', 'qScores', 'quarter', 'clock', 'timeouts', 'challenges', 'challengeWins', 'poss', 'ballOn', 'ballX', 'down', 'ltg', 'clockRunning', 'shortRunoff', 'warned', 'playClock', 'pcStart', 'pcRunoff', 'pcShort', 'ot', 'over', 'top', 'drive', 'patSide', 'freeKick', 'kickingSide', 'phase', 'next', 'untimed'];
 
 // How often each kind of close play is ruled wrong on the field.
 const MISS = { sideline: 0.14, dive: 0.1, spot: 0.1, goal: 0.18, fumble: 0.1 };
@@ -203,7 +203,7 @@ export const replayMethods = {
   // After a reversal in the last minute of a half: if the clock would have
   // been running on the right ruling, 10 seconds come off. Returns them.
   reversalRunoff() {
-    if (!((this.quarter === 2 || this.quarter === 4) && this.clock <= 60 && this.clockRunning)) return 0;
+    if (!((this.quarter === 2 || this.quarter >= 4) && this.clock <= 60 && this.clockRunning)) return 0;
     const sec = Math.min(10, this.clock);
     this.runClock(sec);
     return sec;
