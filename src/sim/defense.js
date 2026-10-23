@@ -224,6 +224,7 @@ export const defenseMethods = {
     // integrate turns him to face him while he's not flat out running)
     if (this.phase === 'pre' && this.ball.holder === this.qb) p.eyesAt = this.t;
     let thr = null;
+    let thrBack = false;
     let best = -1e9;
     let second = null;
     for (const r of this.eligible) {
@@ -236,12 +237,12 @@ export const defenseMethods = {
         if (r.y > best) { second = thr; best = r.y; thr = r; } else if (!second || r.y > second.y) second = r;
       } else if (inside < 1) {
         const s = -inside;
-        if (s > best) { best = s; thr = r; }
+        if (s > best) { best = s; thr = r; thrBack = false; }
       } else if (r.sy < -2.5 && r.y < z.y && r.y > -3 && Math.abs(r.x - z.x) < z.rx * 1.6 && (r.x - this.ballX) * (z.x - this.ballX) > 0) {
         // a back out of the backfield into the flat under him: he widens
-        // with him (anyone in the zone itself comes first)
-        const s = -1.5 - Math.abs(r.x - z.x) / z.rx;
-        if (s > best) { best = s; thr = r; }
+        // with him (a man deep in the heart of his zone comes first)
+        const s = -0.6 - (Math.abs(r.x - z.x) / z.rx) * 0.3;
+        if (s > best) { best = s; thr = r; thrBack = true; }
       }
     }
     const qb = this.qb;
@@ -288,7 +289,8 @@ export const defenseMethods = {
     // a man in his zone: on top of him and inside, giving ground to one
     // running at him rather than coming up to meet him
     const inward = thr.x > this.ballX ? -1 : 1;
-    let ty = clamp(thr.y + 0.6, z.y - z.ry * 0.5, z.y + z.ry * 1.4);
+    // (a back in the flat under him he squeezes from a few yards above)
+    let ty = thrBack ? Math.max(thr.y + 2.8, 1.5) : clamp(thr.y + 0.6, z.y - z.ry * 0.5, z.y + z.ry * 1.4);
     if (thr.vy > 3) ty = Math.max(thr.y + 1.5, p.y);
     let tx = clamp(thr.x + inward * 0.7, z.x - z.rx * 1.4, z.x + z.rx * 1.4);
     // eyes on the quarterback: he drifts toward the man the passer's
