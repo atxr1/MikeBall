@@ -43,7 +43,7 @@ export function kickWindow(distance, ballX = MID) {
 // Angle error, degrees (1 sd).
 export function kickSpread(kicker, op, clutch = 0) {
   const a = kicker.attrs;
-  let sd = 2.7 * (1 + (80 - a.kac) * 0.013);
+  let sd = 2.9 * (1 + (80 - a.kac) * 0.013);
   if (op.snap !== 'good') sd *= 1.3;
   if (op.hold !== 'clean') sd *= 1.45;
   sd *= 1 + clutch * Math.max(0, 75 - a.awr) * 0.004;
@@ -51,7 +51,7 @@ export function kickSpread(kicker, op, clutch = 0) {
 }
 
 // a long kick takes a harder swing, and a harder swing is less accurate
-const longKick = (distance) => 1 + Math.max(0, distance - 45) * 0.016;
+const longKick = (distance) => 1 + Math.max(0, distance - 45) * 0.03;
 
 // Where a coach sends him out on an ordinary fourth down (anything up to
 // maxFgRange is for the last play of a half).

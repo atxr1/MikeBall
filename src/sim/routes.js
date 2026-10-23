@@ -18,7 +18,7 @@ export const laneFor = (dx, dy) => (Math.abs(dx) > Math.abs(dy) * 1.5 ? FLAT_LAN
 // toward it pulls up this far inside, then works along it the way his route
 // was angling, at this fraction of his speed (or sits there if he was going
 // straight up).
-export const BACK_ROOM = 1.4;
+export const BACK_ROOM = 1.7;
 export const ENDLINE_FRAC = 0.5;
 export const endLineSide = (dx) => (Math.abs(dx) > 0.25 ? Math.sign(dx) : 0);
 

@@ -76,8 +76,10 @@ export const defenseMethods = {
         const tLeft = b.t0 + b.T - this.t;
         const d = dist(p.x, p.y, b.tx, b.ty);
         const drive = 1.5 + (p.a.zcv + p.a.mcv) / 500;
-        if (d / p.maxSpd < tLeft + 1.2) return this.steer(p, b.tx, b.ty, 1, dt, 0.2, drive);
-        if (b.target) return this.steer(p, b.tx, b.ty + 1, 1, dt, 0.5, drive);
+        // (a ball going out of bounds he chases to the sideline, not past it)
+        const bx = clamp(b.tx, 0.4, FIELD_W - 0.4);
+        if (d / p.maxSpd < tLeft + 1.2) return this.steer(p, bx, b.ty, 1, dt, b.away ? 1.5 : 0.2, drive);
+        if (b.target) return this.steer(p, bx, b.ty + 1, 1, dt, 0.5, drive);
       }
       return this.coverage(p, dt);
     }

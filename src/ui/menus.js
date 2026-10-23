@@ -169,6 +169,10 @@ export function finalScreen(app, game, opts) {
     ))),
   );
 
+  // time of possession rounded so the two add up to the game's length
+  const topAll = Math.round(st.team.home.top + st.team.away.top);
+  const topShown = { home: Math.round(st.team.home.top) };
+  topShown.away = topAll - topShown.home;
   const rows = [
     ['Total yards', (s) => st.team[s].yards],
     ['Passing', (s) => st.team[s].passYds],
@@ -178,7 +182,7 @@ export function finalScreen(app, game, opts) {
     ['Turnovers', (s) => st.team[s].turnovers],
     ['Sacks', (s) => st.team[s].sacks],
     ['Penalties', (s) => `${st.team[s].penalties}-${st.team[s].penYds}`],
-    ['Possession', (s) => fmtClock(st.team[s].top)],
+    ['Possession', (s) => fmtClock(topShown[s])],
   ];
   const teamStats = h('table', { class: 'teamstats' },
     h('thead', {}, h('tr', {}, h('th', {}, ''), h('th', {}, T.away.abbr), h('th', {}, T.home.abbr))),

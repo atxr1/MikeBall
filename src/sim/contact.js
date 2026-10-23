@@ -447,6 +447,8 @@ export const contactMethods = {
     const h = this.ball.holder;
     if (!this.post) {
       this.post = { t: 0 };
+      // the whistle: blocks come apart
+      for (const pair of [...this.blocks]) this.breakBlock(pair);
       if (h && r && (r.outcome === 'tackle' || r.outcome === 'sack')) {
         this.players.forEach((o, i) => {
           if (o === h || o.down || o.side === h.side) return;
@@ -462,7 +464,11 @@ export const contactMethods = {
     this.post.t += dt;
     this.spikeBall(dt);
     if (this.crew) this.crew.update(dt);
-    for (const p of this.players) {
+    // once they've pulled up, everyone else heads back toward his own
+    // side of the ball at a walk, a few at a time
+    const spotY = r && Number.isFinite(r.spotY) ? r.spotY : 0;
+    const spotX = r && Number.isFinite(r.spotX) ? r.spotX : this.ballX;
+    this.players.forEach((p, i) => {
       if (p.down) {
         if (p.upT > 0) {
           p.downT += dt;
@@ -470,11 +476,23 @@ export const contactMethods = {
         }
         this.brake(p, dt, 14);
       } else if (p.celeb) this.celebMove(p, dt);
-      else this.brake(p, dt, 6.5);
+      else if (p !== h && !p.blk && this.post.t > 0.9 + (i % 6) * 0.15 && Math.hypot(p.vx, p.vy) < 2.5) {
+        const back = p.side === 'O' ? -6 : 5;
+        const tx = p.x + (spotX - p.x) * 0.35;
+        const ty = spotY + back + ((i % 5) - 2) * 0.6;
+        if (Math.hypot(tx - p.x, ty - p.y) > 1.2) this.accelTo(p, Math.sign(tx - p.x) * Math.min(1.4, Math.abs(tx - p.x)) * 0.8, Math.sign(ty - p.y) * Math.min(1.6, Math.abs(ty - p.y)) * 0.8, dt, 3);
+        else this.brake(p, dt, 4);
+      } else this.brake(p, dt, 6.5);
       this.tickMove(p, dt);
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.anim += Math.hypot(p.vx, p.vy) * dt * 2.2;
-    }
+      const sp = Math.hypot(p.vx, p.vy);
+      if (sp > 0.4 && !p.down) {
+        let da = Math.atan2(p.vy, p.vx) - p.face;
+        da = Math.atan2(Math.sin(da), Math.cos(da));
+        p.face += da * Math.min(1, dt * 6);
+      }
+      p.anim += sp * dt * 2.2;
+    });
   },
 };

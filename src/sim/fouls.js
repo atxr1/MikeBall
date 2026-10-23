@@ -78,7 +78,7 @@ export const foulMethods = {
     // playing the man, not the ball, and getting there early
     const early = f.look < 0.6 ? 1 : 0.3;
     const trail = f.front < -0.2 ? 1.2 : 0.6;
-    const p = 0.42 * early * trail * (1.25 - (d.a.mcv + d.a.awr) / 260);
+    const p = 0.72 * early * trail * (1.25 - (d.a.mcv + d.a.awr) / 260);
     if (info.bz > 3) return; // uncatchable
     if (this.rng.chance(p)) this.flag('dpi', d, (d.x + r.x) / 2, (d.y + r.y) / 2, { victim: r, spotY: Math.max(1, Math.round(info.by)) });
     // or the receiver pushed off to make his space
@@ -110,7 +110,7 @@ export const foulMethods = {
       if (!r.released || dist(d.x, d.y, r.x, r.y) > 1.0) continue;
       // he's beaten (receiver separating) and grabbing
       const beat = clamp((r.a.rte - d.a.mcv) / 40 + 0.35, 0.1, 1);
-      if (!this.rng.chance(0.018 * beat)) continue;
+      if (!this.rng.chance(0.032 * beat)) continue;
       const key = r.y > 5 && this.rng.chance(0.3) ? 'contact' : 'holdD';
       this.flag(key, d, d.x, d.y, { victim: r });
       return;
@@ -128,7 +128,7 @@ export const foulMethods = {
       if (d.down || d.blk || d._hitQB || dist(d.x, d.y, qb.x, qb.y) > 0.85) continue;
       d._hitQB = true;
       // a hit right as he lets it go is legal; two steps later isn't
-      if (since > 0.45 && this.rng.chance(0.05)) this.flag('rtp', d, qb.x, qb.y, { victim: qb });
+      if (since > 0.45 && this.rng.chance(0.1)) this.flag('rtp', d, qb.x, qb.y, { victim: qb });
       if (since < 0.9) {
         this.knockDown(qb, 0.9, (qb.x - d.x) * 2, (qb.y - d.y) * 2);
         qb.fellBack = true;

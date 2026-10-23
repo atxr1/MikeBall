@@ -350,11 +350,20 @@ export const passingMethods = {
   // tackle box, or toward a receiver in the area (at a back's feet).
   legalThrowAway(p) {
     if (Math.abs(p.x - this.ballX) > 4.5) return true;
+    return !!this.nearbyReceiver(p);
+  },
+
+  // An eligible receiver near the passer (a back or tight end blocking is
+  // still eligible): a throwaway at his feet is legal.
+  nearbyReceiver(p) {
+    let best = null;
+    let bd = 5.5;
     for (const r of this.offense) {
-      if (r.down || r.blk || (r.pos !== 'WR' && r.pos !== 'TE' && r.pos !== 'RB')) continue;
-      if (dist(r.x, r.y, p.x, p.y) < 5.5) return true;
+      if (r.down || (r.pos !== 'WR' && r.pos !== 'TE' && r.pos !== 'RB')) continue;
+      const d = dist(r.x, r.y, p.x, p.y);
+      if (d < bd) { bd = d; best = r; }
     }
-    return false;
+    return best;
   },
 
   // How often this passer puts the ball where an open man can catch it at
@@ -466,6 +475,13 @@ export const passingMethods = {
         if (r.routeEnd === 'settle') return settleStep(r.x, r.y, b.x - a.x, b.y - a.y, r.maxSpd * SETTLE_FRAC * T, this.backY);
         lane = r.routeLane ?? laneFor(b.x - a.x, b.y - a.y);
         side = endLineSide((b.x - a.x) / (Math.hypot(b.x - a.x, b.y - a.y) || 1));
+        // a vertical that's reached the back line works for a window there
+        if (!side && r.y >= this.backY - 1.5) {
+          const q = this.backLineSpot(r, lane, FIELD_W - lane);
+          const d = dist(r.x, r.y, q.x, q.y);
+          const go = Math.min(d, r.maxSpd * 0.45 * T);
+          return d > 1e-3 ? { x: r.x + ((q.x - r.x) / d) * go, y: r.y + ((q.y - r.y) / d) * go } : q;
+        }
       }
       return alongRoute(r.x, r.y, r.vx / sp, r.vy / sp, sp * T, lane, this.backY, side);
     }
@@ -575,6 +591,10 @@ export const passingMethods = {
       const dd = dist(P.x, P.y, aim.x, aim.y);
       if (dd < rd) { rd = dd; r = o; }
     }
+    // thrown at nobody from the pocket with the rush on him: grounding
+    // (Rule 8-2-1), same as the passer's own throwaways
+    const rushed = this.pressureOn(qb) > 0.5;
+    if (!r && rushed && !this.legalThrowAway(qb)) this.flag('grounding', qb, qb.x, qb.y, { spotY: qb.y });
     return this.throwNow(qb, r, { x: aim.x, y: aim.y, T });
   },
 
@@ -639,12 +659,14 @@ export const passingMethods = {
     if (grounding && this.legalThrowAway(qb)) grounding = false;
     const side = qb.x < this.ballX ? -1 : 1;
     const b = this.ball;
+    // still in the pocket, it's legal only at the feet of a man in the area
+    const near = !grounding && Math.abs(qb.x - this.ballX) <= 4.5 ? this.nearbyReceiver(qb) : null;
     b.state = 'air';
     b.holder = null;
     b.fx = qb.x; b.fy = qb.y;
-    b.tx = grounding ? qb.x + side * 4 : side < 0 ? -3 : FIELD_W + 3;
-    b.ty = grounding ? qb.y + 4 : Math.max(qb.y + 6, 2);
-    b.tz = 0.4;
+    b.tx = grounding ? qb.x + side * 4 : near ? near.x + (near.x < qb.x ? -0.8 : 0.8) : side < 0 ? -3 : FIELD_W + 3;
+    b.ty = grounding ? qb.y + 4 : near ? near.y + 0.5 : Math.max(qb.y + 6, 2);
+    b.tz = near ? 0.15 : 0.4;
     if (grounding) this.flag('grounding', qb, qb.x, qb.y, { spotY: qb.y });
     b.t0 = this.t;
     b.speed = this.ballSpeed(qb);
@@ -693,6 +715,18 @@ export const passingMethods = {
       if (v > bv) { bv = v; best = r; }
     }
     if (best && this.rng.chance(0.35 + p.a.dec / 300)) p.pending = { r: best, at: this.t + 0.14 };
+    // nobody open, out of the pocket and about to be hit: a smart passer
+    // throws it away (past the line, out of bounds) rather than take the loss
+    else if (!best && Math.abs(p.x - this.ballX) > 4.5) {
+      const foe = this.nearestFree(this.defense, p.x, p.y);
+      if (foe && dist(foe.x, foe.y, p.x, p.y) < 2.6 && this.rng.chance(0.2 + p.a.dec / 250)) {
+        this.scramble = false;
+        this.carrier = null;
+        this.rusher = null;
+        this.throwAwayNow(p);
+        return true;
+      }
+    }
     return false;
   },
 

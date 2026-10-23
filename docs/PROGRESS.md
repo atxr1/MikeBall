@@ -2,7 +2,7 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
-## 2026-10-21 — Player AI polish, rounds 1-5
+## 2026-10-21 — Player AI polish, rounds 1-6
 
 **Done**
 - Pass protection (`src/sim/blocking.js`): the line takes the men on the
@@ -135,23 +135,46 @@ Newest first. Each session: what got done, what's broken, what's next.
     straight geometry (no bisection allocating in the hot path).
   - Tests: end-zone projection and nobody out the back; grounding at the
     half-yard line; holding plus grounding.
+- Round 6, playtest and rules-check fixes:
+  - After the whistle blocks come apart and players walk back toward
+    their own side of the ball (they used to freeze in block poses for
+    the whole hold).
+  - A receiver who ran a vertical to the back line works for a window
+    there (a step back toward the passer, away from his man) instead of
+    standing on the line; the passer projects the same spot. Receivers
+    pull up 1.7 yards inside the end line.
+  - Defenders chase a ball going out of bounds to the sideline, not past
+    it. The selected play card is scrolled back into view when the call
+    sheet reappears. End-zone stands repeat into the corners (no dark
+    strip). Time of possession adds up to the game's length on the final
+    screen. A sack safety says "Safety" in the play text; the kick after a
+    safety is titled "Free kick".
+  - Grounding: a player's own throw (manual passing) at nobody from the
+    pocket under pressure is flagged; grounding with the clock running
+    inside two minutes of a half costs a 10-second runoff (Rule 4-7-1);
+    a scrambling passer outside the pocket throws it away when he's about
+    to be hit and nobody's open; a pocket throwaway that's legal only
+    because a man's in the area goes at his feet; blocking backs and tight
+    ends count as receivers in the area.
+  - Rates toward the league's: pass interference, defensive holding and
+    illegal contact, roughing the passer called about twice as often;
+    fumbles a bit more often; long field goals harder (50+ about 70%,
+    overall ~85%).
 
-Numbers (real league, 4 x 48 CPU games): ~23.5 points a team, 68%
-completions, 7.7 ypa, 11.3 yards a catch, 2.2% interceptions, ~2 sacks a
-team, 4.4 a carry, aDOT 8.7, 14% of throws 20+ air yards (40% caught),
-4.7 yards after the catch. From the 5: ~44% of dropbacks and ~25% of runs
-score.
+Numbers (real league, 4 x 48 CPU games): ~23 points a team, 68%
+completions, 7.7 ypa, 11.3 yards a catch, 2.0% interceptions, ~2 sacks a
+team, 4.35 a carry, aDOT 8.6, 13.5% of throws 20+ air yards (41% caught),
+4.6 yards after the catch, ~5 penalties and ~1 turnover a team, field
+goals ~86%. From the 5: ~44% of dropbacks and ~25% of runs score.
 
 **Known issues**
 - Completions ~68% (NFL ~64-65%): backs out of the backfield are open too
   often (24% of targets, 87% caught; NFL ~19%, ~77%). Red-zone passing too
   easy (inside the 10: ~46% of throws score vs ~37%).
-- Too few penalties (4.5 a team vs 6.4), fumbles lost (0.2 vs 0.5) and
-  field goals too accurate (88-91% vs 84%; rules-checker, 2026-10-23).
-- From playtesting: the selected play card can be scrolled out of view
-  after a change of possession; on goal-to-go verticals the receivers line
-  up along the end line and stand; players freeze in block poses for the
-  whole post-whistle hold.
+- Still a few too few penalties (~5 a team vs 6.4: no delay of game,
+  illegal shift or block in the back yet).
+- Rules gaps: no untimed down after an accepted defensive foul on the
+  last play of a half; no two-minute warning in overtime.
 - The counter is still the weakest run (~2.8 yards).
 
 ## 2026-10-17 (night) — Challenges and replay, saved plays, return penalties, scrambles

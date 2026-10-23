@@ -254,7 +254,7 @@ export class CoachScreen {
       }
       case 'kickoff':
         if (g.kickingSide === this.user) {
-          return this.dialog('Kickoff', 'How do you want to kick it?', [
+          return this.dialog(g.freeKick ? 'Free kick' : 'Kickoff', g.freeKick ? 'After the safety, from your own 20. How do you want to kick it?' : 'How do you want to kick it?', [
             ['Kick deep', () => this.doKickoff(false)],
             ['Onside kick', () => this.doKickoff(true)],
           ]);
@@ -344,9 +344,17 @@ export class CoachScreen {
       });
       this.el.cards.append(card);
     }
-    const selCard = [...this.el.cards.children].find((c) => c.getAttribute('aria-selected') === 'true');
-    if (selCard) selCard.scrollIntoView({ inline: 'center', block: 'nearest' });
+    this.centerSelectedCard();
     this.buildPreview();
+  }
+
+  // Scroll the card row so the selected play sits in the middle (only
+  // possible while the row is showing; called again when it reappears).
+  centerSelectedCard() {
+    const row = this.el.cards;
+    const sel = [...row.children].find((c) => c.getAttribute('aria-selected') === 'true');
+    if (!sel || !row.clientWidth) return;
+    row.scrollLeft = Math.max(0, sel.offsetLeft - row.offsetLeft - (row.clientWidth - sel.offsetWidth) / 2);
   }
 
   cardSub(p, userOff) {
@@ -630,6 +638,8 @@ export class CoachScreen {
     if (calling !== this.showingSheet) {
       this.showingSheet = calling;
       this.root.classList.toggle('live', !calling);
+      // the cards were hidden while the play ran: bring the pick into view
+      if (calling) this.centerSelectedCard();
     }
     this.drawing.updateChip();
     if (this.scene && this.scene.kind === 'stadium' && this.scene.t < this.scene.dur) {

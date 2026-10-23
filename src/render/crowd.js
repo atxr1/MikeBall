@@ -398,15 +398,22 @@ export function drawCrowd(ctx, cam, crowd, e, topEnd, t = 0) {
   const hype = crowd.hype;
   const mid = Math.round(cam.sx(FIELD_W / 2));
   ctx.fillStyle = '#0c0f16';
+  // (an end stand panned far into a corner runs on past its own edge: the
+  // next section of seats repeats it)
+  const across = (st, oy, cy, ch) => {
+    let x0 = mid - (st.W >> 1);
+    while (x0 > 0) x0 -= st.W;
+    for (; x0 < W; x0 += st.W) if (x0 + st.W > 0) blit(ctx, st, x0, oy, 0, cy, W, ch, t, hype, crowd.night);
+  };
   if (e.T > 0) {
     const st = crowd.stand(`${topEnd}:front`);
     ctx.fillRect(0, 0, W, e.T);
-    blit(ctx, st, mid - (st.W >> 1), e.T - st.H, 0, 0, W, e.T, t, hype, crowd.night);
+    across(st, e.T - st.H, 0, e.T);
   }
   if (e.B < H) {
     const st = crowd.stand(`${topEnd === 'N' ? 'S' : 'N'}:back`);
     ctx.fillRect(0, e.B, W, H - e.B);
-    blit(ctx, st, mid - (st.W >> 1), e.B, 0, e.B, W, H - e.B, t, hype, crowd.night);
+    across(st, e.B, e.B, H - e.B);
   }
   const sy0 = Math.max(0, e.T);
   const sy1 = Math.min(H, e.B);

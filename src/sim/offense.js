@@ -4,7 +4,7 @@
 // moves in src/sim/contact.js). No DOM; seeded RNG only.
 
 import { FIELD_W, clamp, dist } from '../core/util.js';
-import { laneFor, settleStep, SETTLE_FRAC, ENDLINE_FRAC, endLineSide } from './routes.js';
+import { laneFor, settleStep, SETTLE_FRAC, ENDLINE_FRAC, endLineSide, SIDE_LANE } from './routes.js';
 
 const LOOKS = [[1.5, 1.4], [3.5, 1.0], [6, 0.6]];
 
@@ -152,7 +152,11 @@ export const offenseMethods = {
     // route was angling, or sits down there (alongRoute again)
     if (p.y >= this.backY - (Math.max(0, p.vy) ** 2) / (2 * p.accel) - 0.3) {
       const side = endLineSide(dx / m);
-      return this.steer(p, clamp(p.x + side * 5, lo, hi), this.backY, side ? ENDLINE_FRAC : 0.6, dt, side ? 0.8 : 1.2);
+      if (side) return this.steer(p, clamp(p.x + side * 5, lo, hi), this.backY, ENDLINE_FRAC, dt, 0.8);
+      // a vertical: he throttles down there and works away from the man on
+      // him (backLineSpot)
+      const q = this.backLineSpot(p, lo, hi);
+      return this.steer(p, q.x, q.y, 0.45, dt, 1.0);
     }
     // start the turn early enough to stay in bounds at his speed
     const room = (p.vx * p.vx) / (2 * p.accel) + 0.3;
@@ -160,6 +164,17 @@ export const offenseMethods = {
       return this.steer(p, clamp(p.x, lo, hi), p.y + 10, 0.96, dt, 0);
     }
     this.steer(p, clamp(p.x + (dx / m) * 10, lo, hi), p.y + (dy / m) * 10, 0.96, dt, 0);
+  },
+
+  // Where a receiver who ran a vertical to the back line works to: a step
+  // back toward the passer, away from the man on him (the passer projects
+  // him there too: src/sim/passing.js routeAhead).
+  backLineSpot(p, lo = SIDE_LANE, hi = FIELD_W - SIDE_LANE) {
+    if (p.backX == null) p.backX = p.x;
+    const def = this.nearest(this.defense, p.x, p.y);
+    let tx = p.backX;
+    if (def && dist(def.x, def.y, p.x, p.y) < 3) tx += clamp(p.backX - def.x, -1, 1) * 1.2;
+    return { x: clamp(tx, lo, hi), y: this.backY - 0.6 };
   },
 
   blitzThreat(p) {

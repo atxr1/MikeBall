@@ -270,6 +270,7 @@ export class Game {
     const startBall = this.ballOn;
     const ballXBefore = this.ballX;
     const playTime = r.kind === 'kneel' ? 1.5 : r.kind === 'spike' ? 1 : r.elapsed * 1.4 + 1.2;
+    const runningAtSnap = this.clockRunning;
     const warned = this.runClock(playTime);
     const out = { text: describe(r, ballXBefore), kind: 'play', yards: 0, flags: [] };
 
@@ -289,6 +290,12 @@ export class Game {
       // the clock does what it would have done after the play (Rule 4-3-2)
       const wouldRun = !r.incomplete && !r.outOfBounds && !r.turnover && !r.td && !r.safety && !warned;
       this.clockAfterFoul(wouldRun);
+      // intentional grounding to stop a running clock late in a half costs
+      // 10 seconds too (Rule 4-7-1)
+      if (pen.lossOfDown && pen.on === this.poss && !pen.safety && !pen.downs && runningAtSnap && !warned) {
+        const ro = this.runoff(pen.on, true);
+        if (ro) pen.text += ` ${ro}-second runoff.`;
+      }
       out.penalty = pen;
       out.text = `${out.text} — FLAG: ${pen.text}`;
       out.kind = 'penalty';
@@ -350,6 +357,8 @@ export class Game {
     if (r.safety) {
       out.kind = 'safety';
       out.headline = 'Safety!';
+      if (!/safety/i.test(out.text)) out.text = `${out.text.replace(/\.?$/, '.')} Safety, ${this.teams[def].abbr}.`;
+      entryText = out.text;
       this.addScore(def, 2);
       this.addLog(entryText, 'score');
       this.clockRunning = false;

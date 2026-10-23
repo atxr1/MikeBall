@@ -215,7 +215,7 @@ export function tackleOdds(sim, d, h) {
 // the ball side all knock it loose more often.
 export function fumbleOdds(h, d, nTacklers, kind, sack) {
   if (sack) return 0.07 + (kind === 'blind' ? 0.05 : 0);
-  let p = 0.009 * (1.3 - h.a.car / 100);
+  let p = 0.016 * (1.3 - h.a.car / 100);
   p *= 1 + (nTacklers - 1) * 0.45;
   if (kind === 'hit') p *= 2.2;
   return p;
