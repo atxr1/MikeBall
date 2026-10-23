@@ -155,7 +155,7 @@ export const foulMethods = {
     if (w.kind === 'pushout') return;
     const d = w.ds[0];
     if (!d || d.side !== 'D') return; // returns after a turnover aren't modeled
-    const p = w.kind === 'sack' ? 0.012 : 0.0035;
+    const p = w.kind === 'sack' ? 0.012 : 0.002;
     if (this.rng.chance(p)) this.flag(w.kind === 'sack' ? 'rtp' : 'mask', d, w.h.x, w.h.y, { victim: w.h });
   },
 

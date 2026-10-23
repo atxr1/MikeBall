@@ -159,6 +159,8 @@ Newest first. Each session: what got done, what's broken, what's next.
   - Rules: a half can't end on an accepted defensive foul (an untimed
     down, Rule 4-8-2); overtime has its own two-minute warning (and the
     late-half runoffs).
+  - Passers scramble more when the pocket breaks down (~3% of dropbacks,
+    was ~1%); face masks on tackles called less (they were ~3x the NFL's).
   - Rates toward the league's: pass interference, defensive holding and
     illegal contact, roughing the passer called about twice as often;
     fumbles a bit more often; long field goals harder (50+ about 70%,

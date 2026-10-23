@@ -331,9 +331,9 @@ export const passingMethods = {
   escape(p, pressure, tSet) {
     const mob = clamp((p.a.spd - 55) / 35, 0, 1);
     // the pocket's collapsing, or the coverage has everyone blanketed
-    const scr = pressure > 0.5 ? 0.09 + 0.35 * mob : 0.12 + 0.35 * mob;
+    const scr = pressure > 0.5 ? 0.2 + 0.45 * mob : 0.2 + 0.4 * mob;
     const free = this.nearestFree(this.defense, p.x, p.y);
-    const room = !free || dist(free.x, free.y, p.x, p.y) > 3.2; // nobody about to grab him
+    const room = !free || dist(free.x, free.y, p.x, p.y) > 2.4; // nobody about to grab him
     const lane = room && this.rng.chance(scr) ? this.scrambleLane(p, free) : null;
     if (lane) {
       // up through the gap he saw, or out of the pocket and around the
