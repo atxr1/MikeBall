@@ -2,6 +2,7 @@
 
 import { OFFENSE_PLAYS, DEFENSE_PLAYS, FORMATIONS, offPlay, defPlay } from '../data/playbook.js';
 import { fgDistance, maxFgRange, comfortableFgRange } from './kicks.js';
+import { starter } from './personnel.js';
 
 const RUNS = OFFENSE_PLAYS.filter((p) => p.cat === 'run');
 const PASSES = OFFENSE_PLAYS.filter((p) => p.cat === 'pass');
@@ -154,4 +155,49 @@ export function cpuMatchDefense(game, side, oPlay, current) {
   if (wr >= 3 && !light && NICKEL_FOR[current.id]) return defPlay(NICKEL_FOR[current.id]);
   if (wr <= 1 && light && BASE_FOR[current.id]) return defPlay(BASE_FOR[current.id]);
   return current;
+}
+
+// How likely the CPU offense is to let the play clock run out on this snap,
+// and why. Delay of game is rare in the NFL (a team draws one every three
+// or four games) and it isn't luck: it comes with a loud road crowd, a young
+// or shaky quarterback, a change of personnel, a busy call (third and long,
+// fourth down, goal to go), a blitz look to check out of at the line, and
+// milking the clock down to the last second. A hurry-up offense or one
+// coming out of a timeout almost never does it.
+// ctx: { formation, prevFormation, defCat, neutral }
+// Returns { p, why } (why: 'crowd' | 'qb' | 'clock' | 'call' | 'subs' |
+// 'check' | null).
+export function cpuDelayRisk(game, side, ctx = {}) {
+  const f = [];
+  // the crowd: a road offense in a dome is the worst of it
+  if (!ctx.neutral) {
+    if (side === 'away') {
+      const roof = game.teams.home.stadium && game.teams.home.stadium.roof;
+      f.push(['crowd', roof === 'dome' ? 2.4 : roof === 'retractable' ? 2.0 : 1.6]);
+    } else f.push(['crowd', 0.7]);
+  }
+  // the quarterback: a rookie, or one who doesn't see it quickly
+  const qb = starter(game.rosters[side], 'QB');
+  if (qb) {
+    const awr = (qb.attrs && qb.attrs.awr) || 75;
+    f.push(['qb', (qb.exp === 0 ? 1.8 : qb.exp === 1 ? 1.25 : 1) * Math.min(1.8, Math.max(0.6, 1 + (80 - awr) / 40))]);
+  }
+  const tempo = game.tempoFor(side);
+  if (tempo === 'hurry') f.push(['clock', 0.4]);
+  else if (tempo === 'milk') f.push(['clock', 2.2]);
+  const toGo = game.ltg >= 100 ? 100 - game.ballOn : game.ltg - game.ballOn;
+  if (game.down === 4) f.push(['call', 1.7]);
+  else if (game.down === 3 && toGo >= 7) f.push(['call', 1.4]);
+  if (game.ltg >= 100 && 100 - game.ballOn <= 5) f.push(['call', 1.3]);
+  if (ctx.prevFormation && ctx.formation && ctx.prevFormation !== ctx.formation && tempo !== 'hurry') f.push(['subs', 1.35]);
+  if (ctx.defCat === 'blitz') f.push(['check', 1.35]);
+  if (game.timeoutTaken) f.push(['clock', 0.3]);
+  let p = 0.0022;
+  let why = null;
+  let top = 1.15; // a reason worth naming
+  for (const [k, m] of f) {
+    p *= m;
+    if (m > top) { top = m; why = k; }
+  }
+  return { p: Math.min(0.08, p), why };
 }

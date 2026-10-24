@@ -5,7 +5,7 @@ import { settleRuling } from './replay.js';
 import { PlaySim } from '../sim/playsim.js';
 import { quickPlay, foul } from './quicksim.js';
 import { offenseLineup, defenseLineup, rosterIndex } from './personnel.js';
-import { cpuOffense, cpuDefense, cpuPat, cpuOnside, cpuTimeout } from './cpu.js';
+import { cpuOffense, cpuDefense, cpuPat, cpuOnside, cpuTimeout, cpuDelayRisk } from './cpu.js';
 import { offPlay } from '../data/playbook.js';
 import { other } from './rules.js';
 import { MID_X } from '../core/util.js';
@@ -96,6 +96,15 @@ export function cpuStep(game) {
         return o.special === 'punt' ? game.punt() : game.fieldGoal();
       }
       const d = cpuDefense(game, other(off));
+      // late getting the play off (a loud road crowd, a busy call...)
+      const last = (game.lastFormation ||= {});
+      const risk = cpuDelayRisk(game, off, { formation: o.formation, prevFormation: last[off], defCat: d.cat, neutral: game.neutral });
+      last[off] = o.formation;
+      if (game.rng.chance(risk.p)) {
+        const ev = game.tickBetweenPlays(game.playClock);
+        if (ev.includes('endQuarter')) return { kind: 'endQuarter' };
+        if (!ev.includes('twoMinute')) return { kind: 'penalty', pen: game.delayOfGame() };
+      }
       const snap = game.snap();
       if (snap.stop) return { kind: 'endQuarter' };
       const pen = game.preSnapPenalty();

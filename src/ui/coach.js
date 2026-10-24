@@ -318,6 +318,8 @@ export class CoachScreen {
     this.el.go.textContent = 'Run play';
     this.el.go.hidden = !userOff;
     this.tryWait = 0;
+    this.cpuLate = null; // (see tickPlayClock: decided at the snap point)
+    this.cpuDecided = false;
     if (!userOff) {
       const left = Math.max(0, g.playClock - g.snapAt(cpuSide));
       this.defRate = Math.max(1, left / (g.tempoFor(cpuSide) === 'hurry' ? 3.5 : 8));

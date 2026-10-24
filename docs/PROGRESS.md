@@ -74,6 +74,19 @@ Newest first. Each session: what got done, what's broken, what's next.
   moves are saved; quitting a season game asks first; sim-ahead shows its
   progress; real playoff kickoff times; week 18 flexed by what's at stake.
 
+- Delay of game on the CPU offense comes from context, not chance
+  (`cpuDelayRisk` in `src/game/cpu.js`): a loud road crowd (worst in a
+  dome), a rookie or low-awareness quarterback, a personnel change, a busy
+  call (third and long, fourth down, goal to go), your blitz look to check
+  out of, milking the clock; almost never in the hurry-up or after a
+  timeout, no crowd at a neutral site. About 0.26 a team-game (0.15 at
+  home, 0.37 on the road). The booth says why as the clock runs out ("...
+  can't hear the call over the New York crowd"). CPU-vs-CPU games get the
+  same. Fixed what was really behind the two flags in one drive: the
+  defense's quick huddle clock kept running fast while players were still
+  lining up, so it ran out on them; it now runs in real time until
+  everyone's set.
+
 **Broken / not yet**
 - Overtime is a bit more common than in the NFL (about 23 games a season
   vs 15) with ~2 ties.

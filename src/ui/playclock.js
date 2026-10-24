@@ -4,12 +4,18 @@
 // time while a play is called, and the game clock runs with it when it's
 // running. On offense you snap it with Run play, or it's delay of game. On
 // defense the CPU offense snaps it when its tempo says so: you don't get a
-// say (the clock runs quicker so you're not left waiting), you just get your
-// call in. Either way the clock spins down to the snap point first, so a
-// normal-tempo snap still uses most of the play clock.
+// say (the clock runs quicker once everyone's set, so you're not left
+// waiting), you just get your call in. Now and then it doesn't get the snap
+// off in time: not at random, but when the context says so (a loud road
+// crowd, a young quarterback, a personnel change, a busy call, your blitz
+// look; see cpuDelayRisk in src/game/cpu.js). Either way the clock spins
+// down to the snap point first, so a normal-tempo snap still uses most of
+// the play clock.
 
 import { other } from '../game/rules.js';
 import { fmtClock } from '../core/util.js';
+import { cpuDelayRisk } from '../game/cpu.js';
+import { starter } from '../game/personnel.js';
 
 export const playClockMethods = {
   // Game clock plus the play clock, which shows while a play is being called.
@@ -55,8 +61,14 @@ export const playClockMethods = {
     // paused while a banner, dialog or the roster is up, or a finger is drawing
     if (busy) return;
     let sec = dt;
-    // the CPU offense in its huddle
-    if (this.mode === 'call' && g.poss !== this.user) sec = dt * (this.defRate || 1);
+    if (this.mode === 'call' && g.poss !== this.user) {
+      // the CPU offense: real time while everyone gets lined up (subs, the
+      // umpire over the ball), then the clock spins down to its snap (or,
+      // when it's late getting the play off, all the way down)
+      const target = this.cpuLate ? 0 : g.snapAt(g.poss);
+      const set = this.pre.ready() && this.pre.extraDefenders() <= 0;
+      sec = set ? Math.min(Math.max(0, g.playClock - target), dt * (this.defRate || 1)) : dt;
+    }
     if (this.mode === 'set') {
       // the clock spins down to the snap once everyone's set; until then
       // (lining up, subs, the umpire over the ball) it runs in real time
@@ -81,11 +93,45 @@ export const playClockMethods = {
     }
     const userOff = g.poss === this.user;
     if (ev.includes('delay')) {
-      if ((userOff && this.mode === 'call') || !this.pre.ready()) return this.delayOfGame();
+      if ((userOff && this.mode === 'call') || !this.pre.ready() || (!userOff && this.cpuLate)) return this.delayOfGame();
       return this.doSnap();
     }
     if (this.mode === 'set' && g.playClock <= this.snapTarget + 1e-6 && !this.wantSnap) return this.doSnap();
-    if (this.mode === 'call' && !userOff && g.playClock <= g.snapAt(other(this.user)) && !this.wantSnap) this.doSnap();
+    if (this.mode === 'call' && !userOff && !this.cpuLate && !this.wantSnap && g.playClock <= g.snapAt(other(this.user)) + 1e-6) {
+      // the moment it should go: does it? (once a call; your look counts)
+      if (!this.cpuDecided) {
+        this.cpuDecided = true;
+        const risk = cpuDelayRisk(g, g.poss, {
+          formation: this.cpuPlay && this.cpuPlay.formation,
+          prevFormation: this.lastCpuFormation,
+          defCat: this.sel && this.sel.cat,
+          neutral: !!(this.opts.broadcast && this.opts.broadcast.site),
+        });
+        this.lastCpuFormation = this.cpuPlay && this.cpuPlay.formation;
+        if (g.rng.chance(risk.p)) {
+          this.cpuLate = risk;
+          this.setTicker(this.lateText(risk.why));
+          return;
+        }
+      }
+      this.doSnap();
+    }
+  },
+
+  // What the booth says as the CPU offense runs out of play clock.
+  lateText(why) {
+    const g = this.game;
+    const t = g.teams[g.poss];
+    const qb = starter(g.rosters[g.poss], 'QB');
+    const qbName = qb ? qb.last : 'The quarterback';
+    switch (why) {
+      case 'crowd': return `${t.name} can't hear the call over the ${g.teams.home.city} crowd`;
+      case 'qb': return `${qbName} is still sorting it out at the line`;
+      case 'clock': return `${t.name} let the play clock get away from them`;
+      case 'subs': return `${t.name} still changing personnel`;
+      case 'check': return `${qbName} sees the blitz look and checks out of it`;
+      default: return `${t.name} late getting the play in`;
+    }
   },
 
   delayOfGame() {

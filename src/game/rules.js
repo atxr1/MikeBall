@@ -271,6 +271,7 @@ export class Game {
       if (ev.includes('twoMinute')) events.push('twoMinute');
     }
     this.shortRunoff = false;
+    this.timeoutTaken = false;
     return { stop: false, events };
   }
 
@@ -279,6 +280,7 @@ export class Game {
     if (this.timeouts[side] <= 0 || this.over) return false;
     this.timeouts[side]--;
     this.clockRunning = false;
+    this.timeoutTaken = true; // (nobody's late to the line after one)
     this.resetPlayClock(25);
     this.addLog(`Timeout ${this.teams[side].abbr} (${this.timeouts[side]} left).`, 'info', { side });
     return true;

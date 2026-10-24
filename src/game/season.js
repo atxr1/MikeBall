@@ -138,6 +138,7 @@ export function gameOptions(s, g, rosters, teamById) {
 export function simGame(s, g, rosters, teamById) {
   const game = new Game({ ...gameOptions(s, g, rosters, teamById), userSide: 'none' });
   game.quick = true;
+  game.neutral = !!(g.neutral || g.site); // (no home crowd)
   // (a playoff game can't stop short: it goes until somebody wins)
   for (let i = 0; i < 6 && !game.over; i++) simulateGame(game, 20000);
   if (!game.over) game.finish();

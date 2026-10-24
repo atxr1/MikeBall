@@ -9,6 +9,7 @@ import { broadcastForGame } from '../src/data/broadcast.js';
 import { STANDINGS_2025 } from '../src/data/league2025.js';
 import { Game } from '../src/game/rules.js';
 import { simulateGame } from '../src/game/autoplay.js';
+import { cpuDelayRisk } from '../src/game/cpu.js';
 import * as S from '../src/game/season.js';
 
 const INFO = TEAMS.map((t) => ({ id: t.id, conf: t.conf, div: t.div }));
@@ -155,6 +156,32 @@ export function runSeasonTests(check, between, real) {
       if (g.score.home === g.score.away) ties++;
     }
     check('playoffs: no ties', ties === 0 && done, `${ties} ties`);
+
+    console.log('delay of game: from context, not luck');
+    const dome = teams.find((t) => t.stadium && t.stadium.roof === 'dome');
+    const open = teams.find((t) => t.stadium && t.stadium.roof === 'open' && t !== dome);
+    const at = (home, away) => new Game({ homeTeam: home, awayTeam: away, homeRoster: rosters[home.id], awayRoster: rosters[away.id], userSide: 'none', qLen: 15, seed: 1 });
+    const gd = at(dome, open);
+    const road = cpuDelayRisk(gd, 'away').p;
+    const homeP = cpuDelayRisk(gd, 'home').p;
+    check('delay of game: a road offense in a dome is likelier to be late than the home side', road > homeP * 2.5, `${road.toFixed(4)} vs ${homeP.toFixed(4)}`);
+    gd.down = 3; gd.ballOn = 30; gd.ltg = 41;
+    const busy = cpuDelayRisk(gd, 'away', { defCat: 'blitz' }).p;
+    check('delay of game: third and long against a blitz look is riskier', busy > road * 1.5);
+    gd.timeoutTaken = true;
+    check('delay of game: almost never right after a timeout', cpuDelayRisk(gd, 'away').p < road * 0.6);
+    gd.timeoutTaken = false;
+    check('delay of game: a neutral site has no crowd', cpuDelayRisk(gd, 'away', { neutral: true }).p < road);
+    let delays = 0;
+    let tg = 0;
+    for (let i = 0; i < 80; i++) {
+      const g = at(teams[i % 32], teams[(i * 5 + 3) % 32 === i % 32 ? (i + 1) % 32 : (i * 5 + 3) % 32]);
+      g.quick = true;
+      simulateGame(g, 20000);
+      tg += 2;
+      delays += g.log.filter((e) => /Delay of game/.test(e.text)).length;
+    }
+    check('delay of game: about one every three or four games a team (0.1-0.45)', between(delays / tg, 0.1, 0.45), (delays / tg).toFixed(2));
 
     console.log('season: the quick play resolver');
     const T = { att: 0, comp: 0, yds: 0, sacked: 0, int: 0, ratt: 0, ryds: 0, pts: 0, n: 0 };
