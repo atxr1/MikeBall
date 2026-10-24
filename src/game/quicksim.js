@@ -270,6 +270,8 @@ function quickPass(o, r, u) {
     }
     const spot = catchAt - back;
     if (o.ballOn + spot <= 0) { r.defTD = true; r.td = true; r.outcome = 'td'; r.spotY = -o.ballOn; } else r.spotY = spot;
+    // caught in the end zone and never brought out: a touchback
+    if (!r.defTD && o.ballOn + spot >= 100) r.touchback = true;
     r.yards = 0;
     r.tackler = r.defTD || r.touchback ? null : rng.pick(Object.values(off));
     r.elapsed += 2 + back * 0.12;

@@ -41,9 +41,8 @@ export function buildTable(results, teams, seasonKey = '') {
   }
   for (const g of results) {
     if (g.hs == null || g.as == null || !rows[g.home] || !rows[g.away]) continue;
-    const side = (id, opp, f, a, tdf, tda, home) => {
+    const side = (id, opp, f, a, tdf, tda, home, res) => {
       const r = rows[id];
-      const res = f > a ? 1 : f < a ? 0 : 0.5;
       tally(r, res);
       tally(home ? r.home : r.road, res);
       if (info[opp].conf === info[id].conf) {
@@ -53,8 +52,13 @@ export function buildTable(results, teams, seasonKey = '') {
       r.pf += f; r.pa += a; r.td += tdf || 0; r.tda += tda || 0;
       r.log.push({ opp, res, pf: f, pa: a, td: tdf || 0, tda: tda || 0, week: g.week || 0 });
     };
-    side(g.home, g.away, g.hs, g.as, g.htd, g.atd, true);
-    side(g.away, g.home, g.as, g.hs, g.atd, g.htd, false);
+    // (a game played with short quarters carries g.pace: its points and
+    // touchdowns count at full-game pace in the tiebreakers; the result is
+    // the result)
+    const k = g.pace || 1;
+    const res = g.hs > g.as ? 1 : g.hs < g.as ? 0 : 0.5;
+    side(g.home, g.away, g.hs * k, g.as * k, (g.htd || 0) * k, (g.atd || 0) * k, true, res);
+    side(g.away, g.home, g.as * k, g.hs * k, (g.atd || 0) * k, (g.htd || 0) * k, false, 1 - res);
   }
   for (const r of Object.values(rows)) {
     r.pct = pct(r);

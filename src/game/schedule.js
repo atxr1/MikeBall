@@ -56,6 +56,18 @@ export function firstSunday(year) {
   return `${year}-09-${String(labor + 6).padStart(2, '0')}`;
 }
 
+// Thanksgiving (the fourth Thursday in November) and the week it falls in:
+// week 12 most years, week 13 when Labor Day comes early.
+export function thanksgiving(year) {
+  const nov1 = new Date(Date.UTC(year, 10, 1, 12)).getUTCDay();
+  return `${year}-11-${String(1 + mod(4 - nov1, 7) + 21).padStart(2, '0')}`;
+}
+
+export function thanksgivingWeek(year) {
+  const days = Math.round((Date.parse(`${thanksgiving(year)}T12:00:00Z`) - Date.parse(`${firstSunday(year)}T12:00:00Z`)) / 86400000);
+  return Math.floor((days + 3) / 7) + 1;
+}
+
 export function gameDate(sunday1, week, slot) {
   return addDays(sunday1, (week - 1) * 7 + (SLOT_INFO[slot] ? SLOT_INFO[slot].offset : 0));
 }

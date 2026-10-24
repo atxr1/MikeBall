@@ -18,24 +18,23 @@
 
 import { makeRng } from '../core/rng.js';
 import { TEAMS } from '../data/teams.js';
-import { makeGame, gameDate, firstSunday, addDays, matchups, placesFrom, realSchedule2026 } from './schedule.js';
+import { makeGame, gameDate, firstSunday, addDays, matchups, placesFrom, realSchedule2026, thanksgivingWeek } from './schedule.js';
 
 const WEEKS = 18;
 const BYE_FIRST = 5;
 const BYE_LAST = 14;
-const THANKSGIVING = 12;
 const BYE = 'bye';
 
 export function assignWeeks(list, opts = {}) {
   const rng = opts.rng || makeRng(opts.seed || 1);
   for (let attempt = 0; attempt < 20; attempt++) {
-    const res = tryAssign(list, rng, opts.champion);
+    const res = tryAssign(list, rng, opts.champion, opts.thanksgiving || 12);
     if (res) return res;
   }
   throw new Error('schedule: no week layout found');
 }
 
-function tryAssign(list, rng, champion) {
+function tryAssign(list, rng, champion, THANKSGIVING) {
   const teams = [...new Set(list.flatMap((g) => [g.home, g.away]))];
   const games = list.map((g, i) => ({ ...g, i, week: 0, fixed: false }));
   // at[t][w]: club t's game in week w, BYE, or null
@@ -159,6 +158,14 @@ function tryAssign(list, rng, champion) {
   }
 
   polish(games, teams, at, kempe, rng);
+  // never the same opponent two weeks running: start over if it happens
+  for (const t of teams) {
+    for (let w = 2; w <= WEEKS; w++) {
+      const a = at[t][w - 1];
+      const b = at[t][w];
+      if (a && b && a !== BYE && b !== BYE && (a.home === t ? a.away : a.home) === (b.home === t ? b.away : b.home)) return null;
+    }
+  }
   return { games, bye };
 }
 
@@ -238,6 +245,7 @@ export function assignTV(games, year, opts = {}) {
   const used = {}; // primetime appearances
   const night = (g) => { used[g.home] = (used[g.home] || 0) + 1; used[g.away] = (used[g.away] || 0) + 1; };
   const cap = (g) => (used[g.home] || 0) < 5 && (used[g.away] || 0) < 5;
+  const THANKSGIVING = thanksgivingWeek(year);
   const lastWeekMon = new Set();
   const abroad = new Set();
   const out = [];
@@ -245,13 +253,14 @@ export function assignTV(games, year, opts = {}) {
   for (let w = 1; w <= WEEKS; w++) {
     const week = games.filter((g) => g.week === w);
     const left = new Set(week);
+    // (the prime-time cap is for night games; net can depend on the game)
     const take = (pred, slot, net, extra = {}) => {
-      const pool = [...left].filter((g) => pred(g) && cap(g));
+      const pool = [...left].filter((g) => pred(g) && (!/8$/.test(slot) || cap(g)));
       if (!pool.length) return null;
       const g = rng.weighted(pool, weight);
       left.delete(g);
       if (/8$/.test(slot)) night(g);
-      out.push({ ...g, slot, net, site: extra.site || null, tag: extra.tag || null });
+      out.push({ ...g, slot, net: typeof net === 'function' ? net(g) : net, site: extra.site || null, tag: extra.tag || null });
       return g;
     };
     const restOk = (g) => !lastWeekMon.has(g.home) && !lastWeekMon.has(g.away);
@@ -259,7 +268,7 @@ export function assignTV(games, year, opts = {}) {
       const champ = opts.champion;
       take((g) => g.home === champ || !champ, 'Th8', 'nbc', { tag: 'KICKOFF' });
     } else if (w === THANKSGIVING) {
-      take((g) => g.home === 'DET', 'Th1', conf[week.find((g) => g.home === 'DET')?.away] === 'AFC' ? 'cbs' : 'fox', { tag: 'THX' });
+      take((g) => g.home === 'DET', 'Th1', (g) => (conf[g.away] === 'AFC' ? 'cbs' : 'fox'), { tag: 'THX' });
       take((g) => g.home === 'DAL', 'Th4', 'fox', { tag: 'THX' });
       take(restOk, 'Th8', 'nbc', { tag: 'THX' });
       take(restOk, 'Fr3', 'prime', { tag: 'BF' });
@@ -287,7 +296,7 @@ export function assignTV(games, year, opts = {}) {
       take(() => true, 'Mo8', 'espn');
     } else {
       // the last week: a Saturday pair and the Sunday night finale
-      take((g) => g.kind === 'div', 'Sa4', conf[[...left][0]?.away] === 'AFC' ? 'cbs' : 'fox');
+      take((g) => g.kind === 'div', 'Sa4', (g) => (conf[g.away] === 'AFC' ? 'cbs' : 'fox'));
       take((g) => g.kind === 'div', 'Sa8', 'espn');
       take((g) => g.kind === 'div', 'Su8', 'nbc');
     }
@@ -310,7 +319,7 @@ export function buildSchedule(year, prev = {}, seed = year) {
   const rng = makeRng(seed);
   const teams = prev.teams || TEAMS;
   const list = matchups(year, prev.places || placesFrom(null, teams), teams);
-  const { games } = assignWeeks(list, { rng, champion: prev.champion });
+  const { games } = assignWeeks(list, { rng, champion: prev.champion, thanksgiving: thanksgivingWeek(year) });
   const conf = Object.fromEntries(teams.map((t) => [t.id, t.conf]));
   return { year, sunday1: firstSunday(year), games: assignTV(games, year, { rng, conf, draw: prev.draw, champion: prev.champion }) };
 }

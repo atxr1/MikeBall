@@ -666,8 +666,9 @@ export class Game {
       this.finishNext();
       return { kind: 'ot', text: 'Overtime' };
     }
-    if (this.playoff && this.score.home === this.score.away) {
-      // still tied in the playoffs: another period. The third (and fifth...)
+    if (this.playoff && (this.score.home === this.score.away || (this.ot && this.ot.stage !== 'sudden'))) {
+      // still tied in the playoffs, or the second team hasn't had its
+      // possession yet: another period. The third (and fifth...)
       // starts like a second half, with a coin toss, a kickoff and fresh
       // timeouts; the others just change ends.
       this.quarter++;

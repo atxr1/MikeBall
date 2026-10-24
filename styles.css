@@ -516,7 +516,7 @@ table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nu
 .next-actions .go { flex: 1; }
 .hub-tabs { margin: 0 calc(-1 * var(--gutter)) 4px; padding-left: calc(var(--gutter) + 3px); }
 .hub-body { min-height: 40vh; }
-.toast {
+.hub-toast {
   position: fixed; left: 50%; bottom: calc(var(--safe-b) + 24px); transform: translateX(-50%); z-index: 30;
   margin: 0; padding: 12px 16px; max-width: calc(100vw - 32px);
   background: var(--chalk); color: var(--night); box-shadow: var(--frame); font-weight: 700;
@@ -585,3 +585,4 @@ table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nu
 .lead-list li.empty { display: block; }
 .season-setup .lede { margin: 0 0 24px; }
 .bk-tbd { padding: 6px; color: var(--dim); font-size: 12px; box-shadow: var(--frame); opacity: 0.6; }
+.actions [hidden] { display: none; }

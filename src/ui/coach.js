@@ -311,7 +311,17 @@ export class CoachScreen {
     }
     this.renderSheet(userOff);
     this.setSheetEnabled(true);
-    this.el.go.textContent = userOff ? 'Run play' : 'Ready';
+    // On defense there's nothing to press: the offense snaps it when it's
+    // ready, and you change the call (or the rush lanes) until it does. The
+    // play clock runs fast enough that the huddle takes a few seconds, not
+    // forty (less against the hurry-up); it stops while you're drawing.
+    this.el.go.textContent = 'Run play';
+    this.el.go.hidden = !userOff;
+    this.tryWait = 0;
+    if (!userOff) {
+      const left = Math.max(0, g.playClock - g.snapAt(cpuSide));
+      this.defRate = Math.max(1, left / (g.tempoFor(cpuSide) === 'hurry' ? 3.5 : 8));
+    }
   }
 
   renderSheet(userOff) {

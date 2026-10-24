@@ -30,6 +30,27 @@ import { hashString } from '../core/rng.js';
 import { clamp } from '../core/util.js';
 
 export const SEASON_VERSION = 1;
+
+// Brings a saved season up to the current shape (and fills in anything a
+// hand-edited or older file is missing). Returns null if it can't be used.
+export function migrate(s, teams = TEAMS) {
+  if (!s || typeof s !== 'object' || !Array.isArray(s.games) || !teams.some((t) => t.id === s.userId)) return null;
+  if (!s.v || s.v > SEASON_VERSION) return null;
+  const ok = (x) => x && typeof x === 'object' && !Array.isArray(x);
+  if (!ok(s.players)) s.players = {};
+  if (!ok(s.teams)) s.teams = {};
+  if (!ok(s.last)) s.last = {};
+  if (!Array.isArray(s.history)) s.history = [];
+  if (!['regular', 'playoffs', 'done'].includes(s.phase)) s.phase = 'regular';
+  if (!Number.isFinite(s.week)) s.week = 1;
+  if (!Number.isFinite(s.qLen)) s.qLen = 8;
+  if (!Number.isFinite(s.year)) s.year = 2026;
+  if (!s.sunday1) s.sunday1 = '2026-09-13';
+  if (s.phase !== 'regular' && !ok(s.bracket)) return null;
+  for (const g of s.games) if (!g || !g.id || !g.home || !g.away || !Number.isFinite(g.week)) return null;
+  s.v = SEASON_VERSION;
+  return s;
+}
 export const REGULAR_WEEKS = 18;
 export const FULL_QUARTER = 15;
 export { ROUND_NAMES };
@@ -117,7 +138,9 @@ export function gameOptions(s, g, rosters, teamById) {
 export function simGame(s, g, rosters, teamById) {
   const game = new Game({ ...gameOptions(s, g, rosters, teamById), userSide: 'none' });
   game.quick = true;
-  simulateGame(game, 20000);
+  // (a playoff game can't stop short: it goes until somebody wins)
+  for (let i = 0; i < 6 && !game.over; i++) simulateGame(game, 20000);
+  if (!game.over) game.finish();
   recordGame(s, g, game, rosters);
   return game;
 }
@@ -131,9 +154,10 @@ function startersOf(roster) {
   return out;
 }
 
+// (zeros are left out: most of a season's lines are empty categories)
 const addInto = (dst, src, f = 1) => {
   for (const [k, v] of Object.entries(src)) {
-    if (typeof v !== 'number') continue;
+    if (typeof v !== 'number' || !v) continue;
     if (k === 'long') dst[k] = Math.max(dst[k] || 0, v);
     else dst[k] = (dst[k] || 0) + v * f;
   }
@@ -148,6 +172,8 @@ export function recordGame(s, g, game, rosters) {
   g.htd = game.tds ? game.tds.home : 0;
   g.atd = game.tds ? game.tds.away : 0;
   g.ot = game.quarter >= 5;
+  // a short game's points count at full-game pace for the point tiebreakers
+  if (game.qLen && game.qLen !== FULL_QUARTER) g.pace = FULL_QUARTER / game.qLen;
   const pg = playerOfTheGame(game);
   g.potg = pg ? { id: pg.line.id, name: pg.line.name, pos: pg.line.pos, team: pg.team.id, summary: pg.summary } : null;
   if (isPlayoff(g)) {
@@ -164,7 +190,7 @@ export function recordGame(s, g, game, rosters) {
     const team = sideTeam[l.side];
     const p = (s.players[l.id] ||= { id: l.id, team, name: l.name, pos: l.pos, num: l.num, gp: 0 });
     p.team = team;
-    for (const c of CATS) if (l[c]) addInto((p[c] ||= {}), l[c], pace);
+    for (const c of CATS) if (l[c] && Object.values(l[c]).some((v) => v)) addInto((p[c] ||= {}), l[c], pace);
     if (!seen.has(l.id)) { p.gp++; seen.add(l.id); }
   }
   for (const side of ['home', 'away']) {

@@ -71,6 +71,9 @@ export function runSeasonTests(check, between, real) {
   check('2027: the same seed gives the same schedule', JSON.stringify(g27.games) === JSON.stringify(g27b.games));
   check('2027: AFC clubs host 9 in odd years', TEAMS.every((t) => hosted(g27.games, t.id) === (t.conf === 'AFC' ? 9 : 8)));
   check('2027: Super Bowl date (Feb. 13, 2028) from the calendar', playoffDates(firstSunday(2027)).superBowl === '2028-02-13');
+  const g30 = buildSchedule(2030, { places, champion: 'KC', generate: true }, 3);
+  const thx30 = g30.games.filter((g) => g.tag === 'THX');
+  check('2030: Thanksgiving (Nov. 28) falls in week 13 and Detroit and Dallas host', thx30.length === 3 && thx30.every((g) => g.week === 13 && g.date === '2030-11-28') && ['DET', 'DAL'].every((h) => thx30.some((g) => g.home === h)));
 
   console.log('season: standings and tiebreakers');
   const R = (home, away, hs, as) => ({ home, away, hs, as, week: 1 });
@@ -138,6 +141,10 @@ export function runSeasonTests(check, between, real) {
     po.clock = 0; po.timeouts = { home: 0, away: 1 };
     po.endQuarter();
     check('playoffs: the third period starts with a kickoff and fresh timeouts', po.quarter === 7 && po.phase === 'kickoff' && po.timeouts.home === 3);
+    const po2 = mk(true);
+    po2.quarter = 5; po2.clock = 0; po2.score = { home: 23, away: 20 }; po2.ot = { stage: 'second', first: 'home', second: 'away' };
+    po2.endQuarter();
+    check('playoffs: a field goal lead doesn’t end it while the other team still has its first possession', !po2.over && po2.quarter === 6);
     let ties = 0;
     let done = true;
     for (let i = 0; i < 24; i++) {
@@ -207,6 +214,10 @@ export function runSeasonTests(check, between, real) {
     S.recordGame(ps, ug, short, rosters);
     const qb = [...short.stats.players.values()].find((l) => l.pass.att > 5);
     check('season: a user game at 8-minute quarters goes in at 15/8 pace', qb && Math.abs(ps.players[qb.id].pass.yds - qb.pass.yds * 15 / 8) < 1e-6 && ug.hs === short.score.home);
+    const bare = S.migrate({ v: 1, userId: 'KC', games: JSON.parse(JSON.stringify(full.games.filter((g) => g.round == null))), phase: 'regular', week: 3 });
+    check('saves: a stripped-down file is filled in, a broken one refused', bare && bare.players && bare.teams && bare.history && S.migrate({ v: 1, userId: 'ZZZ', games: [] }) === null && S.migrate({ v: 99, userId: 'KC', games: [] }) === null);
+    const zeros = Object.values(full.players).some((l) => Object.values(l).some((c) => c && typeof c === 'object' && Object.values(c).some((v) => v === 0)));
+    check('saves: season lines keep no zero stats (the save stays small)', !zeros, `${(JSON.stringify(full).length / 1024).toFixed(0)} KB`);
     const next = S.newSeason({ year: 2027, userId: 'KC', seed: 5, qLen: 4, prev: full });
     check('season: next year built from this one (champion opens at home)', next.games.length === 272 && next.games.some((g) => g.tag === 'KICKOFF' && g.home === full.champion) && next.lastChampion === full.champion);
   }

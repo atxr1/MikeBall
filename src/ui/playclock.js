@@ -3,8 +3,9 @@
 // Between plays the play clock (40 or 25 seconds, see rules.js) runs in real
 // time while a play is called, and the game clock runs with it when it's
 // running. On offense you snap it with Run play, or it's delay of game. On
-// defense the CPU offense snaps it when its tempo says so, or as soon as you
-// tap Ready. Either way the clock spins down to the snap point first, so a
+// defense the CPU offense snaps it when its tempo says so: you don't get a
+// say (the clock runs quicker so you're not left waiting), you just get your
+// call in. Either way the clock spins down to the snap point first, so a
 // normal-tempo snap still uses most of the play clock.
 
 import { other } from '../game/rules.js';
@@ -41,6 +42,12 @@ export const playClockMethods = {
       this.wantSnap = false;
       return this.doSnap();
     }
+    // a try isn't timed: the offense lines up and snaps it after a few
+    // seconds (yours to pick a defense)
+    if (this.mode === 'call' && this.noPlayClock() && g.poss !== this.user && !busy) {
+      this.tryWait = (this.tryWait || 0) + dt;
+      if (this.tryWait >= 5) { this.tryWait = 0; return this.doSnap(); }
+    }
     if ((this.mode !== 'call' && this.mode !== 'set') || this.noPlayClock()) {
       if (this.el.pc.textContent) this.updateClocks(); // hide it after the snap
       return;
@@ -48,6 +55,8 @@ export const playClockMethods = {
     // paused while a banner, dialog or the roster is up, or a finger is drawing
     if (busy) return;
     let sec = dt;
+    // the CPU offense in its huddle
+    if (this.mode === 'call' && g.poss !== this.user) sec = dt * (this.defRate || 1);
     if (this.mode === 'set') {
       // the clock spins down to the snap once everyone's set; until then
       // (lining up, subs, the umpire over the ball) it runs in real time
@@ -92,11 +101,12 @@ export const playClockMethods = {
     this.penaltyBanner(pen, () => this.advance());
   },
 
-  // Run play (offense) / Ready (defense): break the huddle and run the play
-  // clock down to the snap.
+  // Run play (offense only): break the huddle and run the play clock down to
+  // the snap.
   snap() {
     if (this.mode !== 'call' || this.paused || !this.sel || this.playDisabled(this.sel)) return;
     const g = this.game;
+    if (g.poss !== this.user) return; // the offense decides when it snaps
     this.setSheetEnabled(false);
     if (this.noPlayClock()) return this.doSnap();
     const target = Math.min(g.playClock, g.snapAt(g.poss));

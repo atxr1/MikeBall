@@ -97,7 +97,7 @@ def main():
                 if page.locator(".final-screen").count():
                     return "final"
                 go = page.locator(".actions .go")
-                if go.count() and go.is_enabled():
+                if go.count() and go.is_visible() and go.is_enabled():
                     return "call"
                 if page.locator(".banner:not([hidden])").count():
                     page.locator(".stage").click()

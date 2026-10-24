@@ -17,8 +17,7 @@ import { tabRenderers, recordText, dayLabel } from './seasontabs.js';
 const KEY = 'season';
 
 export function loadSeason() {
-  const s = load(KEY, null);
-  return s && s.v === S.SEASON_VERSION && Array.isArray(s.games) ? s : null;
+  return S.migrate(load(KEY, null), TEAMS);
 }
 
 export function saveSeason(app) {
@@ -51,11 +50,12 @@ export function resumeSeason(app) {
   return true;
 }
 
-export function beginSeason(app, userId, qLen) {
-  const prev = app.season && app.season.phase === 'done' ? app.season : null;
-  const year = prev ? prev.year + 1 : 2026;
-  const seed = (Date.now() ^ 0x2545f491) >>> 0;
-  app.season = S.newSeason({ year, userId, seed, qLen, prev });
+// season: the one the setup screen built and showed (same seed, so the
+// schedule you saw is the schedule you get)
+export function beginSeason(app, season, qLen) {
+  app.season = season;
+  season.qLen = qLen;
+  const userId = season.userId;
   // the depth chart as set on the way in rides along with the save
   app.season.depth = JSON.parse(JSON.stringify(app.league[userId].depth));
   saveSeason(app);
@@ -110,19 +110,30 @@ export function simUserGame(app) {
   app.showSeason('scores');
 }
 
-// sim straight on to a point: the end of the regular season, or the end
-function simAhead(app, until) {
+// sim straight on to a point: the end of the regular season, or the end.
+// A week at a time, so the screen can say how far along it is.
+function simAhead(app, until, host) {
   const s = app.season;
+  const note = h('div', { class: 'sheet dialog', role: 'status', 'aria-live': 'polite' },
+    h('div', { class: 'sheet-panel dialog-panel' }, h('p', { class: 'dialog-title' }, 'Simming…'), h('p', { class: 'dialog-text' }, '')));
+  if (host) host.append(note);
   let guard = 0;
-  while (guard++ < 40 && s.phase !== 'done') {
-    if (until === 'playoffs' && s.phase !== 'regular') break;
+  const step = () => {
+    const done = guard++ >= 40 || s.phase === 'done' || (until === 'playoffs' && s.phase !== 'regular');
+    if (done) {
+      note.remove();
+      app.scoresWeek = null;
+      saveSeason(app);
+      app.showSeason(s.phase === 'regular' ? 'scores' : 'playoffs');
+      return;
+    }
+    note.querySelector('.dialog-text').textContent = s.phase === 'regular' ? `Week ${s.week}` : S.roundName(S.currentRound(s)[0] || { round: 0, conf: '' }, s.year).replace(/^(AFC|NFC) /, '');
     S.simWeek(s, app.league, app.teamById, { includeUser: true });
     s.lastWeek = s.week;
     S.nextWeek(s, app.league, TEAMS);
-  }
-  app.scoresWeek = null;
-  saveSeason(app);
-  app.showSeason(s.phase === 'regular' ? 'scores' : 'playoffs');
+    setTimeout(step, 16);
+  };
+  setTimeout(step, 30);
 }
 
 // A yes/no sheet for the things that can't be undone.
@@ -144,40 +155,59 @@ export function confirmBox(host, title, text, yes, onYes) {
 
 // ---- files: a season goes out as JSON and comes back the same way --------
 
-function exportSeason(app) {
+// On iPhone the share sheet ("Save to Files") is the dependable way out,
+// including from the home-screen app; elsewhere, a download.
+async function exportSeason(app, host) {
   const s = app.season;
-  const blob = new Blob([JSON.stringify(s)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = h('a', { href: url, download: `mikeball-${s.year}-${s.userId}-week${s.week}.json` });
+  const name = `mikeball-${s.year}-${s.userId}-week${s.week}.json`;
+  const json = JSON.stringify(s);
+  try {
+    const file = new File([json], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'MikeBall season' });
+      return;
+    }
+  } catch (err) {
+    if (err && err.name === 'AbortError') return; // closed the share sheet
+  }
+  const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+  const a = h('a', { href: url, download: name });
   document.body.append(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  // (iOS may still be asking "Download?"; don't pull the file out from under it)
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast(host, 'Season saved to your downloads.');
 }
 
 function importSeason(app, host) {
   const input = h('input', { type: 'file', accept: 'application/json,.json', style: { display: 'none' } });
+  // (a cancelled picker sends no event; tidy up after a while either way)
+  const drop = setTimeout(() => input.remove(), 120000);
   input.addEventListener('change', async () => {
+    clearTimeout(drop);
     const f = input.files && input.files[0];
     input.remove();
     if (!f) return;
+    let s = null;
     try {
-      const s = JSON.parse(await f.text());
-      if (!s || s.v !== S.SEASON_VERSION || !Array.isArray(s.games) || !TEAMS.some((t) => t.id === s.userId)) throw new Error('not a MikeBall season');
+      s = S.migrate(JSON.parse(await f.text()), TEAMS);
+    } catch { s = null; }
+    if (!s) { toast(host, 'That file isn’t a MikeBall season.'); return; }
+    const t = teamOf(app, s.userId);
+    confirmBox(host, 'Load this season?', `${s.year} ${t.name}, ${s.phase === 'regular' ? `week ${s.week}` : s.phase === 'playoffs' ? 'the playoffs' : 'finished'}. It replaces the season on this phone.`, 'Load it', () => {
       app.season = s;
       applyDepth(app);
       saveSeason(app);
       app.showSeason();
-    } catch {
-      toast(host, 'That file isn’t a MikeBall season.');
-    }
+    });
   });
   document.body.append(input);
   input.click();
 }
 
 function toast(host, text) {
-  const t = h('p', { class: 'toast', role: 'status' }, text);
+  const t = h('p', { class: 'hub-toast', role: 'status' }, text);
   host.append(t);
   setTimeout(() => t.remove(), 2600);
 }
@@ -190,8 +220,9 @@ export function seasonSetupScreen(app, userId) {
   let qLen = app.settings.qLen || 8;
   const prev = app.season && app.season.phase === 'done' ? app.season : null;
   const year = prev ? prev.year + 1 : 2026;
-  const preview = S.newSeason({ year, userId, seed: 1, qLen, prev });
-  const list = S.teamGames(preview, userId);
+  // built once: the schedule shown here is the one Start uses
+  const season = S.newSeason({ year, userId, seed: (Date.now() ^ 0x2545f491) >>> 0, qLen, prev });
+  const list = S.teamGames(season, userId);
   const rows = [];
   for (let w = 1; w <= S.REGULAR_WEEKS; w++) {
     const g = list.find((x) => x.week === w);
@@ -233,7 +264,7 @@ export function seasonSetupScreen(app, userId) {
     h('div', { class: 'setup-actions' },
       h('button', { class: 'act', onclick: () => openRoster(app.root, user, app.league[userId], null, { editable: true }) }, 'Depth chart'),
       h('button', { class: 'go', onclick: (e) => {
-        const go = () => { app.settings.qLen = qLen; app.saveSettings(); beginSeason(app, userId, qLen); };
+        const go = () => { app.settings.qLen = qLen; app.saveSettings(); beginSeason(app, season, qLen); };
         const cur = app.season;
         if (cur && cur.phase !== 'done') confirmBox(e.target.closest('.screen'), 'New season?', `This replaces your ${cur.year} season with the ${teamOf(app, cur.userId).name}.`, 'Start over', go);
         else go();
@@ -312,7 +343,7 @@ function nextCard(app, s, st) {
       h('p', { class: 'next-note' }, out ? (s.bracket && [...s.bracket.seeds.AFC, ...s.bracket.seeds.NFC].includes(s.userId) ? 'Your season is over. Watch the rest of the playoffs.' : 'You missed the playoffs. Watch how it ends.') : playoffs ? 'You have the week off: the top seed’s bye.' : 'Bye week.'),
       h('div', { class: 'next-actions' },
         h('button', { class: 'go', onclick: () => { simUserGame(app); } }, playoffs ? 'Sim round' : 'Sim week'),
-        playoffs && out ? h('button', { class: 'act', onclick: () => simAhead(app, 'end') }, 'Sim to the end') : null,
+        playoffs && out ? h('button', { class: 'act', onclick: (e) => simAhead(app, 'end', e.target.closest('.screen')) }, 'Sim to the end') : null,
       ),
     );
   }
@@ -346,8 +377,8 @@ function openHubMenu(app, host) {
       h('p', { class: 'dialog-title' }, 'Season'),
       h('div', { class: 'dialog-buttons' },
         item('Depth chart', () => openRoster(app.root, teamOf(app, s.userId), app.league[s.userId], null, { editable: true, onChange: () => { s.depth = JSON.parse(JSON.stringify(app.league[s.userId].depth)); saveSeason(app); } })),
-        s.phase === 'regular' ? item('Sim to the playoffs', () => confirmBox(host, 'Sim ahead?', 'Every game left in the regular season is simmed, yours too.', 'Sim it', () => simAhead(app, 'playoffs'))) : null,
-        item('Save to file', () => exportSeason(app)),
+        s.phase === 'regular' ? item('Sim to the playoffs', () => confirmBox(host, 'Sim ahead?', 'Every game left in the regular season is simmed, yours too.', 'Sim it', () => simAhead(app, 'playoffs', host))) : null,
+        item('Save to file', () => exportSeason(app, host)),
         item('Load from file', () => importSeason(app, host)),
         item('Main menu', () => app.showTitle()),
         item('Close', () => {}),

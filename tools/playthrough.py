@@ -47,7 +47,8 @@ def main():
                 try:
                     # the screen can change under us (CPU snaps on its own play
                     # clock, the game ends), so keep every wait short
-                    if go.count() and go.is_enabled(timeout=1000):
+                    # (on defense there's no button: the CPU offense snaps it)
+                    if go.count() and go.is_visible() and go.is_enabled(timeout=1000):
                         tabs = page.locator(".tab")
                         if tabs.count():
                             tabs.nth(snaps % tabs.count()).click(timeout=1000)

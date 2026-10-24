@@ -84,7 +84,10 @@ export const menuMethods = {
       ['Resume', resume],
       ['Settings', () => openSettings(this.root, this.app, resume)],
       ['Sim to the end', () => { this.paused = false; this.simToEnd(); }],
-      this.opts.season ? ['Quit (the game won’t count)', () => this.app.showSeason()] : ['Quit to title', () => this.app.showTitle()],
+      this.opts.season ? ['Quit (the game won’t count)', () => this.dialog('Quit this game?', 'It won’t count. You can play it again from the season hub.', [
+        ['Keep playing', resume],
+        ['Quit', () => this.app.showSeason()],
+      ], { keepMode: true })] : ['Quit to title', () => this.app.showTitle()],
     ], { keepMode: true });
   },
 
@@ -107,7 +110,7 @@ export const menuMethods = {
       this.twoPoint = false;
     }
     let n = 0;
-    while (!g.over && n++ < 4000) cpuStep(g);
+    while (!g.over && n++ < 40000) cpuStep(g);
     this.showFinal();
   },
 
