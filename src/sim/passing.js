@@ -359,7 +359,8 @@ export const passingMethods = {
     let best = null;
     let bd = 5.5;
     for (const r of this.offense) {
-      if (r.down || (r.pos !== 'WR' && r.pos !== 'TE' && r.pos !== 'RB')) continue;
+      // (not one behind him: that'd be a backward pass, a live ball)
+      if (r.down || r.y < p.y + 0.5 || (r.pos !== 'WR' && r.pos !== 'TE' && r.pos !== 'RB')) continue;
       const d = dist(r.x, r.y, p.x, p.y);
       if (d < bd) { bd = d; best = r; }
     }
@@ -477,7 +478,7 @@ export const passingMethods = {
         side = endLineSide((b.x - a.x) / (Math.hypot(b.x - a.x, b.y - a.y) || 1));
         // a vertical that's reached the back line works for a window there
         if (!side && r.y >= this.backY - 1.5) {
-          const q = this.backLineSpot(r, lane, FIELD_W - lane);
+          const q = this.backLineSpot(r, lane, FIELD_W - lane, true);
           const d = dist(r.x, r.y, q.x, q.y);
           const go = Math.min(d, r.maxSpd * 0.45 * T);
           return d > 1e-3 ? { x: r.x + ((q.x - r.x) / d) * go, y: r.y + ((q.y - r.y) / d) * go } : q;
@@ -593,8 +594,10 @@ export const passingMethods = {
     }
     // thrown at nobody from the pocket with the rush on him: grounding
     // (Rule 8-2-1), same as the passer's own throwaways
+    // (out of the tackle box it's legal if it gets back to the line)
     const rushed = this.pressureOn(qb) > 0.5;
-    if (!r && rushed && !this.legalThrowAway(qb)) this.flag('grounding', qb, qb.x, qb.y, { spotY: qb.y });
+    const legal = Math.abs(qb.x - this.ballX) > 4.5 && aim.y >= 0;
+    if (!r && rushed && !legal) this.flag('grounding', qb, qb.x, qb.y, { spotY: qb.y });
     return this.throwNow(qb, r, { x: aim.x, y: aim.y, T });
   },
 

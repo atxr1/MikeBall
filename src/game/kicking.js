@@ -63,6 +63,7 @@ export const kickingMethods = {
   },
 
   punt() {
+    this.untimed = false; // (an untimed down is played once)
     const side = this.poss;
     const opp = other(side);
     const p = this.punter(side);
@@ -139,6 +140,7 @@ export const kickingMethods = {
   },
 
   fieldGoal() {
+    this.untimed = false;
     const side = this.poss;
     const k = this.kicker(side);
     const startBall = this.ballOn;

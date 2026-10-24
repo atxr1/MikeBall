@@ -169,11 +169,13 @@ export const offenseMethods = {
   // Where a receiver who ran a vertical to the back line works to: a step
   // back toward the passer, away from the man on him (the passer projects
   // him there too: src/sim/passing.js routeAhead).
-  backLineSpot(p, lo = SIDE_LANE, hi = FIELD_W - SIDE_LANE) {
-    if (p.backX == null) p.backX = p.x;
+  // (peek: the passer's projection, which mustn't change the receiver)
+  backLineSpot(p, lo = SIDE_LANE, hi = FIELD_W - SIDE_LANE, peek = false) {
+    if (p.backX == null && !peek) p.backX = p.x;
+    const bx = p.backX ?? p.x;
     const def = this.nearest(this.defense, p.x, p.y);
-    let tx = p.backX;
-    if (def && dist(def.x, def.y, p.x, p.y) < 3) tx += clamp(p.backX - def.x, -1, 1) * 1.2;
+    let tx = bx;
+    if (def && dist(def.x, def.y, p.x, p.y) < 3) tx += clamp(bx - def.x, -1, 1) * 1.2;
     return { x: clamp(tx, lo, hi), y: this.backY - 0.6 };
   },
 

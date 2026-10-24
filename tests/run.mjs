@@ -473,6 +473,16 @@ console.log('fouls and penalties');
     const untimed = ga.next === 'call' && ga.clock === 0 && ga.ballOn === 65;
     ga.applyPlay({ outcome: 'tackle', kind: 'run', yards: 3, spotY: 3, elapsed: 4, review: {}, fouls: [] }, offPlay('dive'), defPlay('cov3_43'));
     check('a defensive foul on the last play of a half gives an untimed down, then the half ends', untimed && ga.next === 'endQuarter', `${untimed} ${ga.next}`);
+    // ...also when the untimed down is a field goal
+    ga = mk(); ga.quarter = 4; ga.clock = 3; ga.ballOn = 70; ga.down = 4; ga.ltg = 80; ga.clockRunning = true;
+    ga.applyPlay({ outcome: 'incomplete', kind: 'pass', yards: 0, spotY: 0, incomplete: true, elapsed: 4, review: {}, fouls: [holdD] }, offPlay('dagger'), defPlay('cov3_43'));
+    ga.fieldGoal();
+    check('an untimed field goal ends the half', ga.next === 'endQuarter' || ga.next === 'final', ga.next);
+    // and a personal foul after a completion on the last play
+    ga = mk(); ga.quarter = 2; ga.clock = 3; ga.ballOn = 40; ga.down = 1; ga.ltg = 50; ga.clockRunning = true;
+    const rtp = { key: 'rtp', name: 'Roughing the passer', on: 'D', yards: 15, auto1st: true, afterPlay: true, signal: 'rtp' };
+    ga.applyPlay({ outcome: 'tackle', kind: 'pass', yards: 12, spotY: 12, elapsed: 5, review: {}, passer: { first: 'Test', last: 'Passer' }, receiver: { first: 'Test', last: 'Receiver' }, fouls: [rtp] }, offPlay('dagger'), defPlay('cov3_43'));
+    check('roughing the passer on the last play: untimed down', ga.next === 'call' && ga.clock === 0 && !ga.clockRunning, `${ga.next} ${ga.clock} ${ga.clockRunning}`);
     ga = mk(); ga.quarter = 5; ga.clock = 125; ga.clockRunning = true; ga.ot = { stage: 'first', first: 'home', second: 'away' };
     const otOut = ga.applyPlay({ outcome: 'tackle', kind: 'run', yards: 3, spotY: 3, elapsed: 4, review: {}, fouls: [] }, offPlay('dive'), defPlay('cov3_43'));
     check('overtime has a two-minute warning', otOut.flags.includes('twoMinute') && !ga.clockRunning, `${otOut.flags} ${ga.clockRunning}`);

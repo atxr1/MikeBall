@@ -47,6 +47,7 @@ export class Game {
     this.clockRunning = false;
     this.shortRunoff = false;
     this.warned = false;
+    this.untimed = false;
     // Play clock (NFL Rule 4-6): 40 s from the end of a play, 25 s after an
     // administrative stoppage (change of possession, timeout, two-minute
     // warning, new period, penalty, a score).
@@ -280,6 +281,8 @@ export class Game {
     if (pen && (pen.mode === 'replace' || pen.mode === 'offset')) {
       if (pen.mode === 'offset') {
         pen.text = `Offsetting fouls. Replay ${ordinal(this.down)} down.`;
+        // (a half can't end on a double foul either)
+        if (this.clock <= 0) { this.untimed = true; this.clockRunning = false; }
         this.pcShort = true;
         this.addLog(`FLAG: ${pen.text}`, 'penalty');
       } else this.enforce(pen);
@@ -410,6 +413,8 @@ export class Game {
         this.stats.team[def].penYds += y2;
         pen.text += ` ${pen.late.name}, ${this.teams[def].abbr}. ${y2 < pen.late.yards ? 'Half the distance to the goal' : `${y2} more yards`}.`;
       }
+      // a live-ball foul by the defense on the last play: an untimed down
+      if (this.clock <= 0 && !pen.deadBall && !r.td) { this.untimed = true; pen.text += ' Untimed down.'; }
       out.penalty = pen;
       out.text = `${out.text} — FLAG: ${pen.text}`;
       this.addLog(`FLAG: ${pen.text}`, 'penalty');
@@ -444,6 +449,7 @@ export class Game {
       if (this.inLateWindow()) this.clockRunning = false;
       else { this.clockRunning = true; this.shortRunoff = true; }
     } else this.clockRunning = !warned;
+    if (this.untimed) this.clockRunning = false;
     if (warned) {
       out.flags.push('twoMinute');
       this.pcShort = true;

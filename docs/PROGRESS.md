@@ -164,6 +164,16 @@ Newest first. Each session: what got done, what's broken, what's next.
     toward where the back was rather than where he was going): outside
     zone against a Mike blitz no longer averages 12+ yards; zone runs
     ~4.6-5 a carry.
+  - From the second review: the untimed down is cleared by a field goal
+    or punt too (the other team was getting a snap at 0:00), and a
+    personal foul after the play or offsetting fouls on the last play also
+    extend the half; grounding near the goal line can't put the ball on
+    the 0; a player's own throw at nobody is judged by where it went (legal
+    only out of the tackle box and back to the line); a throwaway at a
+    receiver's feet never goes backward; the passer's projection no longer
+    changes the receiver's back-line spot. The block-engagement code moved
+    out of playsim.js into `src/sim/engage.js` (playsim.js was near 800
+    lines).
   - Now and then a throw just gets away from the passer (sailed,
     short-armed: about 1 in 11, more for a less accurate passer and under
     pressure); receivers can't always get to those.

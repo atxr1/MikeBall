@@ -32,10 +32,10 @@ export const penaltyMethods = {
   },
 
   // Rule 4-7-1: inside the last two minutes of a half, an offensive foul
-  // between plays that stops a running clock (false start, delay of game)
-  // costs 10 more seconds. Fouls during a play don't (the 10 seconds after
-  // any offensive foul is the college rule). Returns the runoff.
-  // (The offense could take a timeout instead; not modeled.)
+  // that stops a running clock costs 10 more seconds: between plays (false
+  // start, delay of game) and intentional grounding during one (other fouls
+  // during a play don't). Returns the runoff. (The defense could decline
+  // it, or the offense take a timeout instead; not modeled.)
   // The clock then starts on the ready-for-play signal. Call it after
   // clockAfterFoul.
   runoff(side, wasRunning) {
@@ -98,7 +98,8 @@ export const penaltyMethods = {
         this.addLog(`FLAG: ${pen.text}`, 'penalty');
         return;
       }
-      const y = spotBack > pen.yards ? spotBack : Math.min(pen.yards, Math.floor(this.ballOn / 2));
+      // (never past his own goal line: that's the safety above)
+      const y = Math.min(spotBack > pen.yards ? spotBack : Math.min(pen.yards, Math.floor(this.ballOn / 2)), this.ballOn - 1);
       this.ballOn -= y;
       this.stats.team[pen.on].penYds += y;
       this.down++;
