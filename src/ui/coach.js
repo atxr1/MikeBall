@@ -51,10 +51,12 @@ export class CoachScreen {
       userSide: this.user,
       qLen,
       seed,
+      playoff: !!opts.playoff,
     });
     this.opts = opts;
-    // who's carrying the game (Sunday afternoon on CBS/FOX, TNF on Prime...)
-    this.broadcast = broadcastFor(opts.slot || 'sun_early', this.game.teams.home, this.game.teams.away);
+    // who's carrying the game (Sunday afternoon on CBS/FOX, TNF on Prime...):
+    // a season game brings its own window from the schedule
+    this.broadcast = opts.broadcast || broadcastFor(opts.slot || 'sun_early', this.game.teams.home, this.game.teams.away);
     preloadBroadcast(this.broadcast.net);
     this.cam = new Camera();
     this.mode = 'idle';

@@ -2,7 +2,7 @@
 // online, with a cached copy for offline play. Bump CACHE_VERSION on every
 // release so phones drop the old copy.
 
-const CACHE_VERSION = 'mikeball-v34';
+const CACHE_VERSION = 'mikeball-v35';
 const NET_TIMEOUT_MS = 3500;
 const TEAM_IDS = 'BUF MIA NE NYJ BAL CIN CLE PIT HOU IND JAX TEN DEN KC LV LAC DAL NYG PHI WAS CHI DET GB MIN ATL CAR NO TB ARI LAR SF SEA'.split(' ');
 // Team logos are small and used on every screen, so they're cached up front.
@@ -26,6 +26,15 @@ const SHELL = [
   'fonts/mikeball-pixel.ttf',
   'src/ui/pixelart.js',
   'src/main.js',
+  'src/data/league2025.js',
+  'src/data/schedule2026.js',
+  'src/game/quicksim.js',
+  'src/game/schedule.js',
+  'src/game/season.js',
+  'src/game/standings.js',
+  'src/game/weeks.js',
+  'src/ui/season.js',
+  'src/ui/seasontabs.js',
   'src/core/rng.js',
   'src/core/util.js',
   'src/core/storage.js',

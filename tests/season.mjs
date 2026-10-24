@@ -198,6 +198,15 @@ export function runSeasonTests(check, between, real) {
     let guard = 0;
     while (saved.phase !== 'done' && guard++ < 40) { S.simWeek(saved, rosters, byId, { includeUser: true }); S.nextWeek(saved, rosters, teams); }
     check('season: saved mid-season and resumed, same champion and scores', saved.champion === full.champion && JSON.stringify(saved.games.map((g) => [g.hs, g.as])) === JSON.stringify(full.games.map((g) => [g.hs, g.as])));
+    // the user's short game counts at full-game pace; the score as played
+    const ps = S.newSeason({ year: 2026, userId: 'KC', seed: 9, qLen: 8 });
+    const ug = S.userGame(ps, 1);
+    const short = new Game({ ...S.gameOptions(ps, ug, rosters, byId), qLen: 8, userSide: 'none' });
+    short.quick = true;
+    simulateGame(short, 20000);
+    S.recordGame(ps, ug, short, rosters);
+    const qb = [...short.stats.players.values()].find((l) => l.pass.att > 5);
+    check('season: a user game at 8-minute quarters goes in at 15/8 pace', qb && Math.abs(ps.players[qb.id].pass.yds - qb.pass.yds * 15 / 8) < 1e-6 && ug.hs === short.score.home);
     const next = S.newSeason({ year: 2027, userId: 'KC', seed: 5, qLen: 4, prev: full });
     check('season: next year built from this one (champion opens at home)', next.games.length === 272 && next.games.some((g) => g.tag === 'KICKOFF' && g.home === full.champion) && next.lastChampion === full.champion);
   }

@@ -10,11 +10,39 @@ import { playerOfTheGame } from '../game/awards.js';
 import { titleCard, fitPixelCanvas } from './broadcast.js';
 import { openSettings } from './settings.js';
 
-export function titleScreen(app) {
+// mode: 'season' (pick a team for a new season, or carry on with the one
+// saved) or 'game' (a one-off game).
+export function titleScreen(app, mode = app.titleMode || 'season') {
   const s = app.settings;
   let conf = (TEAMS.find((t) => t.id === s.userId) || TEAMS[0]).conf;
   const grid = h('div', { class: 'divisions' });
   const confBar = h('div', { class: 'segment', role: 'tablist' });
+  const modeBar = h('div', { class: 'segment mode-bar', role: 'tablist' });
+  const seasonBox = h('div');
+  const pickNote = h('p', { class: 'pick-note' });
+  const pick = (t) => (mode === 'season' ? app.showSeasonSetup(t.id) : app.showSetup(t.id));
+
+  const renderMode = () => {
+    app.titleMode = mode;
+    for (const x of modeBar.children) x.setAttribute('aria-selected', String(x.dataset.v === mode));
+    clear(seasonBox);
+    const sv = app.season;
+    if (mode === 'season' && sv) {
+      const t = TEAMS.find((x) => x.id === sv.userId);
+      const where = sv.phase === 'done' ? `${sv.year} season over` : sv.phase === 'playoffs' ? `${sv.year} playoffs` : `${sv.year} season · Week ${sv.week}`;
+      seasonBox.append(h('section', { class: 'season-card' },
+        h('span', { html: teamMarkSVG(t, 44) }),
+        h('div', { class: 'tile-text' }, h('small', {}, where), h('strong', {}, `${t.name} ${app.seasonRecord(sv)}`)),
+        h('button', { class: 'go', onclick: () => app.showSeason() }, sv.phase === 'done' ? 'View' : 'Continue'),
+      ));
+    }
+    pickNote.textContent = mode === 'season' ? (sv && sv.phase !== 'done' ? 'Or pick a team to start a new season (it replaces this one).' : 'Pick your team for the season.') : 'Pick your team for a single game.';
+  };
+  for (const [v, label] of [['season', 'Season'], ['game', 'Single game']]) {
+    const b = h('button', { role: 'tab', 'data-v': v }, label);
+    b.addEventListener('click', () => { mode = v; renderMode(); });
+    modeBar.append(b);
+  }
 
   const render = () => {
     clear(grid);
@@ -23,7 +51,7 @@ export function titleScreen(app) {
       grid.append(h('section', { class: 'division' },
         h('h2', {}, `${conf} ${div}`),
         h('div', { class: 'team-grid' }, ...teams.map((t) =>
-          h('button', { class: `team-tile${t.id === s.userId ? ' current' : ''}`, onclick: () => app.showSetup(t.id) },
+          h('button', { class: `team-tile${t.id === s.userId ? ' current' : ''}`, onclick: () => pick(t) },
             h('span', { html: teamMarkSVG(t, 44) }),
             h('span', { class: 'tile-text' }, h('small', {}, t.city), h('strong', {}, t.name)),
           ))),
@@ -40,6 +68,7 @@ export function titleScreen(app) {
     confBar.append(b);
   }
   render();
+  renderMode();
   const screen = h('div', { class: 'screen title-screen' },
     h('header', { class: 'title-head' },
       h('div', { class: 'title-row' },
@@ -48,6 +77,9 @@ export function titleScreen(app) {
       ),
       h('p', { class: 'lede' }, 'Own it. Build it. Coach it. Pick the team that’s yours.'),
     ),
+    modeBar,
+    seasonBox,
+    pickNote,
     confBar,
     grid,
   );
@@ -207,7 +239,7 @@ export function finalScreen(app, game, opts) {
   const opp = user === 'home' ? 'away' : 'home';
   const us = game.score[user];
   const them = game.score[opp];
-  const verdict = us > them ? 'You won' : us < them ? 'You lost' : 'A tie';
+  const verdict = `${opts.seasonLabel ? `${opts.seasonLabel} · ` : ''}${us > them ? 'You won' : us < them ? 'You lost' : 'A tie'}`;
 
   return h('div', { class: 'screen final-screen' },
     h('header', { class: 'final-head' },
@@ -224,16 +256,18 @@ export function finalScreen(app, game, opts) {
     teamStats,
     h('h2', {}, 'Leaders'),
     ...leaders,
-    h('div', { class: 'setup-actions' },
-      h('button', { class: 'act', onclick: () => app.showTitle() }, 'Change team'),
-      h('button', { class: 'go', onclick: () => app.startGame({ ...opts, seed: undefined }) }, 'Rematch'),
-    ),
+    opts.season
+      ? h('div', { class: 'setup-actions' }, h('button', { class: 'go', onclick: () => app.showSeason('scores') }, 'Continue'))
+      : h('div', { class: 'setup-actions' },
+        h('button', { class: 'act', onclick: () => app.showTitle() }, 'Change team'),
+        h('button', { class: 'go', onclick: () => app.startGame({ ...opts, seed: undefined }) }, 'Rematch'),
+      ),
   );
 }
 
 // The network's "Final" card over the box score.
 function finalCard(game, opts) {
-  const b = broadcastFor(opts.slot || 'sun_early', game.teams.home, game.teams.away);
+  const b = opts.broadcast || broadcastFor(opts.slot || 'sun_early', game.teams.home, game.teams.away);
   const card = titleCard(b.net, 'Final');
   if (!card) return null;
   card.setAttribute('aria-label', `Final, ${b.title} on ${b.netName}`);

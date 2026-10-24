@@ -11,9 +11,12 @@
 // htd/atd touchdowns, ot, potg). Playoff games carry a round (0-3) and a
 // conference. players: regular-season stat lines by player id; teams:
 // regular-season team totals. Games the user doesn't coach are played by
-// the rules engine with the quick play resolver (./quicksim.js), the same
-// quarter length as the user's games so the league's numbers stay in
-// proportion. Pure logic: no DOM.
+// the rules engine with the quick play resolver (./quicksim.js) at full
+// length (15-minute quarters), so the league's scores, standings and stat
+// lines look like the NFL's. The user's own games are as long as they like
+// (qLen); their numbers go into the season totals at full-game pace, so a
+// quarterback in 8-minute games can still lead the league. Pure logic: no
+// DOM.
 
 import { TEAMS } from '../data/teams.js';
 import { Game } from './rules.js';
@@ -28,6 +31,7 @@ import { clamp } from '../core/util.js';
 
 export const SEASON_VERSION = 1;
 export const REGULAR_WEEKS = 18;
+export const FULL_QUARTER = 15;
 export { ROUND_NAMES };
 
 const teamsInfo = (teams) => teams.map((t) => ({ id: t.id, conf: t.conf, div: t.div }));
@@ -89,14 +93,14 @@ export function isPlayoff(g) {
 }
 
 // A Game for this schedule entry (the coach screen makes its own for the
-// user's games from the same options).
+// user's games, at the user's quarter length).
 export function gameOptions(s, g, rosters, teamById) {
   return {
     homeTeam: teamById(g.home),
     awayTeam: teamById(g.away),
     homeRoster: rosters[g.home],
     awayRoster: rosters[g.away],
-    qLen: s.qLen,
+    qLen: FULL_QUARTER,
     seed: gameSeed(s, g),
     playoff: isPlayoff(g),
   };
@@ -119,11 +123,11 @@ function startersOf(roster) {
   return out;
 }
 
-const addInto = (dst, src) => {
+const addInto = (dst, src, f = 1) => {
   for (const [k, v] of Object.entries(src)) {
     if (typeof v !== 'number') continue;
     if (k === 'long') dst[k] = Math.max(dst[k] || 0, v);
-    else dst[k] = (dst[k] || 0) + v;
+    else dst[k] = (dst[k] || 0) + v * f;
   }
 };
 const CATS = ['pass', 'rush', 'rec', 'def', 'kick', 'punt', 'ret'];
@@ -146,11 +150,13 @@ export function recordGame(s, g, game, rosters) {
   }
   const sideTeam = { home: g.home, away: g.away };
   const seen = new Set();
+  // a shorter game counts at full-game pace
+  const pace = FULL_QUARTER / (game.qLen || FULL_QUARTER);
   for (const l of game.stats.players.values()) {
     const team = sideTeam[l.side];
     const p = (s.players[l.id] ||= { id: l.id, team, name: l.name, pos: l.pos, num: l.num, gp: 0 });
     p.team = team;
-    for (const c of CATS) if (l[c]) addInto((p[c] ||= {}), l[c]);
+    for (const c of CATS) if (l[c]) addInto((p[c] ||= {}), l[c], pace);
     if (!seen.has(l.id)) { p.gp++; seen.add(l.id); }
   }
   for (const side of ['home', 'away']) {
@@ -168,9 +174,9 @@ export function recordGame(s, g, game, rosters) {
       }
     }
     const t = (s.teams[id] ||= {});
-    addInto(t, game.stats.team[side]);
-    t.pts = (t.pts || 0) + game.score[side];
-    t.opp = (t.opp || 0) + game.score[side === 'home' ? 'away' : 'home'];
+    addInto(t, game.stats.team[side], pace);
+    t.pts = (t.pts || 0) + game.score[side] * pace;
+    t.opp = (t.opp || 0) + game.score[side === 'home' ? 'away' : 'home'] * pace;
     t.games = (t.games || 0) + 1;
   }
 }
@@ -383,7 +389,8 @@ export const LEADER_CATS = [
 
 export function leaders(s, catId, n = 10) {
   const cat = LEADER_CATS.find((c) => c.id === catId) || LEADER_CATS[0];
-  return Object.values(s.players).map((l) => ({ l, v: cat.get(l) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).slice(0, n);
+  // (paced numbers from short games can be fractional)
+  return Object.values(s.players).map((l) => ({ l, v: Math.round(cat.get(l)) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).slice(0, n);
 }
 
 export { offenseScore, defenseScore };

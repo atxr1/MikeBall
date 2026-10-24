@@ -10,6 +10,8 @@ import { injectDefs } from './ui/emblems.js';
 import { titleScreen, setupScreen, finalScreen } from './ui/menus.js';
 import { resolveHonors } from './data/honors.js';
 import { CoachScreen } from './ui/coach.js';
+import { seasonHub, seasonSetupScreen, resumeSeason, recordUserGame } from './ui/season.js';
+import { seasonStandings } from './game/season.js';
 
 const LEAGUE_SEED = 2026;
 
@@ -39,22 +41,40 @@ const app = {
     window.scrollTo(0, 0);
   },
 
-  showTitle() {
-    this.mount(titleScreen(this));
+  showTitle(mode) {
+    this.mount(titleScreen(this, mode));
+  },
+
+  // ---- season mode (src/ui/season.js)
+  showSeason(tab) {
+    if (!this.season) return this.showTitle('season');
+    this.mount(seasonHub(this, tab));
+  },
+
+  showSeasonSetup(userId) {
+    this.mount(seasonSetupScreen(this, userId));
+  },
+
+  seasonRecord(s) {
+    const r = seasonStandings(s, TEAMS).rows[s.userId];
+    return `${r.w}-${r.l}${r.t ? `-${r.t}` : ''}`;
   },
 
   showSetup(userId) {
     this.mount(setupScreen(this, userId));
   },
 
-  startGame({ userId, oppId, userHome, qLen, seed, slot }) {
+  // extra: a season game's { broadcast, playoff, season: { gameId } }
+  startGame({ userId, oppId, userHome, qLen, seed, slot, ...extra }) {
     if (this.coach) { this.coach.destroy(); this.coach = null; }
     for (const s of [...this.root.children]) s.remove();
     const gameSeed = seed ?? ((Date.now() ^ 0x9e3779b9) >>> 0);
-    this.coach = new CoachScreen(this, { league: this.league, userId, oppId, userHome, qLen, seed: gameSeed, slot });
+    this.coach = new CoachScreen(this, { league: this.league, userId, oppId, userHome, qLen, seed: gameSeed, slot, ...extra });
   },
 
   showFinal(game, opts) {
+    // a season game goes on the books before anything else
+    if (opts && opts.season) recordUserGame(this, game, opts);
     const screen = finalScreen(this, game, opts);
     this.mount(screen);
   },
@@ -80,6 +100,7 @@ async function loadLeague() {
 async function boot() {
   injectDefs();
   app.league = await loadLeague();
+  resumeSeason(app);
   const everyone = Object.values(app.league).flatMap((r) => r.players);
   computeBadges(everyone);
   if (app.realLeague) resolveHonors(everyone);

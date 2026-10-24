@@ -653,7 +653,9 @@ export class Game {
       this.quarter = 5;
       // regular season: one 10-minute period, two timeouts each; playoffs:
       // 15-minute periods with three timeouts for each pair of them
-      this.clock = this.playoff ? 900 : 600;
+      // (shorter games get a shorter overtime: two-thirds of a quarter, a full
+      // one in the playoffs, so 10 and 15 minutes at full length)
+      this.clock = this.playoff ? this.qLen * 60 : Math.round(this.qLen * 40);
       this.timeouts = this.playoff ? { home: 3, away: 3 } : { home: 2, away: 2 };
       this.warned = false; // overtime has its own two-minute warning
       const recv = this.rng.chance(0.5) ? 'home' : 'away';
@@ -669,7 +671,7 @@ export class Game {
       // starts like a second half, with a coin toss, a kickoff and fresh
       // timeouts; the others just change ends.
       this.quarter++;
-      this.clock = 900;
+      this.clock = this.qLen * 60;
       this.clockRunning = false;
       this.shortRunoff = false;
       this.warned = false;

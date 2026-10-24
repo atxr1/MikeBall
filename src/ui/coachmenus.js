@@ -84,7 +84,7 @@ export const menuMethods = {
       ['Resume', resume],
       ['Settings', () => openSettings(this.root, this.app, resume)],
       ['Sim to the end', () => { this.paused = false; this.simToEnd(); }],
-      ['Quit to title', () => this.app.showTitle()],
+      this.opts.season ? ['Quit (the game won’t count)', () => this.app.showSeason()] : ['Quit to title', () => this.app.showTitle()],
     ], { keepMode: true });
   },
 
