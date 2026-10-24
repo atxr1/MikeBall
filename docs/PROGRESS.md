@@ -184,10 +184,10 @@ Newest first. Each session: what got done, what's broken, what's next.
     fumbles a bit more often; long field goals harder (50+ about 70%,
     overall ~85%).
 
-Numbers (real league, 4 x 48 CPU games): ~23 points a team, 68%
-completions, 7.7 ypa, 11.3 yards a catch, 2.0% interceptions, ~2 sacks a
-team, 4.35 a carry, aDOT 8.6, 13.5% of throws 20+ air yards (41% caught),
-4.6 yards after the catch, ~5 penalties and ~1 turnover a team, field
+Numbers (real league, 4 x 48 CPU games): ~22.5 points a team, 68%
+completions, 7.5 ypa, 11.1 yards a catch, 2.0% interceptions, ~2 sacks a
+team, 4.25 a carry, aDOT 8.5, 13% of throws 20+ air yards (40% caught),
+4.5 yards after the catch, ~5 penalties and ~0.9 turnovers a team, field
 goals ~86%. From the 5: ~44% of dropbacks and ~25% of runs score.
 
 **Known issues**
