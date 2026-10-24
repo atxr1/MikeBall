@@ -477,12 +477,14 @@ export const contactMethods = {
         this.brake(p, dt, 14);
       } else if (p.celeb) this.celebMove(p, dt);
       else if (p !== h && !p.blk && this.post.t > 0.9 + (i % 6) * 0.15 && Math.hypot(p.vx, p.vy) < 2.5) {
+        p.walking = true;
         const back = p.side === 'O' ? -6 : 5;
         const tx = p.x + (spotX - p.x) * 0.35;
         const ty = spotY + back + ((i % 5) - 2) * 0.6;
-        if (Math.hypot(tx - p.x, ty - p.y) > 1.2) this.accelTo(p, Math.sign(tx - p.x) * Math.min(1.4, Math.abs(tx - p.x)) * 0.8, Math.sign(ty - p.y) * Math.min(1.6, Math.abs(ty - p.y)) * 0.8, dt, 3);
+        const pace = 0.65 + (i % 4) * 0.12; // (not all at the same walk)
+        if (Math.hypot(tx - p.x, ty - p.y) > 1.2) this.accelTo(p, Math.sign(tx - p.x) * Math.min(1.4, Math.abs(tx - p.x)) * pace, Math.sign(ty - p.y) * Math.min(1.6, Math.abs(ty - p.y)) * pace, dt, 3);
         else this.brake(p, dt, 4);
-      } else this.brake(p, dt, 6.5);
+      } else this.brake(p, dt, p.x < 0.6 || p.x > FIELD_W - 0.6 ? 12 : 6.5); // (pulling up hard at the sideline)
       this.tickMove(p, dt);
       p.x += p.vx * dt;
       p.y += p.vy * dt;
@@ -494,5 +496,25 @@ export const contactMethods = {
       }
       p.anim += sp * dt * 2.2;
     });
+    // walking back, they go around each other rather than through
+    const P = this.players;
+    for (let i = 0; i < P.length; i++) {
+      const a = P[i];
+      if (a.down) continue;
+      for (let j = i + 1; j < P.length; j++) {
+        const b = P[j];
+        if (b.down || (!a.walking && !b.walking)) continue;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > 0.6 || d2 < 1e-6) continue;
+        const d = Math.sqrt(d2);
+        const push = (0.78 - d) * 0.5;
+        const ka = a.walking ? 1 : 0.2;
+        const kb = b.walking ? 1 : 0.2;
+        a.x -= (dx / d) * push * ka; a.y -= (dy / d) * push * ka;
+        b.x += (dx / d) * push * kb; b.y += (dy / d) * push * kb;
+      }
+    }
   },
 };

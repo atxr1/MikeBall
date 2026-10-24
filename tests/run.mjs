@@ -21,6 +21,7 @@ import { catchOdds, tackleOdds, proximity } from '../src/sim/odds.js';
 import { fieldGoal, extraPoint, kickoff } from '../src/game/kicks.js';
 import { PreSnap } from '../src/ui/presnap.js';
 import { onFieldRuling, settleRuling } from '../src/game/replay.js';
+import { cpuFourthDown } from '../src/game/cpu.js';
 import { makePlaySim } from '../src/game/autoplay.js';
 import { cpuMatchDefense } from '../src/game/cpu.js';
 import { offPlay, defPlay } from '../src/data/playbook.js';
@@ -486,6 +487,13 @@ console.log('fouls and penalties');
     ga = mk(); ga.quarter = 5; ga.clock = 125; ga.clockRunning = true; ga.ot = { stage: 'first', first: 'home', second: 'away' };
     const otOut = ga.applyPlay({ outcome: 'tackle', kind: 'run', yards: 3, spotY: 3, elapsed: 4, review: {}, fouls: [] }, offPlay('dive'), defPlay('cov3_43'));
     check('overtime has a two-minute warning', otOut.flags.includes('twoMinute') && !ga.clockRunning, `${otOut.flags} ${ga.clockRunning}`);
+    // behind by 7 in overtime, a field goal can't help: the CPU goes for it
+    ga = mk(); ga.quarter = 5; ga.clock = 352; ga.poss = 'home'; ga.score = { home: 9, away: 16 }; ga.ballOn = 62; ga.down = 4; ga.ltg = 65;
+    ga.ot = { stage: 'second', first: 'away', second: 'home' };
+    const dec7 = cpuFourthDown(ga, 'home');
+    ga.score = { home: 13, away: 16 };
+    const dec3 = cpuFourthDown(ga, 'home');
+    check('in overtime the CPU only kicks a field goal that ties or wins', dec7 === 'go' && dec3 === 'fg', `${dec7} ${dec3}`);
   }
   // fouls come out of plays at about NFL rates
   let flags = 0;

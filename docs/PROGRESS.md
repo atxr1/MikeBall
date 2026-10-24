@@ -174,6 +174,16 @@ Newest first. Each session: what got done, what's broken, what's next.
     changes the receiver's back-line spot. The block-engagement code moved
     out of playsim.js into `src/sim/engage.js` (playsim.js was near 800
     lines).
+  - From the second playtest: receivers on goal-line verticals pull up at
+    a few different depths (not in a row along the end line), about two
+    yards inside it, then work to one side away from their man (the passer
+    projects each one's own spot); players walking back after the whistle
+    go around each other and at slightly different paces, and pull up hard
+    at the sideline; a run that dies before the handoff or pitch credits
+    the man who had it (the ticker said "unknown"); the CPU doesn't kick a
+    field goal behind by more than 3 in overtime; a tied game goes
+    hurry-up in the last two minutes; the free kick after a safety says
+    "Free kick" on the scorebug and in the ticker.
   - Now and then a throw just gets away from the passer (sailed,
     short-armed: about 1 in 11, more for a less accurate passer and under
     pressure); receivers can't always get to those.

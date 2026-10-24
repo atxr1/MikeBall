@@ -140,7 +140,7 @@ export const offenseMethods = {
       // a flat or swing: drift on toward the sideline at a jog, looking
       // back for the ball; steered along the same path the passer projects
       // (settleStep), at the pace it assumes
-      const q = settleStep(p.x, p.y, dx, dy, 6, this.backY);
+      const q = settleStep(p.x, p.y, dx, dy, 6, p.backLine ?? this.backY);
       return this.steer(p, q.x, q.y, (SETTLE_FRAC * Math.hypot(q.x - p.x, q.y - p.y)) / 6, dt, 0);
     }
     // keep going; at the sideline, turn upfield inside it (the passer
@@ -150,9 +150,10 @@ export const offenseMethods = {
     const hi = FIELD_W - lane;
     // at the back of the end zone he works along the end line the way the
     // route was angling, or sits down there (alongRoute again)
-    if (p.y >= this.backY - (Math.max(0, p.vy) ** 2) / (2 * p.accel) - 0.3) {
+    const backY = p.backLine ?? this.backY;
+    if (p.y >= backY - (Math.max(0, p.vy) ** 2) / (2 * p.accel) - 0.3) {
       const side = endLineSide(dx / m);
-      if (side) return this.steer(p, clamp(p.x + side * 5, lo, hi), this.backY, ENDLINE_FRAC, dt, 0.8);
+      if (side) return this.steer(p, clamp(p.x + side * 5, lo, hi), backY, ENDLINE_FRAC, dt, 0.8);
       // a vertical: he throttles down there and works away from the man on
       // him (backLineSpot)
       const q = this.backLineSpot(p, lo, hi);
@@ -173,10 +174,16 @@ export const offenseMethods = {
   backLineSpot(p, lo = SIDE_LANE, hi = FIELD_W - SIDE_LANE, peek = false) {
     if (p.backX == null && !peek) p.backX = p.x;
     const bx = p.backX ?? p.x;
-    const def = this.nearest(this.defense, p.x, p.y);
-    let tx = bx;
-    if (def && dist(def.x, def.y, p.x, p.y) < 3) tx += clamp(bx - def.x, -1, 1) * 1.2;
-    return { x: clamp(tx, lo, hi), y: this.backY - 0.6 };
+    // he picks a side away from his man once and works to it (not back and
+    // forth as the man mirrors him), and the receivers settle at a few
+    // different depths rather than in a row
+    let side = p.backSide ?? 0;
+    if (!side) {
+      const def = this.nearest(this.defense, p.x, p.y);
+      if (def && dist(def.x, def.y, p.x, p.y) < 3) side = def.x > p.x ? -1 : 1;
+      if (side && !peek) p.backSide = side;
+    }
+    return { x: clamp(bx + side * 1.4, lo, hi), y: (p.backLine ?? this.backY) - 0.3 };
   },
 
   blitzThreat(p) {

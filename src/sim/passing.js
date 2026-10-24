@@ -467,24 +467,25 @@ export const passingMethods = {
       if (sat) return { x: r.x, y: r.y };
       // (on the end line he's already slowed to work along it: alongRoute
       // wants his running speed)
-      const sp = r.y >= this.backY - 0.3 ? r.maxSpd : Math.hypot(r.vx, r.vy) || 1;
+      const backY = r.backLine ?? this.backY;
+      const sp = r.y >= backY - 0.3 ? r.maxSpd : Math.hypot(r.vx, r.vy) || 1;
       let lane = SIDE_LANE;
       let side = 0;
       if (pts && pts.length) {
         const a = pts.length > 1 ? pts[pts.length - 2] : { x: r.sx, y: r.sy };
         const b = pts[pts.length - 1];
-        if (r.routeEnd === 'settle') return settleStep(r.x, r.y, b.x - a.x, b.y - a.y, r.maxSpd * SETTLE_FRAC * T, this.backY);
+        if (r.routeEnd === 'settle') return settleStep(r.x, r.y, b.x - a.x, b.y - a.y, r.maxSpd * SETTLE_FRAC * T, backY);
         lane = r.routeLane ?? laneFor(b.x - a.x, b.y - a.y);
         side = endLineSide((b.x - a.x) / (Math.hypot(b.x - a.x, b.y - a.y) || 1));
         // a vertical that's reached the back line works for a window there
-        if (!side && r.y >= this.backY - 1.5) {
+        if (!side && r.y >= backY - 1.5) {
           const q = this.backLineSpot(r, lane, FIELD_W - lane, true);
           const d = dist(r.x, r.y, q.x, q.y);
           const go = Math.min(d, r.maxSpd * 0.45 * T);
           return d > 1e-3 ? { x: r.x + ((q.x - r.x) / d) * go, y: r.y + ((q.y - r.y) / d) * go } : q;
         }
       }
-      return alongRoute(r.x, r.y, r.vx / sp, r.vy / sp, sp * T, lane, this.backY, side);
+      return alongRoute(r.x, r.y, r.vx / sp, r.vy / sp, sp * T, lane, backY, side);
     }
     let x = r.x;
     let y = r.y;
@@ -503,10 +504,10 @@ export const passingMethods = {
     // past the last point he carries on the way the route finished
     const a = pts.length > 1 ? pts[pts.length - 2] : { x: r.sx, y: r.sy };
     const b = pts[pts.length - 1];
-    if (r.routeEnd === 'settle') return settleStep(x, y, b.x - a.x, b.y - a.y, (left / sp) * r.maxSpd * SETTLE_FRAC, this.backY);
+    if (r.routeEnd === 'settle') return settleStep(x, y, b.x - a.x, b.y - a.y, (left / sp) * r.maxSpd * SETTLE_FRAC, r.backLine ?? this.backY);
     const lx = b.x - a.x;
     const ly = b.y - a.y;
-    return alongRoute(x, y, dx, dy, left, r.routeLane ?? laneFor(lx, ly), this.backY, endLineSide(lx / (Math.hypot(lx, ly) || 1)));
+    return alongRoute(x, y, dx, dy, left, r.routeLane ?? laneFor(lx, ly), r.backLine ?? this.backY, endLineSide(lx / (Math.hypot(lx, ly) || 1)));
   },
 
   // How far short of the catch point L this defender will be when the

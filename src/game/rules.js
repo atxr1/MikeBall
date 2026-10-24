@@ -149,6 +149,8 @@ export class Game {
     if (this.quarter === 2 && this.clock <= 120) return 'hurry';
     if (this.quarter >= 4) {
       if (diff < 0 && this.clock <= 330) return 'hurry';
+      // tied with the clock running down: trying to win it in regulation
+      if (diff === 0 && this.clock <= 120) return 'hurry';
       if (diff > 0 && this.clock <= 420) return 'milk';
     }
     return 'normal';

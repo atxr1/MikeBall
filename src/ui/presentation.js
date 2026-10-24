@@ -22,7 +22,7 @@ export const presentationMethods = {
     this.updateClocks();
     let dd = '';
     if (!g.over) {
-      if (g.phase === 'kickoff') dd = 'Kickoff';
+      if (g.phase === 'kickoff') dd = g.freeKick ? 'Free kick' : 'Kickoff';
       else if (g.phase === 'pat' || this.twoPoint) dd = this.twoPoint ? 'Two-point try' : 'Extra point';
       else dd = `${g.downText()} at ${g.spotText()}`;
     }
@@ -31,7 +31,7 @@ export const presentationMethods = {
     // the rules engine at the snap) doesn't leak onto it before it happens
     let tvdd = '';
     if (!g.over) {
-      if (g.phase === 'kickoff') tvdd = 'KICKOFF';
+      if (g.phase === 'kickoff') tvdd = g.freeKick ? 'FREE KICK' : 'KICKOFF';
       else if (g.phase === 'pat' || this.twoPoint) tvdd = this.twoPoint ? '2-PT TRY' : 'PAT';
       else tvdd = g.downText().toUpperCase();
     }

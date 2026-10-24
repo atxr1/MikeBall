@@ -26,6 +26,9 @@ export function cpuFourthDown(game, side) {
   const lastKick = s.clock <= 10 && (s.quarter === 2 || (s.quarter >= 4 && s.diff >= -3));
   const range = lastKick ? reach : comfortableFgRange(k);
   if (lastKick && fgd <= reach) return 'fg';
+  // behind in overtime this is the last possession that matters: a field
+  // goal only if it ties or wins it, otherwise go for it
+  if (s.quarter >= 5 && s.diff < 0) return s.diff >= -3 && fgd <= reach ? 'fg' : 'go';
   const late = s.quarter >= 4 && s.clock <= 300;
   if (late && s.diff < 0) {
     if (s.diff >= -3 && fgd <= reach && s.clock <= 120) return 'fg';

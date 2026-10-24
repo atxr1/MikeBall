@@ -16,6 +16,7 @@ export const kickingMethods = {
     const ret = this.returner(rSide);
     const fromYard = this.freeKick ? 20 : 35;
     const res = K.kickoff(k, ret, this.rng, { onside, fromYard });
+    const kicksOff = this.freeKick ? 'free kicks' : 'kicks off';
     this.freeKick = false;
     let text;
     let headline = null;
@@ -23,10 +24,10 @@ export const kickingMethods = {
     const tr = this.teams[rSide].abbr;
     this.poss = rSide;
     if (res.type === 'touchback') {
-      text = res.rolled ? `${nm(k)}'s kick rolls into the end zone. Touchback, ${tr} ball at the 20.` : `${nm(k)} kicks off. Touchback, ${tr} ball at the 35.`;
+      text = res.rolled ? `${nm(k)}'s kick rolls into the end zone. Touchback, ${tr} ball at the 20.` : `${nm(k)} ${kicksOff}. Touchback, ${tr} ball at the 35.`;
       this.setPossession(rSide, res.ballOn);
     } else if (res.type === 'short' || res.type === 'oob') {
-      text = res.type === 'short' ? `${nm(k)}'s kick lands short of the landing zone. ${tr} ball at the 40.` : `${nm(k)} kicks off out of bounds. ${tr} ball at the 40.`;
+      text = res.type === 'short' ? `${nm(k)}'s kick lands short of the landing zone. ${tr} ball at the 40.` : `${nm(k)} ${kicksOff} out of bounds. ${tr} ball at the 40.`;
       this.setPossession(rSide, 40);
     } else if (res.type === 'onside_recovered') {
       text = `ONSIDE KICK — recovered by ${tk}!`;
@@ -52,7 +53,7 @@ export const kickingMethods = {
       return { text, headline, kind: 'kickoff', res, kSide, rSide, from: fromYard, returner: ret, next: this.next };
     } else {
       const end = res.runEnd ?? res.ballOn;
-      text = end >= 100 ? `${nm(k)} kicks off, ${nm(ret)} returns it all the way —` : `${nm(k)} kicks off, ${nm(ret)} returns it ${res.returnYds} yards to the ${fieldLabel(end, tr, tk)}.`;
+      text = end >= 100 ? `${nm(k)} ${kicksOff}, ${nm(ret)} returns it all the way —` : `${nm(k)} ${kicksOff}, ${nm(ret)} returns it ${res.returnYds} yards to the ${fieldLabel(end, tr, tk)}.`;
       this.runClock(clamp(4 + res.returnYds * 0.12, 4, 9));
       if (res.foul) text += ` ${this.returnFoulText(res, rSide, kSide)}`;
       this.setPossession(rSide, res.ballOn);

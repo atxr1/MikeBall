@@ -141,7 +141,10 @@ export class PlaySim {
         const n = rp.pts.length;
         const a = n > 1 ? rp.pts[n - 2] : p;
         p.routeLane = laneFor(rp.pts[n - 1].x - a.x, rp.pts[n - 1].y - a.y);
-        for (const q of rp.pts) if (q.y > this.backY) { q.y = this.backY; q.back = true; }
+        // (the receivers pull up at a few different depths, not in a row)
+        const backY = this.backY - (this.offense.indexOf(p) % 3) * 0.8;
+        p.backLine = backY;
+        for (const q of rp.pts) if (q.y > backY) { q.y = backY; q.back = true; }
         p.pts = rp.pts;
         p.routeEnd = rp.end;
         if (j.t === 'route') p.released = true;
@@ -596,7 +599,8 @@ export class PlaySim {
       passer: (this.passer || (this.offPlay.cat !== 'run' || this.scramble || outcome === 'sack' ? this.qb : null))?.rec,
       target: this.ball.target?.rec,
       receiver: this.receiver?.rec,
-      rusher: this.rusher?.rec,
+      // (a run that died before the handoff or the pitch: the man who had it)
+      rusher: (this.rusher || (kind === 'run' ? this.fumbled?.by || this.ball.holder || this.qb : null))?.rec,
       tackler: this.tackler?.rec,
       assist: this.assist?.rec,
       interceptor: this.interceptor?.rec,
