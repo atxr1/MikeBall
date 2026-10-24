@@ -12,7 +12,7 @@
 //
 // A stat line looks like StatBook lines (src/game/stats.js): { id, name, pos,
 // side|team, pass, rush, rec, def, kick, punt } plus, for seasons, { rookie,
-// gp, ret: { kr, pr } }.
+// gp, ret: { kr, kry, pr, pry, td } } (returns and return yards).
 
 const n = (v) => v || 0;
 
@@ -94,7 +94,7 @@ function candidates(lines, slot) {
     case 'QB': return [by((l) => l.pos === 'QB'), (l) => offenseScore(l) + n(l.wins) * 3];
     case 'RB': return [by((l) => l.pos === 'RB' && l.slot !== 'FB'), offenseScore];
     case 'FB': return [by((l) => l.slot === 'FB'), (l) => n(l.grade) + offenseScore(l) * 0.3];
-    case 'All-purpose': return [by((l) => ['RB', 'WR', 'TE'].includes(l.pos)), (l) => offenseScore(l) + n(l.ret && l.ret.yds) * 0.06];
+    case 'All-purpose': return [by((l) => ['RB', 'WR', 'TE'].includes(l.pos)), (l) => offenseScore(l) + (n(l.ret && l.ret.kry) + n(l.ret && l.ret.pry)) * 0.06];
     case 'WR': return [by((l) => l.pos === 'WR'), offenseScore];
     case 'TE': return [by((l) => l.pos === 'TE'), (l) => offenseScore(l) + n(l.grade) * 0.2];
     case 'LT': case 'LG': case 'C': case 'RG': case 'RT':
@@ -107,8 +107,8 @@ function candidates(lines, slot) {
     case 'S': return [by((l) => l.pos === 'S'), (l) => defenseScore(l) + n(l.grade) * 0.3];
     case 'K': return [by((l) => l.pos === 'K'), kickScore];
     case 'P': return [by((l) => l.pos === 'P'), (l) => (l.punt && l.punt.n ? l.punt.yds / l.punt.n : 0)];
-    case 'KR': return [by((l) => l.ret && l.ret.kr), (l) => l.ret.kr];
-    case 'PR': return [by((l) => l.ret && l.ret.pr), (l) => l.ret.pr];
+    case 'KR': return [by((l) => l.ret && l.ret.kr >= 8), (l) => l.ret.kry / l.ret.kr * 4 + l.ret.kry * 0.02 + n(l.ret.td) * 6];
+    case 'PR': return [by((l) => l.ret && l.ret.pr >= 8), (l) => l.ret.pry / l.ret.pr * 4 + l.ret.pry * 0.03 + n(l.ret.td) * 6];
     default: return [[], () => 0];
   }
 }

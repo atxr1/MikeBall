@@ -22,17 +22,20 @@ import { kickingMethods } from './kicking.js';
 import { replayMethods } from './replay.js';
 
 export const other = (s) => (s === 'home' ? 'away' : 'home');
-const TEMPO_RUNOFF = { hurry: 13, normal: 36, milk: 39 };
+const TEMPO_RUNOFF = { hurry: 13, brisk: 24, normal: 36, milk: 39 };
 
 export class Game {
-  constructor({ homeTeam, awayTeam, homeRoster, awayRoster, userSide = 'home', qLen = 8, seed = 1 }) {
+  constructor({ homeTeam, awayTeam, homeRoster, awayRoster, userSide = 'home', qLen = 8, seed = 1, playoff = false }) {
     this.teams = { home: homeTeam, away: awayTeam };
+    // postseason: 15-minute overtime periods until somebody wins (Rule 16-2)
+    this.playoff = playoff;
     this.rosters = { home: homeRoster, away: awayRoster };
     this.userSide = userSide;
     this.qLen = qLen;
     this.seed = seed;
     this.rng = makeRng(seed);
     this.score = { home: 0, away: 0 };
+    this.tds = { home: 0, away: 0 };
     this.qScores = { home: [0, 0, 0, 0], away: [0, 0, 0, 0] };
     this.quarter = 1;
     this.clock = qLen * 60;
@@ -90,7 +93,18 @@ export class Game {
   }
 
   quarterText() {
-    return this.quarter <= 4 ? `Q${this.quarter}` : 'OT';
+    if (this.quarter <= 4) return `Q${this.quarter}`;
+    return this.quarter === 5 ? 'OT' : `${this.quarter - 4}OT`;
+  }
+
+  // Periods that end with a two-minute warning: each half, regular-season
+  // overtime, and in the playoffs every second overtime period (they're
+  // played like halves).
+  warningPeriod() {
+    const q = this.quarter;
+    if (q === 2 || q === 4) return true;
+    if (!this.playoff) return q === 5;
+    return q >= 6 && q % 2 === 0;
   }
 
   inLateWindow() {
@@ -147,6 +161,10 @@ export class Game {
   tempoFor(side) {
     const diff = this.score[side] - this.score[other(side)];
     if (this.quarter === 2 && this.clock <= 120) return 'hurry';
+    if (this.quarter >= 5 && !this.playoff && diff <= 0) {
+      // ten minutes of overtime: nobody wants a tie
+      return diff < 0 || this.clock <= 180 ? 'hurry' : 'brisk';
+    }
     if (this.quarter >= 4) {
       if (diff < 0 && this.clock <= 330) return 'hurry';
       // tied with the clock running down: trying to win it in regulation
@@ -166,6 +184,7 @@ export class Game {
   addScore(side, pts) {
     this.pcShort = true;
     this.score[side] += pts;
+    if (pts === 6) this.tds[side]++; // (touchdowns: a standings tiebreaker)
     const qi = Math.min(this.quarter, 5) - 1;
     while (this.qScores[side].length <= qi) { this.qScores.home.push(0); this.qScores.away.push(0); }
     this.qScores[side][qi] += pts;
@@ -182,7 +201,7 @@ export class Game {
     const before = this.clock;
     this.clock = Math.max(0, this.clock - sec);
     this.addTop(before - this.clock);
-    if ((this.quarter === 2 || this.quarter >= 4) && !this.warned && before > 120 && this.clock <= 120) {
+    if (this.warningPeriod() && !this.warned && before > 120 && this.clock <= 120) {
       this.warned = true;
       this.clockRunning = false;
       return true;
@@ -218,7 +237,7 @@ export class Game {
         this.pcRunoff += run;
         const before = this.clock;
         const after = before - run;
-        if ((this.quarter === 2 || this.quarter >= 4) && !this.warned && before > 120 && after <= 120) {
+        if (this.warningPeriod() && !this.warned && before > 120 && after <= 120) {
           this.addTop(before - 120);
           this.clock = 120;
           this.warned = true;
@@ -632,8 +651,10 @@ export class Game {
     if (q === 4) {
       if (this.score.home !== this.score.away) return this.finish();
       this.quarter = 5;
-      this.clock = 600;
-      this.timeouts = { home: 2, away: 2 };
+      // regular season: one 10-minute period, two timeouts each; playoffs:
+      // 15-minute periods with three timeouts for each pair of them
+      this.clock = this.playoff ? 900 : 600;
+      this.timeouts = this.playoff ? { home: 3, away: 3 } : { home: 2, away: 2 };
       this.warned = false; // overtime has its own two-minute warning
       const recv = this.rng.chance(0.5) ? 'home' : 'away';
       this.kickingSide = other(recv);
@@ -642,6 +663,32 @@ export class Game {
       this.addLog(`Overtime! ${this.teams[recv].abbr} wins the toss and will receive.`, 'info');
       this.finishNext();
       return { kind: 'ot', text: 'Overtime' };
+    }
+    if (this.playoff && this.score.home === this.score.away) {
+      // still tied in the playoffs: another period. The third (and fifth...)
+      // starts like a second half, with a coin toss, a kickoff and fresh
+      // timeouts; the others just change ends.
+      this.quarter++;
+      this.clock = 900;
+      this.clockRunning = false;
+      this.shortRunoff = false;
+      this.warned = false;
+      const n = this.quarter - 4;
+      if (n % 2 === 1) {
+        this.timeouts = { home: 3, away: 3 };
+        if (this.ot && this.ot.stage === 'sudden') {
+          const recv = this.rng.chance(0.5) ? 'home' : 'away';
+          this.kickingSide = other(recv);
+          this.phase = 'kickoff';
+          this.patSide = null;
+          this.addLog(`End of the ${ordinal(n - 1)} overtime. ${this.teams[recv].abbr} wins the toss and will receive.`, 'info');
+          this.finishNext();
+          return { kind: 'ot', text: `${ordinal(n)} overtime` };
+        }
+      }
+      this.addLog(`End of the ${ordinal(n - 1)} overtime.`, 'info');
+      this.finishNext();
+      return { kind: 'quarter', text: `End of the ${ordinal(n - 1)} overtime` };
     }
     return this.finish();
   }

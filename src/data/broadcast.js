@@ -37,6 +37,64 @@ export const SLOTS = [
   { id: 'international', label: 'International', title: 'International Series', night: false },
 ];
 
+// A scheduled game's TV window as a code: day, Eastern kickoff time, and
+// whether it's under the lights (offset: days from that week's Sunday).
+export const SLOT_INFO = {
+  We1: { day: 'Wed', time: '1:00 PM', night: false, offset: -4 },
+  We4: { day: 'Wed', time: '4:30 PM', night: false, offset: -4 },
+  We8: { day: 'Wed', time: '8:20 PM', night: true, offset: -4 },
+  Th1: { day: 'Thu', time: '1:00 PM', night: false, offset: -3 },
+  Th4: { day: 'Thu', time: '4:30 PM', night: false, offset: -3 },
+  Th8: { day: 'Thu', time: '8:15 PM', night: true, offset: -3 },
+  Fr1: { day: 'Fri', time: '1:00 PM', night: false, offset: -2 },
+  Fr3: { day: 'Fri', time: '3:00 PM', night: false, offset: -2 },
+  Fr4: { day: 'Fri', time: '4:30 PM', night: false, offset: -2 },
+  Fr8: { day: 'Fri', time: '8:15 PM', night: true, offset: -2 },
+  Sa1: { day: 'Sat', time: '1:00 PM', night: false, offset: -1 },
+  Sa4: { day: 'Sat', time: '4:30 PM', night: false, offset: -1 },
+  Sa8: { day: 'Sat', time: '8:20 PM', night: true, offset: -1 },
+  Su9: { day: 'Sun', time: '9:30 AM', night: false, offset: 0 },
+  Su1: { day: 'Sun', time: '1:00 PM', night: false, offset: 0 },
+  Su4: { day: 'Sun', time: '4:25 PM', night: false, offset: 0 },
+  Su8: { day: 'Sun', time: '8:20 PM', night: true, offset: 0 },
+  Mo8: { day: 'Mon', time: '8:15 PM', night: true, offset: 1 },
+};
+export const DAY_NAMES = { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' };
+const TAG_TITLES = {
+  KICKOFF: 'Kickoff Game',
+  THXEVE: 'Thanksgiving Eve',
+  THX: 'Thanksgiving',
+  BF: 'Black Friday',
+  XEVE: 'Christmas Eve',
+  XMAS: 'Christmas Day',
+  NYE: "New Year's Eve",
+};
+const SLOT_TITLES = {
+  Su8: ['snf', 'Sunday Night Football'],
+  Mo8: ['mnf', 'Monday Night Football'],
+  Th8: ['tnf', 'Thursday Night Football'],
+  Sa1: ['sat', 'Saturday'],
+  Sa4: ['sat', 'Saturday'],
+  Sa8: ['sat', 'Saturday Night'],
+  Su9: ['international', 'Sunday morning'],
+};
+
+// The broadcast for a game on the season schedule ({slot, net, site, tag}).
+export function broadcastForGame(game) {
+  const info = SLOT_INFO[game.slot] || SLOT_INFO.Su1;
+  const [slot, title] = SLOT_TITLES[game.slot] || ['sun_early', info.day === 'Sun' ? 'Sunday afternoon' : DAY_NAMES[info.day]];
+  const net = NETWORKS[game.net] ? game.net : 'cbs';
+  return {
+    slot: game.tag === 'THX' ? 'thanksgiving' : game.tag === 'XMAS' ? 'christmas' : game.tag === 'BF' ? 'black_friday' : game.site ? 'international' : slot,
+    title: TAG_TITLES[game.tag] || (game.site ? `Live from ${game.site}` : title),
+    label: `${info.day} ${game.time || info.time}`,
+    net,
+    netName: NETWORKS[net].name,
+    night: info.night,
+    site: game.site || null,
+  };
+}
+
 export function slotById(id) {
   return SLOTS.find((s) => s.id === id) || SLOTS[0];
 }

@@ -3,7 +3,8 @@
 
 import { settleRuling } from './replay.js';
 import { PlaySim } from '../sim/playsim.js';
-import { offenseLineup, defenseLineup } from './personnel.js';
+import { quickPlay, foul } from './quicksim.js';
+import { offenseLineup, defenseLineup, rosterIndex } from './personnel.js';
 import { cpuOffense, cpuDefense, cpuPat, cpuOnside, cpuTimeout } from './cpu.js';
 import { offPlay } from '../data/playbook.js';
 import { other } from './rules.js';
@@ -32,6 +33,32 @@ export function makePlaySim(game, oPlay, dPlay, rng, extra = null) {
   });
 }
 
+// A snap for a CPU-vs-CPU game: the full sim, or the quick resolver when
+// the game is flagged quick (season mode's other games).
+function runSnap(game, oPlay, dPlay, extra = null) {
+  if (!game.quick) return makePlaySim(game, oPlay, dPlay, null, extra).runToEnd();
+  const off = game.poss;
+  const def = other(off);
+  return quickPlay({
+    offPlay: oPlay,
+    defPlay: dPlay,
+    offLineup: offenseLineup(game.rosters[off], oPlay.formation),
+    defLineup: defenseLineup(game.rosters[def], dPlay.front),
+    ballOn: game.ballOn,
+    ballX: game.ballX,
+    rng: game.rng,
+    wantOOB: game.tempoFor(off) === 'hurry' && game.inLateWindow(),
+    toGo: game.ltg >= 100 ? null : game.ltg - game.ballOn,
+    rb2: backup(game.rosters[off], 'RB', 1),
+  });
+}
+
+function backup(roster, pos, i) {
+  const id = (roster.depth[pos] || [])[i];
+  const p = id && rosterIndex(roster).get(id);
+  return p && !p.injured ? p : null;
+}
+
 export function setupTwoPoint(game) {
   game.ballOn = 98;
   game.ballX = MID_X;
@@ -54,8 +81,9 @@ export function cpuStep(game) {
       setupTwoPoint(game);
       const o = cpuOffense(game, side);
       const play = o.cat === 'special' ? offPlay('slants') : o;
-      const sim = makePlaySim(game, play, cpuDefense(game, other(side)), null, { noFouls: true });
-      return game.applyTwoPoint(sim.runToEnd());
+      const r = runSnap(game, play, cpuDefense(game, other(side)), { noFouls: true });
+      if (r.quick) r.fouls = [];
+      return game.applyTwoPoint(r);
     }
     case 'call':
     default: {
@@ -72,9 +100,11 @@ export function cpuStep(game) {
       if (snap.stop) return { kind: 'endQuarter' };
       const pen = game.preSnapPenalty();
       if (pen && !pen.live) { game.finishNext(); return { kind: 'penalty', pen }; }
-      const sim = makePlaySim(game, o, d, null, pen ? { snapFoul: { key: pen.key } } : null);
+      const raw = runSnap(game, o, d, pen ? { snapFoul: { key: pen.key } } : null);
+      // a live-ball foul at the snap the quick resolver doesn't stage
+      if (raw.quick && pen) raw.fouls.push(foul(pen.key, null));
       // the officials' ruling, and replay if anyone looks at it
-      const { result, charge, reversed } = settleRuling(game, sim.runToEnd(), game.rng);
+      const { result, charge, reversed } = settleRuling(game, raw, game.rng);
       const out = game.applyPlay(result, o, d);
       if (reversed) game.reversalRunoff();
       if (charge && out.kind !== 'penalty') game.chargeChallenge(charge.side, charge.won);

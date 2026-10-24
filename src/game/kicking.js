@@ -42,6 +42,7 @@ export const kickingMethods = {
       this.runClock(5);
       this.setPossession(kSide, 100 - res.ballOn);
     } else if (res.type === 'td') {
+      this.returnStat(ret, rSide, 'kr', res.returnYds, true);
       text = `${nm(ret)} returns the kick ${res.returnYds} yards for a TOUCHDOWN!`;
       headline = 'Kick return touchdown!';
       this.runClock(11);
@@ -53,6 +54,7 @@ export const kickingMethods = {
       return { text, headline, kind: 'kickoff', res, kSide, rSide, from: fromYard, returner: ret, next: this.next };
     } else {
       const end = res.runEnd ?? res.ballOn;
+      this.returnStat(ret, rSide, 'kr', res.returnYds);
       text = end >= 100 ? `${nm(k)} ${kicksOff}, ${nm(ret)} returns it all the way —` : `${nm(k)} ${kicksOff}, ${nm(ret)} returns it ${res.returnYds} yards to the ${fieldLabel(end, tr, tk)}.`;
       this.runClock(clamp(4 + res.returnYds * 0.12, 4, 9));
       if (res.foul) text += ` ${this.returnFoulText(res, rSide, kSide)}`;
@@ -104,6 +106,7 @@ export const kickingMethods = {
       this.ltg = Math.min(this.ballOn + 10, 100);
       this.clockRunning = false;
     } else if (res.type === 'td') {
+      this.returnStat(ret, opp, 'pr', res.returnYds, true);
       text = `${nm(ret)} returns the punt ${res.returnYds} yards for a TOUCHDOWN!`;
       headline = 'Punt return touchdown!';
       this.changePossession(99);
@@ -113,6 +116,7 @@ export const kickingMethods = {
       this.finishNext();
       return { text, headline, kind: 'punt', res, side, next: this.next, startBall };
     } else {
+      this.returnStat(ret, opp, 'pr', res.returnYds);
       text = (res.runEnd ?? 0) >= 100 ? `${nm(p)} punts ${res.gross} yards, ${nm(ret)} takes it all the way —` : `${nm(p)} punts ${res.gross} yards, ${nm(ret)} returns ${res.returnYds}.`;
       if (res.foul) text += ` ${this.returnFoulText(res, opp, side)}`;
       this.changePossession(res.ballOn);
@@ -120,6 +124,15 @@ export const kickingMethods = {
     this.addLog(text, 'kick');
     this.finishNext();
     return { text, headline, kind: 'punt', res, side, next: this.next, startBall };
+  },
+
+  // Return numbers for the box score (kind: 'kr' kickoffs, 'pr' punts).
+  returnStat(ret, side, kind, yds, td = false) {
+    const l = ret && this.stats.line(ret, side);
+    if (!l) return;
+    l.ret[kind]++;
+    l.ret[`${kind}y`] += yds || 0;
+    if (td) l.ret.td++;
   },
 
   // A flag on a return (src/game/kicks.js withReturnFoul): the text, and the

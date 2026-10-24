@@ -1,0 +1,78 @@
+// The 2025 season's final standings and the 2026 head coaches, from the
+// asset pack (assets/data/raw/standings_2025.json, coaches.json). Generated
+// by tools/build-schedule2026.mjs. Season mode uses last season for the
+// prime-time draw, the defending champion's opener and Coach of the Year.
+// Pure data: no DOM.
+
+export const LAST_SEASON = 2025;
+export const CHAMPION_2025 = 'SEA';
+
+export const STANDINGS_2025 = {
+  BUF: { w: 12, l: 5, t: 0, divRank: 2, seed: 6, result: 'divisional_loss' },
+  MIA: { w: 7, l: 10, t: 0, divRank: 3, seed: null, result: 'missed_playoffs' },
+  NE: { w: 14, l: 3, t: 0, divRank: 1, seed: 2, result: 'super_bowl_loss' },
+  NYJ: { w: 3, l: 14, t: 0, divRank: 4, seed: null, result: 'missed_playoffs' },
+  BAL: { w: 8, l: 9, t: 0, divRank: 2, seed: null, result: 'missed_playoffs' },
+  CIN: { w: 6, l: 11, t: 0, divRank: 3, seed: null, result: 'missed_playoffs' },
+  CLE: { w: 5, l: 12, t: 0, divRank: 4, seed: null, result: 'missed_playoffs' },
+  PIT: { w: 10, l: 7, t: 0, divRank: 1, seed: 4, result: 'wild_card_loss' },
+  HOU: { w: 12, l: 5, t: 0, divRank: 2, seed: 5, result: 'divisional_loss' },
+  IND: { w: 8, l: 9, t: 0, divRank: 3, seed: null, result: 'missed_playoffs' },
+  JAX: { w: 13, l: 4, t: 0, divRank: 1, seed: 3, result: 'wild_card_loss' },
+  TEN: { w: 3, l: 14, t: 0, divRank: 4, seed: null, result: 'missed_playoffs' },
+  DEN: { w: 14, l: 3, t: 0, divRank: 1, seed: 1, result: 'conference_championship_loss' },
+  KC: { w: 6, l: 11, t: 0, divRank: 3, seed: null, result: 'missed_playoffs' },
+  LV: { w: 3, l: 14, t: 0, divRank: 4, seed: null, result: 'missed_playoffs' },
+  LAC: { w: 11, l: 6, t: 0, divRank: 2, seed: 7, result: 'wild_card_loss' },
+  DAL: { w: 7, l: 9, t: 1, divRank: 2, seed: null, result: 'missed_playoffs' },
+  NYG: { w: 4, l: 13, t: 0, divRank: 4, seed: null, result: 'missed_playoffs' },
+  PHI: { w: 11, l: 6, t: 0, divRank: 1, seed: 3, result: 'wild_card_loss' },
+  WAS: { w: 5, l: 12, t: 0, divRank: 3, seed: null, result: 'missed_playoffs' },
+  CHI: { w: 11, l: 6, t: 0, divRank: 1, seed: 2, result: 'divisional_loss' },
+  DET: { w: 9, l: 8, t: 0, divRank: 4, seed: null, result: 'missed_playoffs' },
+  GB: { w: 9, l: 7, t: 1, divRank: 2, seed: 7, result: 'wild_card_loss' },
+  MIN: { w: 9, l: 8, t: 0, divRank: 3, seed: null, result: 'missed_playoffs' },
+  ATL: { w: 8, l: 9, t: 0, divRank: 3, seed: null, result: 'missed_playoffs' },
+  CAR: { w: 8, l: 9, t: 0, divRank: 1, seed: 4, result: 'wild_card_loss' },
+  NO: { w: 6, l: 11, t: 0, divRank: 4, seed: null, result: 'missed_playoffs' },
+  TB: { w: 8, l: 9, t: 0, divRank: 2, seed: null, result: 'missed_playoffs' },
+  ARI: { w: 3, l: 14, t: 0, divRank: 4, seed: null, result: 'missed_playoffs' },
+  LAR: { w: 12, l: 5, t: 0, divRank: 2, seed: 5, result: 'conference_championship_loss' },
+  SF: { w: 12, l: 5, t: 0, divRank: 3, seed: 6, result: 'divisional_loss' },
+  SEA: { w: 14, l: 3, t: 0, divRank: 1, seed: 1, result: 'super_bowl_champion' },
+};
+
+export const COACHES = {
+  BUF: "Joe Brady",
+  MIA: "Jeff Hafley",
+  NE: "Mike Vrabel",
+  NYJ: "Aaron Glenn",
+  BAL: "Jesse Minter",
+  CIN: "Zac Taylor",
+  CLE: "Todd Monken",
+  PIT: "Mike McCarthy",
+  HOU: "DeMeco Ryans",
+  IND: "Shane Steichen",
+  JAX: "Liam Coen",
+  TEN: "Robert Saleh",
+  DEN: "Sean Payton",
+  KC: "Andy Reid",
+  LV: "Klint Kubiak",
+  LAC: "Jim Harbaugh",
+  DAL: "Brian Schottenheimer",
+  NYG: "John Harbaugh",
+  PHI: "Nick Sirianni",
+  WAS: "Dan Quinn",
+  CHI: "Ben Johnson",
+  DET: "Dan Campbell",
+  GB: "Matt LaFleur",
+  MIN: "Kevin O'Connell",
+  ATL: "Kevin Stefanski",
+  CAR: "Dave Canales",
+  NO: "Kellen Moore",
+  TB: "Todd Bowles",
+  ARI: "Mike LaFleur",
+  LAR: "Sean McVay",
+  SF: "Kyle Shanahan",
+  SEA: "Mike Macdonald",
+};

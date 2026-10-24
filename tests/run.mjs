@@ -26,6 +26,7 @@ import { makePlaySim } from '../src/game/autoplay.js';
 import { cpuMatchDefense } from '../src/game/cpu.js';
 import { offPlay, defPlay } from '../src/data/playbook.js';
 import { protectionPairs } from '../src/sim/blocking.js';
+import { runSeasonTests } from './season.mjs';
 
 let failed = 0;
 let passed = 0;
@@ -623,6 +624,8 @@ if (existsSync('assets/data/league.json')) {
   check('real: avg points per team 10-45', between(ravg, 10, 45), ravg.toFixed(1));
   console.log(`  (avg ${ravg.toFixed(1)} pts/team)`);
 }
+
+runSeasonTests(check, between, existsSync('assets/data/league.json') ? fromLeagueJson(JSON.parse(readFileSync('assets/data/league.json', 'utf8'))) : null);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

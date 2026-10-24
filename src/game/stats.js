@@ -19,7 +19,8 @@ export class StatBook {
         rec: { tgt: 0, rec: 0, yds: 0, td: 0, long: 0 },
         def: { tkl: 0, sacks: 0, int: 0, pbu: 0, ff: 0 },
         kick: { fgm: 0, fga: 0, xpm: 0, xpa: 0, long: 0 },
-        punt: { n: 0, yds: 0 } };
+        punt: { n: 0, yds: 0 },
+        ret: { kr: 0, kry: 0, pr: 0, pry: 0, td: 0 } };
       this.players.set(p.id, l);
     }
     return l;
