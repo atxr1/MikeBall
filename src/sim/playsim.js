@@ -92,6 +92,8 @@ export class PlaySim {
     }
     // a draw: the line shows pass, the back gets it late
     this.isDraw = this.offense.some((p) => p.job.t === 'draw');
+    // the back on a designed run (not a draw or a sneak)
+    this.runBack = offPlay.cat === 'run' && !this.isDraw ? this.offense.find((p) => p.job.t === 'carry' && p.pos !== 'QB') || null : null;
     for (const d of Object.values(this.defAlign)) {
       const e = mkEnt(defLineup[d.slot], 'D', d.slot, d.pos, d.x, d.y);
       e.assign = d.assign;
@@ -423,6 +425,8 @@ export class PlaySim {
       const side = Math.sign(d.x - h.x) || 1;
       return { x: h.x + side * 3.6, y: h.y - 1.2, vx: 0, vy: 0 };
     }
+    // a designed run: a blocked man fights to the back, not the passer
+    if (h === this.qb && this.runBack && this.phase === 'pre' && h.side !== d.side) return this.runBack;
     if (h && h.side !== d.side) return h;
     if (this.ball.state === 'air') return { x: this.ball.tx, y: this.ball.ty, vx: 0, vy: 0 };
     return this.qb;
@@ -450,25 +454,29 @@ export class PlaySim {
       const spd = clamp(0.3 + 2.4 * w, -1.6, 1.7);
       let vx = dx * spd;
       let vy = dy * spd;
-      if (pair.run && goal === this.carrier && (b.job?.t === 'pull' || b.job?.t === 'lead') && d.edge) {
+      // (on a designed run the defense is playing the back from the snap,
+      // before he has the ball)
+      const onRunner = pair.run && (goal === this.carrier || goal === this.runBack);
+      if (onRunner && (b.job?.t === 'pull' || b.job?.t === 'lead') && d.edge) {
         // a kick-out: the puller or lead back hits the end man from the
         // inside and drives him out of the hole
         vx = d.edge * clamp(1.2 - 3 * w, -0.4, 2);
         vy = Math.min(vy, 0.2);
-      } else if (pair.run && goal === this.carrier) {
+      } else if (onRunner) {
         // against the run he works down the line with the ball, riding the
         // blocker, easier sideways than straight ahead; but not across the
         // blocker's face: with the runner on the blocker's side of him he's
         // walled off, and only a man who's winning the block works through
-        const gx = goal.x - d.x;
+        // (to where the runner's going, not where he is)
+        const gx = goal.x + (goal.vx || 0) * 0.3 - d.x;
         const walled = pair.lev && Math.sign(gx) === pair.lev && Math.abs(gx) > 0.5;
         const lat = walled ? clamp(0.2 + 2 * w, 0, 1.4) : clamp(1.0 + 3 * w, 0, 2.6);
         vx = Math.abs(gx) < 0.3 ? vx : Math.sign(gx) * Math.max(Math.abs(vx), Math.min(lat, Math.abs(gx) * 3));
       }
       this.accelTo(d, vx, vy, dt, 20);
       // blocker sits between defender and the goal
-      const kick = pair.run && goal === this.carrier && (b.job?.t === 'pull' || b.job?.t === 'lead') && d.edge;
-      const bx = d.x + (kick ? -d.edge * 0.8 : pair.run && goal === this.carrier ? (pair.lev || Math.sign(goal.x - d.x)) * 0.6 : dx * 0.95);
+      const kick = onRunner && (b.job?.t === 'pull' || b.job?.t === 'lead') && d.edge;
+      const bx = d.x + (kick ? -d.edge * 0.8 : onRunner ? (pair.lev || Math.sign(goal.x - d.x)) * 0.6 : dx * 0.95);
       const by = d.y + dy * 0.95;
       this.accelTo(b, d.vx + (bx - b.x) * 6, d.vy + (by - b.y) * 6, dt, 30);
       // shed

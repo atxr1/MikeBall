@@ -159,6 +159,11 @@ Newest first. Each session: what got done, what's broken, what's next.
   - Rules: a half can't end on an accepted defensive foul (an untimed
     down, Rule 4-8-2); overtime has its own two-minute warning (and the
     late-half runoffs).
+  - On a designed run, a blocked defender fights toward the back from the
+    snap (he used to fight toward the quarterback until the handoff, then
+    toward where the back was rather than where he was going): outside
+    zone against a Mike blitz no longer averages 12+ yards; zone runs
+    ~4.6-5 a carry.
   - Now and then a throw just gets away from the passer (sailed,
     short-armed: about 1 in 11, more for a less accurate passer and under
     pressure); receivers can't always get to those.
