@@ -622,6 +622,11 @@ export const passingMethods = {
     for (const o of this.defense) if (!o.down && !o.blk && dist(o.x, o.y, qb.x, qb.y) < 0.95) hit = true;
     const err = throwError(qb, d, press, moving, across, hit);
     if (this.offPlay.hailMary) { err.sideSd += 1.6; err.depthSd += 1.8; }
+    // now and then one just gets away from him (more often for a less
+    // accurate passer, and under fire): sailed, short-armed, in the dirt
+    if (!this.opts.manualPass && this.rng.chance(0.05 + (100 - qb.a.tha) * 0.0015 + press.hurry * 0.06)) {
+      err.sideSd *= 2.6; err.depthSd *= 2.6; err.heightSd *= 2.2;
+    }
     const ux = (L.x - qb.x) / (d || 1);
     const uy = (L.y - qb.y) / (d || 1);
     const es = this.rng.normal(0, err.sideSd);
