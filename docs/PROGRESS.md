@@ -61,6 +61,19 @@ Newest first. Each session: what got done, what's broken, what's next.
   Awards; the menu has the depth chart, Sim to the playoffs, files. A season
   game's final screen says the week and goes back to the hub.
 
+- After review and playtest: defense has no Ready button any more (the
+  CPU offense snaps on its own tempo; its huddle runs on a quick clock,
+  about 8 s, 3.5 s against the hurry-up, paused while you draw); the season
+  hub's toast style no longer leaks onto in-game toasts (it was stretching
+  every "Rush lane" note over the whole screen); playoff overtime goes on
+  while the second team's first possession is unfinished; Thanksgiving's
+  week comes from the calendar (week 13 some years); the schedule shown at
+  setup is the one you get; saves keep no zero stats (about a fifth of the
+  size), migrate, and are checked on import; export uses the share sheet on
+  iPhone; Load a saved season on the title screen; in-game depth chart
+  moves are saved; quitting a season game asks first; sim-ahead shows its
+  progress; real playoff kickoff times; week 18 flexed by what's at stake.
+
 **Broken / not yet**
 - Overtime is a bit more common than in the NFL (about 23 games a season
   vs 15) with ~2 ties.
