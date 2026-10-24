@@ -76,7 +76,15 @@ export function newSeason({ year = 2026, userId, seed = 1, qLen = 8, prev = null
     champion: null,
     last,
     lastChampion,
+    // one line per season played before this one
+    history: prev ? [...(prev.history || []), seasonSummary(prev, teams)] : [],
   };
+}
+
+export function seasonSummary(s, teams = TEAMS) {
+  const r = seasonStandings(s, teams).rows[s.userId];
+  const a = s.awards && s.awards.awards;
+  return { year: s.year, userId: s.userId, w: r.w, l: r.l, t: r.t, champion: s.champion, mvp: a && a.MVP ? { name: a.MVP.name, team: a.MVP.team } : null };
 }
 
 export const played = (g) => g.hs != null;
@@ -206,7 +214,11 @@ export function simWeek(s, rosters, teamById, { includeUser = false } = {}) {
 export function nextWeek(s, rosters, teams = TEAMS) {
   if (s.phase === 'regular') {
     if (!weekDone(s)) return null;
-    if (s.week < REGULAR_WEEKS) { s.week++; return 'week'; }
+    if (s.week < REGULAR_WEEKS) {
+      s.week++;
+      if (s.week === REGULAR_WEEKS) flexFinale(s, teams);
+      return 'week';
+    }
     startPlayoffs(s, rosters, teams);
     return 'playoffs';
   }
@@ -224,6 +236,38 @@ export function nextWeek(s, rosters, teams = TEAMS) {
     return 'round';
   }
   return null;
+}
+
+// Week 18's windows are set a week ahead, by what's at stake: the game
+// that decides the most goes to Sunday night, the next two to Saturday.
+export function flexFinale(s, teams = TEAMS) {
+  const st = seasonStandings(s, teams);
+  const back = (a, b) => ((b.w - a.w) + (a.l - b.l)) / 2; // games a trails b
+  const stake = (id) => {
+    const r = st.rows[id];
+    const seeds = st.seeds[r.conf];
+    const lead = st.rows[st.divisions[r.conf][r.div][0]];
+    const seventh = st.rows[seeds[6]];
+    const eighth = st.rows[seeds[7]];
+    let v = 0;
+    if (Math.abs(back(r, lead)) <= 1) v += 2; // the division
+    if (r.seed ? back(eighth, r) <= 1 : back(r, seventh) <= 1) v += 2; // a playoff spot
+    if (r.seed && r.seed <= 2) v += 1; // the bye
+    return v;
+  };
+  const list = weekGames(s, REGULAR_WEEKS).filter((g) => !g.tag && !g.site && !played(g));
+  const ranked = list.map((g) => ({ g, v: stake(g.home) + stake(g.away) + (g.kind === 'div' || st.rows[g.home].div === st.rows[g.away].div ? 0.5 : 0) }))
+    .sort((a, b) => b.v - a.v || a.g.id.localeCompare(b.g.id));
+  const put = (x, slot, net) => {
+    if (!x) return;
+    x.g.slot = slot;
+    x.g.net = net;
+    x.g.date = addDays(s.sunday1, (REGULAR_WEEKS - 1) * 7 + (slot[0] === 'S' && slot[1] === 'a' ? -1 : 0));
+    delete x.g.time;
+  };
+  put(ranked[0], 'Su8', 'nbc');
+  put(ranked[1], 'Sa8', 'espn');
+  put(ranked[2], 'Sa4', 'abc');
 }
 
 export function seasonStandings(s, teams = TEAMS) {

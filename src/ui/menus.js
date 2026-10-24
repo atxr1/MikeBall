@@ -36,7 +36,9 @@ export function titleScreen(app, mode = app.titleMode || 'season') {
         h('button', { class: 'go', onclick: () => app.showSeason() }, sv.phase === 'done' ? 'View' : 'Continue'),
       ));
     }
-    pickNote.textContent = mode === 'season' ? (sv && sv.phase !== 'done' ? 'Or pick a team to start a new season (it replaces this one).' : 'Pick your team for the season.') : 'Pick your team for a single game.';
+    pickNote.textContent = mode === 'season'
+      ? (sv && sv.phase !== 'done' ? 'Or pick a team to start a new season (it replaces this one).' : sv ? `Pick your team for the ${sv.year + 1} season.` : 'Pick your team for the season.')
+      : 'Pick your team for a single game.';
   };
   for (const [v, label] of [['season', 'Season'], ['game', 'Single game']]) {
     const b = h('button', { role: 'tab', 'data-v': v }, label);

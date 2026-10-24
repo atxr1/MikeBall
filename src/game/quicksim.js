@@ -128,7 +128,7 @@ function quickRun(o, r, u) {
   const call = defPlay.cat === 'run' ? -0.4 : defPlay.cat === 'blitz' ? -0.1 : defPlay.cat === 'zone' ? 0.05 : 0;
   // (league starters average about 82 blocking against 75 at the point,
   // and an 84 skill line at running back)
-  const adv = (u.runBlock - u.runStop - 6.8) / 22 + (skill - 84) / 30 + box + call;
+  const adv = (u.runBlock - u.runStop - 6.8) / 17 + (skill - 84) / 30 + box + call;
   const short = !!offPlay.shortYardage;
   let gain;
   const pStuff = clamp(0.115 - adv * 0.045 + (defPlay.cat === 'blitz' ? 0.04 : 0), 0.04, 0.24);
@@ -167,7 +167,7 @@ function quickPass(o, r, u) {
   const rbBlocks = offPlay.assign && offPlay.assign.RB && offPlay.assign.RB.t === 'passpro' ? 4 : 0;
   // how fast the pocket closes
   // (starting rushers average about 74 against 79 pass blocking)
-  let pressure = 0.27 + (u.rush - u.passBlock + 5.3 - rbBlocks) / 75 + blitz * 0.075 + (drop >= 7 ? 0.06 : drop <= 3 ? -0.09 : 0) - (offPlay.screen ? 0.12 : 0);
+  let pressure = 0.27 + (u.rush - u.passBlock + 5.3 - rbBlocks) / 60 + blitz * 0.075 + (drop >= 7 ? 0.06 : drop <= 3 ? -0.09 : 0) - (offPlay.screen ? 0.12 : 0);
   if (defPlay.cat === 'run') pressure -= 0.04;
   pressure = clamp(pressure, 0.06, 0.62);
   const feel = (A(qb, 'awr') + A(qb, 'dec')) / 2;
@@ -242,7 +242,7 @@ function quickPass(o, r, u) {
   const tha = A(qb, 'tha');
   let pc = air <= 0 ? 0.86 : air < 5 ? 0.78 : air < 10 ? 0.67 : air < 15 ? 0.585 : air < 20 ? 0.5 : air < 30 ? 0.39 : 0.28;
   // (centered on league starters: 84 accuracy, 80 hands, 78 routes, 76 cover)
-  pc += (tha - 84) / 170 + (A(rec, 'cth') - 80) / 260 + (A(rec, 'rte') - 78) / 400 - (cov - 76) / 230 - (pressure - 0.27) * 0.45;
+  pc += (tha - 84) / 150 + (A(rec, 'cth') - 80) / 260 + (A(rec, 'rte') - 78) / 400 - (cov - 76) / 160 - (pressure - 0.27) * 0.45;
   if (!man && air < 10) pc += 0.03;
   if (defPlay.cat === 'blitz') pc += air < 10 ? 0.02 : -0.03;
   if (defPlay.cat === 'run') pc += 0.04;

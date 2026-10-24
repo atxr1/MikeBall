@@ -79,12 +79,14 @@ export const presentationMethods = {
     const recv = g.teams[g.firstReceiver];
     const b = this.broadcast;
     const text = `${g.teams.away.abbr} at ${g.teams.home.abbr}, ${b.title} on ${b.netName}. ${recv.city} won the toss and will receive.`;
-    // give the network's kickoff card a moment to load
+    // give the network's kickoff card a moment to load (a playoff game opens
+    // with the round's card)
+    const cardKey = this.opts.introCard || 'Kickoff';
     let tries = 0;
     const show = () => {
       if (this.dead) return;
-      if (!titleCard(b.net, 'Kickoff') && tries++ < 16) return this.after(0.05, show);
-      this.banner(`${g.teams.away.abbr} at ${g.teams.home.abbr}`, text, 3, () => this.advance(), 'Kickoff');
+      if (!titleCard(b.net, cardKey) && tries++ < 16) return this.after(0.05, show);
+      this.banner(`${g.teams.away.abbr} at ${g.teams.home.abbr}`, text, 3, () => this.advance(), cardKey);
     };
     show();
   },

@@ -100,7 +100,11 @@ Primetime games should have special animations, extra cinematography, camera fla
 - PAT snapped from the 15; two-point try from the 2.
 - Regular-season overtime: one 10-minute period, each team gets at least one
   possession, then sudden death; ties allowed. Playoffs: 15-minute periods,
-  no ties.
+  no ties. Games played with shorter quarters scale it (two-thirds of a
+  quarter in the regular season, a full quarter in the playoffs).
+- Season mode: the user's games are played at the chosen quarter length; the
+  rest of the league plays full 15-minute quarters with the quick play
+  resolver, and the user's numbers go into season totals at full-game pace.
 - Penalties start simple (false start, offside, holding, pass interference)
   and grow over time.
 
@@ -134,8 +138,8 @@ Primetime games should have special animations, extra cinematography, camera fla
    full game rules, CPU coach, badges on rosters.
 2. **Play drawing** — routes, block targets, man/zone/blitz, gap fits,
    tap/double-tap role toggles, subs, challenges.
-3. **Season** — NFL schedule formula, 18 weeks with byes, other games
-   simmed, standings, playoffs, Super Bowl, saves.
+3. **Season** (done 2026-10-24) — NFL schedule formula, 18 weeks with byes,
+   other games simmed, standings, playoffs, Super Bowl, saves.
 4. **General Manager** — depth chart, game plan, contracts with personalities,
    salary cap, free agency, trades, draft with combine badges, development
    and aging.

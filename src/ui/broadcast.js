@@ -54,8 +54,10 @@ function lum(r, g, b) {
 // A network title card with its words redrawn in the game's own pixel font
 // (the pack's baked-in lettering has letters that read wrong). Returns a
 // canvas, or null if the art hasn't loaded.
+// heading: a key of CARD_FOR, or [file, text] for a card of our own (the
+// playoff rounds: ['wild_card', 'AFC WILD CARD']).
 export function titleCard(net, heading) {
-  const spec = CARD_FOR[heading];
+  const spec = Array.isArray(heading) ? heading : CARD_FOR[heading];
   if (!spec) return null;
   const img = ready(netArt(net, `${spec[0]}_240x60.png`));
   if (!img) return null;

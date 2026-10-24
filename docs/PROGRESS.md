@@ -2,6 +2,75 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
+## 2026-10-24 — Milestone 3: Season mode
+
+**Done**
+- The real 2026 schedule (`src/data/schedule2026.js`, all 272 games),
+  built by `tools/build-schedule2026.mjs` from the clubs' week-by-week lists
+  (CBS Sports, Fox News), checked against the league's home/away opponent
+  lists and the asset pack's schedule (`assets/data/raw/schedule_2026.json`,
+  which also fills in and updates kickoff times). Every TV window: the
+  Wednesday opener in Seattle on NBC, Melbourne on Netflix, London, Paris,
+  Madrid, Munich, Rio and Mexico City, Thanksgiving Eve and Day, Black
+  Friday, the Saturday games, Christmas Eve and Day, New Year's Eve, SNF,
+  MNF, TNF. `src/data/league2025.js`: last season's standings and the head
+  coaches (Coach of the Year), from the pack.
+- Later seasons are scheduled by the NFL's formula (`src/game/schedule.js`):
+  division home and away, the three- and four-year rotations, same-place
+  games from last season's finish, the 17th game (AFC hosts in odd years).
+  The formula reproduces the real 2026 matchups from 2025's standings
+  exactly (a test). Weeks (`src/game/weeks.js`): byes in weeks 5-14, week 18
+  all division games, Detroit and Dallas at home on Thanksgiving, the
+  champion opens at home, no back-to-back rematches, few three-game road
+  trips; TV windows for every game (CBS for an AFC road team, FOX for an NFC
+  one, SNF/MNF/TNF, holidays, a few international games).
+- Standings and NFL tiebreakers (`src/game/standings.js`): head-to-head,
+  division, common games, conference, strength of victory and schedule,
+  point rankings, net points, net touchdowns, coin toss; the wild-card
+  version with one club per division first, sweeps for three or more,
+  common games only with four; restarts when a step knocks out some clubs.
+  Seeds 1-4 for division winners, 5-7 wild cards; the bracket re-seeds; the
+  Super Bowl at a neutral site with the designated home team alternating.
+- The quick play resolver (`src/game/quicksim.js`): CPU-vs-CPU games run
+  through the rules engine and CPU coaches as usual, but each snap is
+  decided from the players and the two calls (who's in the progression and
+  how deep, how many rush, man or zone, light boxes) instead of the 22-man
+  sim: ~5 ms a game. League averages over 400 games: 22 pts, 64 plays,
+  65% completions, 7.4 ypa, 6.3% sacks, 2.1% INT, 4.15 ypc, 1.0 turnovers,
+  4.2 penalties, 41% on third down, 3.8 punts, FG 84%. Running backs share
+  carries (the No. 2 gets about a third).
+- Season state (`src/game/season.js`): plain JSON in localStorage, saved
+  after every change, and Save to file / Load from file. The league plays
+  15-minute quarters; the user's games are as long as they choose and go
+  into season totals at full-game pace. Regular-season stat lines, team
+  totals, Player of the Game for every game, league leaders, MVP/OPOY/DPOY/
+  OROY/DROY/Coach of the Year and All-Pro teams (from the existing awards
+  engine; kick and punt return stats are now kept). Playoffs: wild card
+  weekend Saturday to Monday, divisional, conference championships, the
+  Super Bowl (LXI at SoFi on ABC; sites and networks rotate after). The next
+  season is scheduled from this one's finish.
+- Playoff overtime (Rule 16): 15-minute periods until someone wins, three
+  timeouts for each pair of periods, two-minute warning in the even ones,
+  a coin toss and kickoff before the third. Regular-season overtime stays
+  one 10-minute period (scaled for shorter quarters) and the team that's
+  tied or behind no longer milks the clock in it.
+- UI: the title screen has Season / Single game; season setup shows your
+  schedule; the hub has this week's game (Play or Sim), and tabs for your
+  Schedule, every week's Scores (with Player of the Game), Standings
+  (divisions and the playoff race), Leaders, the Playoffs bracket and
+  Awards; the menu has the depth chart, Sim to the playoffs, files. A season
+  game's final screen says the week and goes back to the hub.
+
+**Broken / not yet**
+- Overtime is a bit more common than in the NFL (about 23 games a season
+  vs 15) with ~2 ties.
+- Win totals spread a little less than the NFL's (SD ~2.5 wins vs ~3).
+- No injuries, no flexed Sunday nights, no week 18 Saturday picks yet.
+- International games use the home team's stadium art.
+
+**Next**
+- Milestone 4, General Manager.
+
 ## 2026-10-21 — Player AI polish, rounds 1-6
 
 **Done**

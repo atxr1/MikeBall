@@ -12,7 +12,7 @@ const DECALS = TEAM_IDS.filter((t) => t !== 'CLE').map((t) => `assets/teams/${t}
 // TV packages: each network's logo, scorebug and the title cards the game uses.
 const NETS = ['cbs', 'fox', 'nbc', 'espn', 'abc', 'prime', 'nfl_network', 'netflix'];
 const TV_FILES = ['logo_32.png', 'scorebug_standard_320x40.png', 'team_mask_standard_320x40.png',
-  ...['kickoff', 'touchdown', 'field_goal', 'final', 'two_minute', 'halftime', 'overtime'].map((k) => `${k}_240x60.png`)];
+  ...['kickoff', 'touchdown', 'field_goal', 'final', 'two_minute', 'halftime', 'overtime', 'wild_card', 'divisional', 'conference_final', 'championship'].map((k) => `${k}_240x60.png`)];
 const TV = ['assets/broadcast/layouts.json', ...NETS.flatMap((n) => TV_FILES.map((f) => `assets/broadcast/${n}/${f}`))];
 const SHELL = [
   './',

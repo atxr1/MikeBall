@@ -52,7 +52,7 @@ export function resumeSeason(app) {
 }
 
 export function beginSeason(app, userId, qLen) {
-  const prev = app.season && app.season.phase === 'done' && app.season.userId === userId ? app.season : null;
+  const prev = app.season && app.season.phase === 'done' ? app.season : null;
   const year = prev ? prev.year + 1 : 2026;
   const seed = (Date.now() ^ 0x2545f491) >>> 0;
   app.season = S.newSeason({ year, userId, seed, qLen, prev });
@@ -79,6 +79,7 @@ export function playUserGame(app) {
     playoff: S.isPlayoff(g),
     season: { gameId: g.id },
     seasonLabel: S.roundName(g, s.year),
+    introCard: S.isPlayoff(g) ? [['wild_card', 'divisional', 'conference_final', 'championship'][g.round], S.roundName(g, s.year).toUpperCase()] : null,
   });
 }
 
@@ -187,7 +188,7 @@ function toast(host, text) {
 export function seasonSetupScreen(app, userId) {
   const user = teamOf(app, userId);
   let qLen = app.settings.qLen || 8;
-  const prev = app.season && app.season.phase === 'done' && app.season.userId === userId ? app.season : null;
+  const prev = app.season && app.season.phase === 'done' ? app.season : null;
   const year = prev ? prev.year + 1 : 2026;
   const preview = S.newSeason({ year, userId, seed: 1, qLen, prev });
   const list = S.teamGames(preview, userId);
