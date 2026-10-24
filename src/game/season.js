@@ -326,15 +326,16 @@ function addRoundGames(s) {
   if (r < 0) return;
   const dates = playoffDates(s.sunday1);
   const base = [dates.wildcard, dates.divisional, dates.conference, dates.superBowl][r];
+  // [slot (day and light), network, days from that Sunday, kickoff ET]
   const windows = [
-    [['Sa4', 'nbc', -1], ['Sa8', 'prime', -1], ['Su1', 'cbs', 0], ['Su4', 'fox', 0], ['Su8', 'nbc', 0], ['Mo8', 'espn', 1]],
-    [['Sa4', 'espn', -1], ['Sa8', 'cbs', -1], ['Su1', 'fox', 0], ['Su4', 'nbc', 0]],
-    [['Su1', 'cbs', 0], ['Su8', 'fox', 0]],
+    [['Sa4', 'nbc', -1, '4:30 PM'], ['Sa8', 'prime', -1, '8:00 PM'], ['Su1', 'cbs', 0, '1:00 PM'], ['Su4', 'fox', 0, '4:30 PM'], ['Su8', 'nbc', 0, '8:00 PM'], ['Mo8', 'espn', 1, '8:15 PM']],
+    [['Sa4', 'espn', -1, '4:30 PM'], ['Sa8', 'cbs', -1, '8:15 PM'], ['Su4', 'fox', 0, '3:00 PM'], ['Su8', 'nbc', 0, '6:30 PM']],
+    [['Su4', 'cbs', 0, '3:00 PM'], ['Su8', 'fox', 0, '6:30 PM']],
     // the Super Bowl rotates CBS, FOX, NBC, ABC (LXI, the 2026 season's, is ABC's)
-    [['Su8', ['cbs', 'fox', 'nbc', 'abc'][(s.year - 2023) % 4], 0]],
+    [['Su8', ['cbs', 'fox', 'nbc', 'abc'][(s.year - 2023) % 4], 0, '6:30 PM']],
   ][r];
   b.rounds[r].forEach((bg, i) => {
-    const [slot, net, off] = windows[i % windows.length];
+    const [slot, net, off, time] = windows[i % windows.length];
     s.games.push({
       id: `P${r}-${bg.away}-${bg.home}`,
       week: REGULAR_WEEKS + 1 + r,
@@ -348,6 +349,7 @@ function addRoundGames(s) {
       site: bg.neutral ? superBowlSite(s.year) : null,
       tag: r === 3 ? 'SB' : null,
       date: addDays(base, off),
+      time,
       hs: null, as: null, htd: 0, atd: 0, ot: false, potg: null,
     });
   });

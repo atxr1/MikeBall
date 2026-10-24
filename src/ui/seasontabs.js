@@ -1,7 +1,7 @@
 // The season hub's tabs: schedule, scores, standings, leaders, playoffs and
 // awards. Each renderer takes (app, season, standings) and returns a node.
 
-import { h, clear } from './dom.js';
+import { h, clear, chevron } from './dom.js';
 import { teamMarkSVG } from './emblems.js';
 import { TEAMS, DIVISIONS } from '../data/teams.js';
 import * as S from '../game/season.js';
@@ -77,13 +77,14 @@ function scores(app, s) {
   const list = h('ul', { class: 'score-list' });
   const render = () => {
     app.scoresWeek = w;
-    const games = s.games.filter((g) => g.week === w).sort((a, b) => a.date.localeCompare(b.date) || (a.slot > b.slot ? 1 : -1));
+    const mineFirst = (g) => (g.home === s.userId || g.away === s.userId ? 0 : 1);
+    const games = s.games.filter((g) => g.week === w).sort((a, b) => mineFirst(a) - mineFirst(b) || a.date.localeCompare(b.date) || (a.slot > b.slot ? 1 : -1));
     const label = w <= S.REGULAR_WEEKS ? `Week ${w}` : S.roundName(games[0] || { round: w - 19, conf: '' }, s.year).replace(/^(AFC|NFC) /, '');
     clear(head);
     head.append(
-      h('button', { class: 'icon-btn', 'aria-label': 'Previous week', disabled: w <= 1, onclick: () => { w--; render(); } }, '‹'),
+      h('button', { class: 'icon-btn', 'aria-label': 'Previous week', disabled: w <= 1, onclick: () => { w--; render(); } }, chevron(-1)),
       h('strong', {}, label),
-      h('button', { class: 'icon-btn', 'aria-label': 'Next week', disabled: w >= last, onclick: () => { w++; render(); } }, '›'),
+      h('button', { class: 'icon-btn', 'aria-label': 'Next week', disabled: w >= last, onclick: () => { w++; render(); } }, chevron(1)),
     );
     clear(list);
     if (!games.length) list.append(h('li', { class: 'empty' }, 'No games yet.'));
@@ -137,8 +138,9 @@ function standingsTab(app, s, st) {
     if (view === 'div') {
       for (const div of DIVISIONS) body.append(h('h3', { class: 'stand-head' }, `${conf} ${div}`), table(st.divisions[conf][div], { div: true, notes: true }));
     } else {
-      body.append(h('p', { class: 'stand-note' }, s.phase === 'regular' ? 'If the season ended today: division winners are seeded 1-4, the best three others 5-7.' : 'Final seeds.'));
-      body.append(table(st.seeds[conf], { seeds: true, cut: true, notes: true, title: conf }));
+      const started = Object.values(st.rows).some((r) => r.g);
+      body.append(h('p', { class: 'stand-note' }, !started ? 'The race starts after week 1. Division winners are seeded 1-4, the best three others 5-7.' : s.phase === 'regular' ? 'If the season ended today: division winners are seeded 1-4, the best three others 5-7.' : 'Final seeds.'));
+      if (started) body.append(table(st.seeds[conf], { seeds: true, cut: true, notes: true, title: conf }));
     }
     if (notes) body.append(h('p', { class: 'stand-note' }, '* won a tiebreaker (NFL rules: head-to-head, division and conference records, common games, strength of victory...)'));
   };

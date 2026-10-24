@@ -33,7 +33,7 @@ const GROUP_NAME = { EDGE: 'Edge rusher' };
 
 // editable: drag the grip on a row to move him up or down the depth chart.
 // onChange() runs after each move.
-export function openRoster(host, team, roster, onClose, { editable = false, onChange = null } = {}) {
+export function openRoster(host, team, roster, onClose, { editable = false, onChange = null, live = false } = {}) {
   const byId = rosterIndex(roster);
   let group = 'QB';
   const list = h('div', { class: 'roster-list' });
@@ -111,7 +111,7 @@ export function openRoster(host, team, roster, onClose, { editable = false, onCh
     h('div', { class: 'sheet-panel' },
       h('header', { class: 'sheet-head' },
         h('span', { html: teamMarkSVG(team, 34) }),
-        h('div', { class: 'sheet-title' }, h('strong', {}, `${team.city} ${team.name}`), h('small', {}, editable ? 'Depth chart: drag to reorder. Changes take effect at the next snap.' : 'Roster and badges')),
+        h('div', { class: 'sheet-title' }, h('strong', {}, `${team.city} ${team.name}`), h('small', {}, editable ? `Depth chart: drag to reorder.${live ? ' Changes take effect at the next snap.' : ''}` : 'Roster and badges')),
         h('button', { class: 'icon-btn', 'aria-label': 'Close roster', onclick: close }, '✕'),
       ),
       legend(),

@@ -10,7 +10,7 @@ import { injectDefs } from './ui/emblems.js';
 import { titleScreen, setupScreen, finalScreen } from './ui/menus.js';
 import { resolveHonors } from './data/honors.js';
 import { CoachScreen } from './ui/coach.js';
-import { seasonHub, seasonSetupScreen, resumeSeason, recordUserGame } from './ui/season.js';
+import { seasonHub, seasonSetupScreen, resumeSeason, recordUserGame, keepDepth } from './ui/season.js';
 import { seasonStandings } from './game/season.js';
 
 const LEAGUE_SEED = 2026;
@@ -48,6 +48,7 @@ const app = {
   // ---- season mode (src/ui/season.js)
   showSeason(tab) {
     if (!this.season) return this.showTitle('season');
+    keepDepth(this);
     this.mount(seasonHub(this, tab));
   },
 

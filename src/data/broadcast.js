@@ -86,7 +86,8 @@ export function broadcastForGame(game) {
   const net = NETWORKS[game.net] ? game.net : 'cbs';
   return {
     slot: game.tag === 'THX' ? 'thanksgiving' : game.tag === 'XMAS' ? 'christmas' : game.tag === 'BF' ? 'black_friday' : game.site ? 'international' : slot,
-    title: TAG_TITLES[game.tag] || (game.site ? `Live from ${game.site}` : title),
+    title: game.round != null ? (game.round === 3 ? 'the Super Bowl' : `the ${game.conf} ${['Wild Card round', 'Divisional round', 'Championship'][game.round]}`)
+      : TAG_TITLES[game.tag] || (game.site ? `Live from ${game.site}` : title),
     label: `${info.day} ${game.time || info.time}`,
     net,
     netName: NETWORKS[net].name,

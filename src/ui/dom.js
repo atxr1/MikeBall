@@ -28,3 +28,11 @@ export function svg(markup) {
   t.innerHTML = markup.trim();
   return t.content.firstChild;
 }
+
+// A pixel chevron for back / previous / next buttons (the font's angle
+// quotes are tiny): dir -1 points left, 1 right.
+export function chevron(dir = -1, px = 3) {
+  const rows = [4, 3, 2, 1, 2, 3, 4];
+  const rects = rows.map((x, y) => `<rect x="${dir < 0 ? x : 6 - x - 1}" y="${y}" width="2" height="1"/>`).join('');
+  return svg(`<svg width="${7 * px}" height="${7 * px}" viewBox="0 0 7 7" shape-rendering="crispEdges" aria-hidden="true" fill="currentColor">${rects}</svg>`);
+}

@@ -5,7 +5,7 @@
 // localStorage ('mikeball:season') and writes it after everything that
 // changes it, so closing the app never loses a week.
 
-import { h, clear } from './dom.js';
+import { h, clear, chevron } from './dom.js';
 import { teamMarkSVG } from './emblems.js';
 import { TEAMS } from '../data/teams.js';
 import * as S from '../game/season.js';
@@ -41,6 +41,18 @@ function applyDepth(app) {
     const rest = roster.depth[pos].filter((id) => !keep.includes(id));
     roster.depth[pos] = [...keep, ...rest];
   }
+}
+
+// the depth chart as it stands now (moves made in a game included) goes in
+// the save
+export function keepDepth(app) {
+  const s = app.season;
+  const roster = s && app.league[s.userId];
+  if (!roster) return;
+  const now = JSON.stringify(roster.depth);
+  if (JSON.stringify(s.depth) === now) return;
+  s.depth = JSON.parse(now);
+  saveSeason(app);
 }
 
 export function resumeSeason(app) {
@@ -105,7 +117,17 @@ function finishWeek(app) {
 
 export function simUserGame(app) {
   const s = app.season;
+  const mine = s.phase === 'playoffs' ? S.currentRound(s).find((x) => x.home === s.userId || x.away === s.userId) : S.userGame(s);
+  const label = mine ? S.roundName(mine, s.year) : null;
   S.simWeek(s, app.league, app.teamById, { includeUser: true });
+  if (mine && S.played(mine)) {
+    // say how it went (the scores tab lists your game first, too)
+    const home = mine.home === s.userId;
+    const us = home ? mine.hs : mine.as;
+    const them = home ? mine.as : mine.hs;
+    const opp = teamOf(app, home ? mine.away : mine.home);
+    app.hubNote = `${label}: ${us > them ? 'W' : us < them ? 'L' : 'T'} ${us}-${them} ${home || mine.neutral ? 'vs' : 'at'} ${opp.abbr}${mine.ot ? ' (OT)' : ''}`;
+  }
   finishWeek(app);
   app.showSeason('scores');
 }
@@ -180,7 +202,7 @@ async function exportSeason(app, host) {
   toast(host, 'Season saved to your downloads.');
 }
 
-function importSeason(app, host) {
+export function importSeason(app, host) {
   const input = h('input', { type: 'file', accept: 'application/json,.json', style: { display: 'none' } });
   // (a cancelled picker sends no event; tidy up after a while either way)
   const drop = setTimeout(() => input.remove(), 120000);
@@ -247,7 +269,7 @@ export function seasonSetupScreen(app, userId) {
   }
   return h('div', { class: 'screen setup-screen season-setup' },
     h('header', { class: 'setup-head' },
-      h('button', { class: 'icon-btn', 'aria-label': 'Back to teams', onclick: () => app.showTitle('season') }, '‹'),
+      h('button', { class: 'icon-btn', 'aria-label': 'Back to teams', onclick: () => app.showTitle('season') }, chevron(-1)),
       h('span', { html: teamMarkSVG(user, 52) }),
       h('div', {}, h('small', {}, `${year} season`), h('strong', { class: 'setup-team' }, user.name)),
     ),
@@ -257,18 +279,18 @@ export function seasonSetupScreen(app, userId) {
       h('p', { class: 'opp-label' }, 'For your games. The rest of the league plays full 15-minute quarters, and your numbers count at full-game pace.'),
       seg,
     ),
-    h('section', { class: 'setup-block' },
-      h('h2', {}, 'Your schedule'),
-      h('ol', { class: 'sched' }, ...rows),
-    ),
     h('div', { class: 'setup-actions' },
       h('button', { class: 'act', onclick: () => openRoster(app.root, user, app.league[userId], null, { editable: true }) }, 'Depth chart'),
       h('button', { class: 'go', onclick: (e) => {
         const go = () => { app.settings.qLen = qLen; app.saveSettings(); beginSeason(app, season, qLen); };
         const cur = app.season;
-        if (cur && cur.phase !== 'done') confirmBox(e.target.closest('.screen'), 'New season?', `This replaces your ${cur.year} season with the ${teamOf(app, cur.userId).name}.`, 'Start over', go);
+        if (cur && cur.phase !== 'done') confirmBox(e.target.closest('.screen'), 'New season?', `Your ${cur.year} ${teamOf(app, cur.userId).name} season in progress will be replaced.`, 'Start over', go);
         else go();
       } }, 'Start season'),
+    ),
+    h('section', { class: 'setup-block sched-block' },
+      h('h2', {}, 'Your schedule'),
+      h('ol', { class: 'sched' }, ...rows),
     ),
   );
 }
@@ -290,6 +312,12 @@ export function seasonHub(app, tab = null) {
     for (const b of bar.children) b.setAttribute('aria-selected', String(b.dataset.id === cur));
     clear(body);
     body.append(tabRenderers[cur](app, s, st));
+    // the chosen tab scrolled into view (Playoffs and Awards are off to the
+    // right on a phone)
+    requestAnimationFrame(() => {
+      const on = bar.querySelector('[aria-selected="true"]');
+      if (on) bar.scrollLeft = Math.max(0, on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2);
+    });
   };
   for (const [id, label] of tabs) {
     const b = h('button', { class: 'chip', role: 'tab', 'data-id': id }, label);
@@ -312,9 +340,12 @@ export function seasonHub(app, tab = null) {
     body,
   );
   render();
-  if (app.saveFailed) { toast(screen, 'Couldn’t save on this device. Use Menu › Save to file.'); app.saveFailed = false; }
+  if (app.saveFailed) { toast(screen, 'Couldn’t save on this device. Use Menu › Save to file.'); app.saveFailed = false; } else if (app.hubNote) { toast(screen, app.hubNote); app.hubNote = null; }
   return screen;
 }
+
+// a window with no name of its own (just the day): the label says it all
+const plainTitle = (b) => b.title === 'Sunday afternoon' || /^(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day$/.test(b.title);
 
 function ordinalPlace(n) {
   return ['1st', '2nd', '3rd', '4th'][n - 1] || `${n}th`;
@@ -360,7 +391,7 @@ function nextCard(app, s, st) {
         h('small', {}, `${r.w}-${r.l}${r.t ? `-${r.t}` : ''}${g.site ? ` · ${g.site}` : ''}`),
       ),
     ),
-    h('p', { class: 'next-note' }, `${b.title === 'Sunday afternoon' ? '' : `${b.title} · `}${b.label} ET · ${b.netName}`),
+    h('p', { class: 'next-note' }, `${plainTitle(b) || S.isPlayoff(g) ? '' : `${b.title} · `}${b.label} ET · ${b.netName}`),
     h('div', { class: 'next-actions' },
       h('button', { class: 'go', onclick: () => playUserGame(app) }, 'Play'),
       h('button', { class: 'act', onclick: () => simUserGame(app) }, 'Sim'),

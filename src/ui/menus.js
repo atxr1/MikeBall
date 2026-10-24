@@ -1,6 +1,6 @@
 // Title / team select, matchup setup and the final box score.
 
-import { h, clear } from './dom.js';
+import { h, clear, chevron } from './dom.js';
 import { teamMarkSVG } from './emblems.js';
 import { TEAMS, CONFERENCES, DIVISIONS } from '../data/teams.js';
 import { openRoster } from './roster.js';
@@ -9,6 +9,7 @@ import { SLOTS, slotById, broadcastFor } from '../data/broadcast.js';
 import { playerOfTheGame } from '../game/awards.js';
 import { titleCard, fitPixelCanvas } from './broadcast.js';
 import { openSettings } from './settings.js';
+import { importSeason } from './season.js';
 
 // mode: 'season' (pick a team for a new season, or carry on with the one
 // saved) or 'game' (a one-off game).
@@ -35,6 +36,10 @@ export function titleScreen(app, mode = app.titleMode || 'season') {
         h('div', { class: 'tile-text' }, h('small', {}, where), h('strong', {}, `${t.name} ${app.seasonRecord(sv)}`)),
         h('button', { class: 'go', onclick: () => app.showSeason() }, sv.phase === 'done' ? 'View' : 'Continue'),
       ));
+    }
+    if (mode === 'season') {
+      // (a backup file, e.g. after the phone cleared the app's storage)
+      seasonBox.append(h('button', { class: 'act load-season', onclick: () => importSeason(app, seasonBox.closest('.screen') || seasonBox) }, 'Load a saved season'));
     }
     pickNote.textContent = mode === 'season'
       ? (sv && sv.phase !== 'done' ? 'Or pick a team to start a new season (it replaces this one).' : sv ? `Pick your team for the ${sv.year + 1} season.` : 'Pick your team for the season.')
@@ -158,7 +163,7 @@ export function setupScreen(app, userId) {
 
   return h('div', { class: 'screen setup-screen' },
     h('header', { class: 'setup-head' },
-      h('button', { class: 'icon-btn', 'aria-label': 'Back to teams', onclick: () => app.showTitle() }, '‹'),
+      h('button', { class: 'icon-btn', 'aria-label': 'Back to teams', onclick: () => app.showTitle() }, chevron(-1)),
       h('span', { html: teamMarkSVG(user, 52) }),
       h('div', {}, h('small', {}, user.city), h('strong', { class: 'setup-team' }, user.name)),
     ),
@@ -252,6 +257,7 @@ export function finalScreen(app, game, opts) {
         h('span', {}, `${T.home.abbr} ${game.score.home}`)),
     ),
     finalCard(game, opts),
+    opts.season ? h('div', { class: 'setup-actions final-top' }, h('button', { class: 'go', onclick: () => app.showSeason('scores') }, 'Continue')) : null,
     lineScore,
     potg(game),
     h('h2', {}, 'Team stats'),

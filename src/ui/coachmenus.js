@@ -34,7 +34,7 @@ export const menuMethods = {
     const live = this.mode === 'call';
     openRoster(this.root, this.game.teams[this.user], this.game.rosters[this.user], () => {
       if (live && this.mode === 'call') this.buildPreview();
-    }, { editable: live, onChange: () => { if (this.mode === 'call') this.buildPreview(); } });
+    }, { editable: live, live, onChange: () => { if (this.mode === 'call') this.buildPreview(); } });
   },
 
   // Save the play you've drawn on to the Mine tab.
