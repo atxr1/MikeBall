@@ -2,6 +2,7 @@
 
 import { h, clear } from './dom.js';
 import { badgeRow, badgeSVG, teamMarkSVG } from './emblems.js';
+import { fmtMoney } from '../game/contracts.js';
 import { TIER_LABEL, STAT_LABEL } from '../game/badges.js';
 import { POS_LIST, POS_NAME, heightStr } from '../data/roster.js';
 import { rosterIndex } from '../game/personnel.js';
@@ -210,10 +211,18 @@ function honorChips(p) {
     h('span', { class: `honor ${x.kind === 'award' ? 'award' : x.team === 1 ? 'ap1' : 'ap2'}`, title: x.label }, x.kind === 'award' ? `${x.short}` : x.team === 1 ? 'ALL-PRO' : '2ND-TEAM AP')));
 }
 
-function fillDetail(el, p) {
+export function contractLine(p) {
+  const c = p.contract;
+  if (!c || !c.apy) return null;
+  const yrs = c.years === 1 ? 'final year' : `${c.years} years left`;
+  return `${fmtMoney(c.apy)} a year, ${yrs}${c.guaranteed ? `, ${fmtMoney(c.guaranteed)} guaranteed` : ''}${c.type === 'rookie' ? ' (rookie deal)' : ''}`;
+}
+
+export function fillDetail(el, p) {
   const stats = ['speed', 'strength', 'skill'];
   const honors = honorsFor(p);
   if (honors.length) el.append(h('ul', { class: 'p-honor-list' }, ...honors.map((x) => h('li', {}, x.label))));
+  const deal = contractLine(p);
   el.append(
     h('div', { class: 'p-bio' },
       h('span', {}, `Age ${p.age}`),
@@ -222,6 +231,7 @@ function fillDetail(el, p) {
       h('span', {}, p.exp === 0 ? 'Rookie' : `${p.exp} yr pro`),
       h('span', {}, p.college),
     ),
+    deal ? h('p', { class: 'p-contract' }, deal) : null,
     h('div', { class: 'p-big' }, ...stats.map((s) =>
       h('div', { class: `p-stat tier-${p.badges[s]}` },
         h('span', { html: badgeSVG(p.badges[s], s, 44) }),

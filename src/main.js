@@ -98,13 +98,28 @@ async function loadLeague() {
   }
 }
 
+// Badges and honors for whoever's in the league now (after a load, a new
+// league, or an offseason).
+app.refreshPlayers = function refreshPlayers() {
+  const everyone = Object.values(this.league).flatMap((r) => r.players).concat(this.gm ? this.gm.fa : []);
+  computeBadges(everyone);
+  if (this.realLeague) resolveHonors(everyone);
+};
+
+// A fresh copy of the league as the asset pack has it.
+app.reloadLeague = async function reloadLeague() {
+  const rosters = await loadLeague();
+  const everyone = Object.values(rosters).flatMap((r) => r.players);
+  computeBadges(everyone);
+  if (this.realLeague) resolveHonors(everyone);
+  return rosters;
+};
+
 async function boot() {
   injectDefs();
   app.league = await loadLeague();
-  resumeSeason(app);
-  const everyone = Object.values(app.league).flatMap((r) => r.players);
-  computeBadges(everyone);
-  if (app.realLeague) resolveHonors(everyone);
+  await resumeSeason(app);
+  app.refreshPlayers();
   try {
     await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]);
   } catch { /* fonts are optional */ }

@@ -27,6 +27,7 @@ import { cpuMatchDefense } from '../src/game/cpu.js';
 import { offPlay, defPlay } from '../src/data/playbook.js';
 import { protectionPairs } from '../src/sim/blocking.js';
 import { runSeasonTests } from './season.mjs';
+import { runGmTests } from './gm.mjs';
 
 let failed = 0;
 let passed = 0;
@@ -626,6 +627,7 @@ if (existsSync('assets/data/league.json')) {
 }
 
 runSeasonTests(check, between, existsSync('assets/data/league.json') ? fromLeagueJson(JSON.parse(readFileSync('assets/data/league.json', 'utf8'))) : null);
+runGmTests(check, between, existsSync('assets/data/league.json') ? fromLeagueJson(JSON.parse(readFileSync('assets/data/league.json', 'utf8'))) : null);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

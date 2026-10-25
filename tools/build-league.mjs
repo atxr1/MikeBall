@@ -215,6 +215,12 @@ const out = {
         traits: p.traits,
         skinTone: p.appearance.skin_tone,
         injured: p.injury && (p.injury.status === 'out' || p.injury.status === 'ir') ? p.injury.status : null,
+        born: p.birthdate || null,
+        draft: p.draft ? { year: p.draft.year, round: p.draft.round, pick: p.draft.pick } : null,
+        // contract terms are the pack's estimates (as of its date): money per
+        // year, this year's cap hit, years left including this one, the
+        // guaranteed money still owed, and the year he hits free agency
+        contract: p.contract ? { type: p.contract.type, apy: p.contract.apy, capHit: p.contract.cap_hit, years: p.contract.years_left, guaranteed: p.contract.guaranteed_remaining, fa: p.contract.free_agent_year } : null,
         portrait: portraits.has(p.id) || existsSync(`assets/portraits/${p.id}.png`) ? 1 : 0,
       })),
     };

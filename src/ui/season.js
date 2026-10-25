@@ -3,7 +3,9 @@
 //
 // The season itself lives in src/game/season.js; this keeps one save in
 // localStorage ('mikeball:season') and writes it after everything that
-// changes it, so closing the app never loses a week.
+// changes it, so closing the app never loses a week. The league (every
+// roster, contract and depth chart: src/game/league.js) is too big for
+// localStorage and goes in IndexedDB under the season's leagueId.
 
 import { h, clear, chevron } from './dom.js';
 import { teamMarkSVG } from './emblems.js';
@@ -12,6 +14,8 @@ import * as S from '../game/season.js';
 import { broadcastForGame } from '../data/broadcast.js';
 import { openRoster } from './roster.js';
 import { load, save } from '../core/storage.js';
+import { dbGet, dbSet } from '../core/db.js';
+import { newLeagueState, serializeLeague, deserializeLeague } from '../game/league.js';
 import { tabRenderers, recordText, dayLabel } from './seasontabs.js';
 
 const KEY = 'season';
@@ -28,6 +32,14 @@ export function saveSeason(app) {
 }
 
 const teamOf = (app, id) => app.teamById(id);
+const leagueKey = (s) => `league:${s.leagueId}`;
+
+export async function saveLeague(app) {
+  if (!app.gm || !app.season) return false;
+  const ok = await dbSet(leagueKey(app.season), serializeLeague(app.gm));
+  if (!ok) app.saveFailed = true;
+  return ok;
+}
 
 // the user's depth chart rides along in the save
 function applyDepth(app) {
@@ -53,24 +65,50 @@ export function keepDepth(app) {
   if (JSON.stringify(s.depth) === now) return;
   s.depth = JSON.parse(now);
   saveSeason(app);
+  saveLeague(app);
 }
 
-export function resumeSeason(app) {
+// At boot: the saved season, and its league from IndexedDB (or, if that's
+// gone, the league as loaded, with the saved depth chart put back).
+export async function resumeSeason(app) {
   app.season = loadSeason();
   if (!app.season) return false;
-  applyDepth(app);
+  if (!app.season.leagueId) { app.season.leagueId = String(app.season.seed); saveSeason(app); }
+  const gm = deserializeLeague(await dbGet(leagueKey(app.season)), TEAMS.map((t) => t.id));
+  if (gm) {
+    app.gm = gm;
+    app.league = gm.rosters;
+  } else {
+    app.gm = newLeagueState(app.league, app.season.year);
+    applyDepth(app);
+    saveLeague(app);
+  }
   return true;
 }
 
 // season: the one the setup screen built and showed (same seed, so the
 // schedule you saw is the schedule you get)
-export function beginSeason(app, season, qLen) {
+export async function beginSeason(app, season, qLen) {
+  const carryOn = season.history && season.history.length && app.gm;
+  if (carryOn) {
+    // the same league, a year on
+    app.gm.year = season.year;
+    season.leagueId = app.season.leagueId;
+  } else {
+    // a new league: everyone back as the asset pack has them (keeping the
+    // depth chart you just set)
+    const depth = JSON.parse(JSON.stringify(app.league[season.userId].depth));
+    app.league = await app.reloadLeague();
+    app.league[season.userId].depth = depth;
+    app.gm = newLeagueState(app.league, season.year);
+    season.leagueId = `${season.year}-${season.seed}`;
+  }
   app.season = season;
   season.qLen = qLen;
-  const userId = season.userId;
   // the depth chart as set on the way in rides along with the save
-  app.season.depth = JSON.parse(JSON.stringify(app.league[userId].depth));
+  app.season.depth = JSON.parse(JSON.stringify(app.league[season.userId].depth));
   saveSeason(app);
+  await saveLeague(app);
   app.showSeason('schedule');
 }
 
@@ -182,7 +220,8 @@ export function confirmBox(host, title, text, yes, onYes) {
 async function exportSeason(app, host) {
   const s = app.season;
   const name = `mikeball-${s.year}-${s.userId}-week${s.week}.json`;
-  const json = JSON.stringify(s);
+  // the league rides along in the file
+  const json = JSON.stringify({ ...s, league: app.gm ? serializeLeague(app.gm) : null });
   try {
     const file = new File([json], name, { type: 'application/json' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -212,15 +251,21 @@ export function importSeason(app, host) {
     input.remove();
     if (!f) return;
     let s = null;
+    let league = null;
     try {
-      s = S.migrate(JSON.parse(await f.text()), TEAMS);
+      const raw = JSON.parse(await f.text());
+      league = raw && raw.league ? deserializeLeague(raw.league, TEAMS.map((t) => t.id)) : null;
+      if (raw) delete raw.league;
+      s = S.migrate(raw, TEAMS);
     } catch { s = null; }
     if (!s) { toast(host, 'That file isn’t a MikeBall season.'); return; }
     const t = teamOf(app, s.userId);
     confirmBox(host, 'Load this season?', `${s.year} ${t.name}, ${s.phase === 'regular' ? `week ${s.week}` : s.phase === 'playoffs' ? 'the playoffs' : 'finished'}. It replaces the season on this phone.`, 'Load it', () => {
       app.season = s;
-      applyDepth(app);
+      if (!s.leagueId) s.leagueId = String(s.seed);
+      if (league) { app.gm = league; app.league = league.rosters; app.refreshPlayers(); } else applyDepth(app);
       saveSeason(app);
+      saveLeague(app);
       app.showSeason();
     });
   });
@@ -301,7 +346,7 @@ export function seasonHub(app, tab = null) {
   const user = teamOf(app, s.userId);
   const st = S.seasonStandings(s, TEAMS);
   const row = st.rows[s.userId];
-  const tabs = [['schedule', 'Schedule'], ['scores', 'Scores'], ['standings', 'Standings'], ['leaders', 'Leaders']];
+  const tabs = [['schedule', 'Schedule'], ['scores', 'Scores'], ['standings', 'Standings'], ['leaders', 'Leaders'], ['team', 'Front office']];
   if (s.phase !== 'regular') tabs.push(['playoffs', 'Playoffs']);
   if (s.awards) tabs.push(['awards', 'Awards']);
   let cur = tabs.some(([id]) => id === tab) ? tab : app.seasonTab && tabs.some(([id]) => id === app.seasonTab) ? app.seasonTab : 'schedule';

@@ -48,6 +48,9 @@ export function fromLeagueJson(json) {
       skinTone: p.skinTone,
       injured: p.injured || null,
       portrait: !!p.portrait,
+      born: p.born || null,
+      draft: p.draft || null,
+      contract: p.contract ? { ...p.contract } : null,
       badges: null,
     }));
     const ids = new Set(players.map((p) => p.id));

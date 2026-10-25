@@ -6,6 +6,7 @@ import { teamMarkSVG } from './emblems.js';
 import { TEAMS, DIVISIONS } from '../data/teams.js';
 import * as S from '../game/season.js';
 import { broadcastForGame } from '../data/broadcast.js';
+import { frontOfficeTab } from './frontoffice.js';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -256,6 +257,7 @@ function awardsTab(app, s) {
 }
 
 export const tabRenderers = {
+  team: frontOfficeTab,
   schedule,
   scores,
   standings: standingsTab,

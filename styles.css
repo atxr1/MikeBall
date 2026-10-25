@@ -592,3 +592,22 @@ table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nu
 button.icon-btn svg { display: block; margin: 0 auto; }
 .season-setup .setup-actions .act { flex: none; padding: 0 12px; }
 .setup-actions .go { white-space: nowrap; }
+
+/* ---------- front office ---------- */
+.cap-card { padding: 14px; margin: 3px 3px 14px; background: var(--panel); box-shadow: var(--frame), var(--bevel); }
+.cap-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
+.cap-row small { display: block; color: var(--dim); font-size: 12px; margin-bottom: 6px; }
+.cap-row strong { font: 400 30px/1 var(--px); color: var(--yellow); }
+.cap-row strong.over { color: var(--red); }
+.cap-right { text-align: right; }
+.cap-right span { font-weight: 700; }
+.cap-bar { height: 12px; margin-top: 12px; background: var(--night); box-shadow: var(--frame); }
+.cap-bar i { display: block; height: 100%; background: var(--blue); }
+.cap-note { margin: 10px 0 0; color: var(--dim); font-size: 12px; }
+.front-office .segment { margin-bottom: 8px; }
+.fo-row { grid-template-columns: 34px 32px 1fr auto; }
+.fo-row .p-num { font-size: 20px; }
+.fo-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.fo-money { font-weight: 700; font-size: 13px; white-space: nowrap; }
+.fo-money em { font-style: normal; color: var(--dim); font-weight: 500; margin-left: 6px; }
+.p-contract { margin: -4px 0 12px; font-size: 13px; color: var(--chalk); }
