@@ -2,6 +2,71 @@
 
 Newest first. Each session: what got done, what's broken, what's next.
 
+## 2026-10-25 — Milestone 4: General Manager, parts 1-2
+
+**Done**
+- The league is saved (`src/core/db.js`: IndexedDB, falling back to
+  localStorage, then memory): every roster, depth chart, contract, free
+  agent, dead money and move, under the season's league id. Export/import
+  carry it. A season that's carried on from last year loads its league;
+  a new one starts from the real rosters.
+- Contracts and the cap (`src/game/contracts.js`): the pack's contract
+  estimates (money a year, cap hit, years left, guarantees) come through
+  `tools/build-league.mjs`; the generated league gets market deals. Cap
+  $301.2M in 2026, up 6.5% a year; minimums by experience; the rookie
+  scale (No. 1 about $11M, No. 32 about $3.4M, four years). A player's
+  market value: where he ranks at his position, the position's top money,
+  his age. Front office tab in the hub: cap space, next year's commitments,
+  every contract, who's expiring; cuts in the offseason (dead money for the
+  guarantees left).
+- The offseason (`src/game/offseason.js`, `src/ui/offseason.js`), after the
+  Super Bowl or skipped straight through: a new league year, then Re-sign →
+  Free agency (five days) → the Draft (seven rounds) → Camp and cuts.
+  Every step can be left to the front office. CPU clubs re-sign, tag,
+  shop, draft by board and need, and cut to 53 under the cap.
+- Development and aging (`src/game/progression.js`): skills grow fastest
+  in the first few years and fade from about 28 (quarterbacks, kickers and
+  punters years later; linemen a year later); speed goes first, earliest for
+  running backs and corners; strength builds into the late twenties. A
+  hidden development trait and the competitor trait speed it up. Players
+  retire with age (the great ones hang on). Five simulated years keep the
+  league's starters steady. The news tab: who came on, who's slowing down,
+  who retired, every move.
+- Contract talks with personalities (`src/game/negotiate.js`,
+  `src/ui/talks.js`): what he asks, the least he'll really take (hidden),
+  how many rounds he'll sit through and what he says all come from his
+  loyalty, greed, ego and competitiveness, your record and whether he'd
+  start. Lowballs cost patience (more with a proud or greedy player); he
+  counters and comes down toward a floor; he can walk. A loyal player gives
+  his own team a discount.
+- The franchise tag: one a year, a one-year deal fully guaranteed at the
+  top-five salary at his position or 120% of his last, whichever is more.
+  CPU clubs tag the stars who won't sign (about seven a year), so few real
+  stars reach the market.
+- The draft (`src/data/draftclass.js`): 258 prospects a year with colleges,
+  heights and weights, combine drills (40, bench, vertical, broad, 3-cone,
+  shuttle) shown only as badges ranked within each position, a scouts'
+  big board that's close but not right, hidden ability and development.
+  Order by record, the playoff losers by round, the champion last.
+  Undrafted rookies become free agents at the minimum.
+- Season rules fixes from the rules-checker: the Super Bowl's designated
+  home team (NFC in even-numbered games), the tiebreaker restart only when
+  it gets down to two clubs, overtime possession after an onside or fumbled
+  kick, the third playoff OT period's kickoff, the two-minute warning
+  windows in OT, Super Bowl sites and networks through 2029, the Saturday
+  week 18 Netflix game, OT field goals when tied, delay of game a touch
+  rarer.
+
+**Broken / not yet**
+- No trades, injuries or weekly game plan yet (parts 3-4).
+- The pack's contract estimates have about a third of the league expiring
+  after 2026, stars included; re-signing and the tag cover most of them.
+- "Set my 53 for me" rebuilds your depth chart.
+
+**Next**
+- Trades (with CPU clubs valuing players, picks and cap), injuries, the
+  weekly game plan; then the playtester through a full offseason.
+
 ## 2026-10-24 — Milestone 3: Season mode
 
 **Done**

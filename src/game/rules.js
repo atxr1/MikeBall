@@ -108,7 +108,9 @@ export class Game {
   }
 
   inLateWindow() {
-    return (this.quarter === 2 && this.clock <= 120) || (this.quarter >= 4 && this.clock <= 300);
+    // (the end of a half: the 2nd and 4th quarters, regular-season overtime,
+    // and the 2nd and 4th overtime periods in the playoffs)
+    return (this.quarter === 2 && this.clock <= 120) || (this.quarter >= 4 && this.warningPeriod() && this.clock <= 300);
   }
 
   situation(side) {
@@ -129,8 +131,9 @@ export class Game {
     };
   }
 
-  kicker(side) { return starter(this.rosters[side], 'K'); }
-  punter(side) { return starter(this.rosters[side], 'P'); }
+  // (a roster without one has somebody else do it)
+  kicker(side) { return starter(this.rosters[side], 'K') || starter(this.rosters[side], 'P') || this.rosters[side].players[0]; }
+  punter(side) { return starter(this.rosters[side], 'P') || starter(this.rosters[side], 'K') || this.rosters[side].players[0]; }
   returner(side) {
     const r = this.rosters[side];
     const cands = [starter(r, 'WR', 3), starter(r, 'RB', 1), starter(r, 'CB', 2), starter(r, 'WR', 2)].filter(Boolean);
@@ -682,11 +685,13 @@ export class Game {
       if (n % 2 === 1) {
         this.timeouts = { home: 3, away: 3 };
         if (this.ot && this.ot.stage === 'sudden') {
-          const recv = this.rng.chance(0.5) ? 'home' : 'away';
+          // the captain who lost the first toss chooses (and takes the ball);
+          // a new toss only before the fifth period
+          const recv = n === 3 ? this.ot.second : this.rng.chance(0.5) ? 'home' : 'away';
           this.kickingSide = other(recv);
           this.phase = 'kickoff';
           this.patSide = null;
-          this.addLog(`End of the ${ordinal(n - 1)} overtime. ${this.teams[recv].abbr} wins the toss and will receive.`, 'info');
+          this.addLog(`End of the ${ordinal(n - 1)} overtime. ${this.teams[recv].abbr} ${n === 3 ? 'will receive' : 'wins the toss and will receive'}.`, 'info');
           this.finishNext();
           return { kind: 'ot', text: `${ordinal(n)} overtime` };
         }

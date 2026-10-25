@@ -10,7 +10,7 @@ import { injectDefs } from './ui/emblems.js';
 import { titleScreen, setupScreen, finalScreen } from './ui/menus.js';
 import { resolveHonors } from './data/honors.js';
 import { CoachScreen } from './ui/coach.js';
-import { seasonHub, seasonSetupScreen, resumeSeason, recordUserGame, keepDepth } from './ui/season.js';
+import { seasonHub, seasonSetupScreen, resumeSeason, recordUserGame, keepDepth, saveSeason, saveLeague } from './ui/season.js';
 import { seasonStandings } from './game/season.js';
 
 const LEAGUE_SEED = 2026;
@@ -54,6 +54,11 @@ const app = {
 
   showSeasonSetup(userId) {
     this.mount(seasonSetupScreen(this, userId));
+  },
+
+  async saveAll() {
+    saveSeason(this);
+    await saveLeague(this);
   },
 
   seasonRecord(s) {

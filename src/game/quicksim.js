@@ -137,7 +137,7 @@ function quickRun(o, r, u) {
   if (roll < pStuff) gain = -rng.int(0, short ? 1 : 4);
   else if (roll < pStuff + pBig) gain = 11 + expo(rng, 11);
   else if (short) gain = Math.max(0, rng.normal(2.1 + adv * 0.5, 1.5));
-  else gain = Math.max(0, rng.normal(4.4 + adv * 0.85, 2.6));
+  else gain = Math.max(0, rng.normal(4.75 + adv * 0.85, 2.7));
   gain = Math.round(gain);
   const tackler = tacklerFor(rng, def, gain);
   r.tackler = tackler;
@@ -247,6 +247,8 @@ function quickPass(o, r, u) {
   if (defPlay.cat === 'blitz') pc += air < 10 ? 0.02 : -0.03;
   if (defPlay.cat === 'run') pc += 0.04;
   if (defPlay.id === 'prevent') pc += air < 15 ? 0.06 : -0.15;
+  // the red zone: less room, tighter windows
+  if (o.ballOn >= 80 && air >= 4) pc -= 0.06 + (o.ballOn - 80) * 0.004;
   if (offPlay.hailMary) pc = 0.07;
   pc = clamp(pc, 0.04, 0.94);
   let pInt = (air < 5 ? 0.009 : air < 15 ? 0.022 : 0.04) * (1 + (81 - A(qb, 'dec')) / 55) * (1 + (pressure - 0.27) * 1.2) * (A(cover, 'bsk', 60) / 72);
@@ -297,7 +299,7 @@ function quickPass(o, r, u) {
     if (!r.td && fumble(rng, rec, def, r, r.tackler) && r.turnover) r.yards = 0;
     if (!r.turnover && rng.chance(0.024)) r.fouls.push(foul('holdO', rng.pick(u.ol)));
     else if (!r.turnover && man && rng.chance(0.018)) r.fouls.push(foul('holdD', cover));
-    else if (!r.turnover && rng.chance(0.0025)) r.fouls.push(foul('rtp', rng.pick(u.rushers.length ? u.rushers : u.front)));
+    else if (!r.turnover && rng.chance(0.006)) r.fouls.push(foul('rtp', rng.pick(u.rushers.length ? u.rushers : u.front)));
     return r;
   }
   // incomplete
@@ -311,6 +313,6 @@ function quickPass(o, r, u) {
   if (air >= 8 && rng.chance(0.07)) r.fouls.push(foul('dpi', cover, { spotY: Math.max(1, Math.round(air)) }));
   else if (rng.chance(man ? 0.04 : 0.018)) r.fouls.push(foul(rng.chance(0.7) ? 'holdD' : 'contact', cover));
   else if (rng.chance(0.022)) r.fouls.push(foul('holdO', rng.pick(u.ol)));
-  else if (rng.chance(0.002)) r.fouls.push(foul('rtp', rng.pick(u.rushers.length ? u.rushers : u.front)));
+  else if (rng.chance(0.004)) r.fouls.push(foul('rtp', rng.pick(u.rushers.length ? u.rushers : u.front)));
   return r;
 }

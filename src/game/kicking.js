@@ -32,6 +32,8 @@ export const kickingMethods = {
     } else if (res.type === 'onside_recovered') {
       text = `ONSIDE KICK — recovered by ${tk}!`;
       headline = 'Onside kick recovered!';
+      // (in overtime that counts as the receiving team's possession)
+      if (this.ot) this.otPossession(rSide);
       this.setPossession(kSide, res.ballOn);
     } else if (res.type === 'onside_failed') {
       text = `Onside kick recovered by ${tr}.`;
@@ -40,6 +42,7 @@ export const kickingMethods = {
       text = `${nm(ret)} fumbles the return! Recovered by ${tk}.`;
       headline = 'Fumble!';
       this.runClock(5);
+      if (this.ot) this.otPossession(rSide);
       this.setPossession(kSide, 100 - res.ballOn);
     } else if (res.type === 'td') {
       this.returnStat(ret, rSide, 'kr', res.returnYds, true);

@@ -15,9 +15,9 @@
 // schedule, the point rankings, net points in conference games, net points,
 // net touchdowns, coin toss.
 //
-// Whenever a step knocks some clubs out but leaves more than one tied, the
-// rest start over from the first step; once a club is placed, the others
-// start over for the next spot.
+// When a step leaves two clubs tied, they start over with the two-club
+// steps; three or more still tied go on to the next step. Once a club is
+// placed, the others start over for the next spot.
 //
 // Seeds: the four division winners are 1 to 4, the three best other clubs
 // 5 to 7; the 1 seed has a bye. Wild card round: 2-7, 3-6, 4-5 at the
@@ -206,7 +206,10 @@ function topOf(ctx, ids, kind, why) {
     if (top.length === ids.length) continue;
     if (why) why.step = why.step || step;
     if (top.length === 1) return top[0];
-    return topOf(ctx, top, kind, why);
+    // down to two: start over with the two-club steps; three or more carry
+    // on from the next step
+    if (top.length === 2) return topOf(ctx, top, kind, why);
+    ids = top;
   }
   if (why) why.step = why.step || 'coin';
   return coin(ctx, ids);
@@ -265,8 +268,8 @@ export function newBracket(seeds, year) {
     rounds: [[], [], [], []],
     champion: null,
     // the Super Bowl's designated home team alternates: the AFC in
-    // odd-numbered games (the 2026 season's is LXI)
-    homeConf: (year - 1965) % 2 === 1 ? 'AFC' : 'NFC',
+    // even-numbered games, the NFC in odd ones (the 2026 season's LXI: NFC)
+    homeConf: (year - 1965) % 2 === 0 ? 'AFC' : 'NFC',
   };
   for (const conf of ['AFC', 'NFC']) {
     const s = b.seeds[conf];

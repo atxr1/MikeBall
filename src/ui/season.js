@@ -17,6 +17,7 @@ import { load, save } from '../core/storage.js';
 import { dbGet, dbSet } from '../core/db.js';
 import { newLeagueState, serializeLeague, deserializeLeague } from '../game/league.js';
 import { tabRenderers, recordText, dayLabel } from './seasontabs.js';
+import { offseasonCard, offseasonTabs, startOffseason, autoOffseason } from './offseason.js';
 
 const KEY = 'season';
 
@@ -346,9 +347,18 @@ export function seasonHub(app, tab = null) {
   const user = teamOf(app, s.userId);
   const st = S.seasonStandings(s, TEAMS);
   const row = st.rows[s.userId];
-  const tabs = [['schedule', 'Schedule'], ['scores', 'Scores'], ['standings', 'Standings'], ['leaders', 'Leaders'], ['team', 'Front office']];
+  const off = s.phase === 'done' && s.off;
+  let tabs = [['schedule', 'Schedule'], ['scores', 'Scores'], ['standings', 'Standings'], ['leaders', 'Leaders'], ['team', 'Front office']];
   if (s.phase !== 'regular') tabs.push(['playoffs', 'Playoffs']);
   if (s.awards) tabs.push(['awards', 'Awards']);
+  if (off) {
+    // the offseason's own tabs first
+    const extra = [['news', 'News']];
+    if (off.stage === 'resign') extra.push(['freeagents', 'Re-sign']);
+    if (off.stage === 'fa' || off.stage === 'draft' || off.stage === 'camp') extra.push(['freeagents', 'Free agents']);
+    if (off.stage === 'draft' || off.stage === 'camp' || off.stage === 'fa') extra.push(['draft', off.stage === 'draft' ? 'Draft' : 'Draft class']);
+    tabs = [...extra, ['team', 'Front office'], ...tabs.filter(([id]) => id !== 'team')];
+  }
   let cur = tabs.some(([id]) => id === tab) ? tab : app.seasonTab && tabs.some(([id]) => id === app.seasonTab) ? app.seasonTab : 'schedule';
   const body = h('div', { class: 'hub-body' });
   const bar = h('div', { class: 'chips hub-tabs', role: 'tablist' });
@@ -356,7 +366,7 @@ export function seasonHub(app, tab = null) {
     app.seasonTab = cur;
     for (const b of bar.children) b.setAttribute('aria-selected', String(b.dataset.id === cur));
     clear(body);
-    body.append(tabRenderers[cur](app, s, st));
+    body.append((tabRenderers[cur] || offseasonTabs[cur])(app, s, st));
     // the chosen tab scrolled into view (Playoffs and Awards are off to the
     // right on a phone)
     requestAnimationFrame(() => {
@@ -398,6 +408,7 @@ function ordinalPlace(n) {
 
 // What's next: the user's game this week (or round), a bye, or the end.
 function nextCard(app, s, st) {
+  if (s.phase === 'done' && s.off) return offseasonCard(app, s);
   if (s.phase === 'done') {
     const champ = teamOf(app, s.champion);
     const sb = s.games.find((g) => g.round === 3);
@@ -405,8 +416,11 @@ function nextCard(app, s, st) {
       h('p', { class: 'next-when' }, S.superBowlName(s.year)),
       h('div', { class: 'next-match' }, h('span', { html: teamMarkSVG(champ, 44) }),
         h('div', {}, h('strong', {}, `${champ.city} ${champ.name}`), h('small', {}, sb ? `${sb.as > sb.hs ? `${teamOf(app, sb.away).abbr} ${sb.as}, ${teamOf(app, sb.home).abbr} ${sb.hs}` : `${teamOf(app, sb.home).abbr} ${sb.hs}, ${teamOf(app, sb.away).abbr} ${sb.as}`}${sb.ot ? ' (OT)' : ''}` : ''))),
-      h('p', { class: 'next-note' }, s.champion === s.userId ? 'Champions. Your team, your trophy.' : 'Champions. Next year it’s your turn.'),
-      h('div', { class: 'next-actions' }, h('button', { class: 'go', onclick: () => app.showSeasonSetup(s.userId) }, `Start ${s.year + 1}`)),
+      h('p', { class: 'next-note' }, `${s.champion === s.userId ? 'Champions. Your team, your trophy.' : 'Champions. Next year it’s your turn.'} Now the offseason: re-sign your own, free agency, the draft, and cuts to 53.`),
+      h('div', { class: 'next-actions' },
+        h('button', { class: 'go', onclick: () => startOffseason(app) }, 'Start the offseason'),
+        h('button', { class: 'act', onclick: (e) => confirmBox(e.target.closest('.screen'), 'Skip the offseason?', 'Your front office re-signs, signs, drafts and sets the 53 the way the other teams do. You go straight to next season.', 'Skip it', () => autoOffseason(app)) }, 'Skip it'),
+      ),
     );
   }
   const playoffs = s.phase === 'playoffs';

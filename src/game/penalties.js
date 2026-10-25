@@ -40,7 +40,7 @@ export const penaltyMethods = {
   // clockAfterFoul.
   runoff(side, wasRunning) {
     if (side !== this.poss || !wasRunning) return 0;
-    if (!((this.quarter === 2 || this.quarter >= 4) && this.clock <= 120)) return 0;
+    if (!(this.warningPeriod() && this.clock <= 120)) return 0;
     const sec = Math.min(10, this.clock);
     this.runClock(sec);
     this.clockRunning = this.clock > 0;
@@ -66,7 +66,7 @@ export const penaltyMethods = {
   preSnapPenalty() {
     const r = this.rng;
     let pen = null;
-    if (r.chance(0.015)) pen = { name: 'False start', key: 'falseStart', on: this.poss, yards: 5, signal: 'falseStart' };
+    if (r.chance(0.02)) pen = { name: 'False start', key: 'falseStart', on: this.poss, yards: 5, signal: 'falseStart' };
     else if (r.chance(0.0025)) return { name: 'Illegal formation', key: 'formation', on: this.poss, yards: 5, signal: 'falseStart', live: true };
     else if (r.chance(0.011)) {
       const k = r.pick(['offside', 'offside', 'offside', 'encroach', 'neutral']);

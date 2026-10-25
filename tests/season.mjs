@@ -119,7 +119,7 @@ export function runSeasonTests(check, between, real) {
   advance(b);
   for (const g of b.rounds[2]) { g.hs = 20; g.as = 10; }
   advance(b);
-  check('bracket: the Super Bowl at a neutral site, AFC designated home in LXI', b.rounds[3].length === 1 && b.rounds[3][0].neutral && b.rounds[3][0].home === winnerOf(b.rounds[2].find((g) => g.conf === 'AFC')));
+  check('bracket: the Super Bowl at a neutral site, NFC designated home in LXI', b.rounds[3].length === 1 && b.rounds[3][0].neutral && b.rounds[3][0].home === winnerOf(b.rounds[2].find((g) => g.conf === 'NFC')));
   b.rounds[3][0].hs = 31; b.rounds[3][0].as = 17;
   advance(b);
   check('bracket: a champion', b.champion === b.rounds[3][0].home);

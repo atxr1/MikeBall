@@ -215,7 +215,7 @@ export function contractLine(p) {
   const c = p.contract;
   if (!c || !c.apy) return null;
   const yrs = c.years === 1 ? 'final year' : `${c.years} years left`;
-  return `${fmtMoney(c.apy)} a year, ${yrs}${c.guaranteed ? `, ${fmtMoney(c.guaranteed)} guaranteed` : ''}${c.type === 'rookie' ? ' (rookie deal)' : ''}`;
+  return `${fmtMoney(c.apy)} a year, ${yrs}${c.guaranteed ? `, ${fmtMoney(c.guaranteed)} guaranteed` : ''}${c.type === 'rookie' ? ' (rookie deal)' : c.type === 'tag' ? ' (franchise tag)' : ''}`;
 }
 
 export function fillDetail(el, p) {

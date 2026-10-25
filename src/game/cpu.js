@@ -30,6 +30,12 @@ export function cpuFourthDown(game, side) {
   // behind in overtime this is the last possession that matters: a field
   // goal only if it ties or wins it, otherwise go for it
   if (s.quarter >= 5 && s.diff < 0) return s.diff >= -3 && fgd <= reach ? 'fg' : 'go';
+  // tied in overtime once the first possession's done: any field goal wins
+  // it, and late on a punt only plays for the tie
+  if (s.quarter >= 5 && s.diff === 0 && game.ot && game.ot.stage !== 'first') {
+    if (fgd <= reach) return 'fg';
+    if (!game.playoff && s.clock <= 150 && s.ballOn >= 40 && s.toGo <= 5) return 'go';
+  }
   const late = s.quarter >= 4 && s.clock <= 300;
   if (late && s.diff < 0) {
     if (s.diff >= -3 && fgd <= reach && s.clock <= 120) return 'fg';
@@ -192,7 +198,7 @@ export function cpuDelayRisk(game, side, ctx = {}) {
   if (ctx.prevFormation && ctx.formation && ctx.prevFormation !== ctx.formation && tempo !== 'hurry') f.push(['subs', 1.35]);
   if (ctx.defCat === 'blitz') f.push(['check', 1.35]);
   if (game.timeoutTaken) f.push(['clock', 0.3]);
-  let p = 0.0022;
+  let p = 0.0029;
   let why = null;
   let top = 1.15; // a reason worth naming
   for (const [k, m] of f) {

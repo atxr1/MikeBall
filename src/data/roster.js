@@ -26,7 +26,7 @@ export const ATTRS = [
 ];
 
 // [mean, sd] per position. Unlisted attributes default to [32, 8].
-const PROFILE = {
+export const PROFILE = {
   QB: { spd: [64, 10], acc: [68, 8], agi: [64, 9], str: [58, 8], awr: [72, 9], thp: [82, 6], tha: [78, 7], dec: [74, 9], car: [62, 8], elu: [55, 12], cth: [30, 8], tkl: [25, 6] },
   RB: { spd: [86, 4], acc: [87, 4], agi: [86, 5], str: [66, 8], awr: [66, 9], car: [78, 8], elu: [78, 9], cth: [64, 10], rte: [55, 9], pbk: [52, 10], rbk: [45, 9], tkl: [30, 8] },
   WR: { spd: [88, 4], acc: [87, 4], agi: [86, 5], str: [52, 8], awr: [66, 9], car: [66, 8], elu: [70, 9], cth: [78, 7], rte: [76, 8], rbk: [42, 9], tkl: [28, 8] },
@@ -71,12 +71,12 @@ const VALUE_WEIGHTS = {
   P: { kpw: 0.6, kac: 0.4 },
 };
 
-const SKILL_ATTRS = new Set(['thp', 'tha', 'dec', 'car', 'elu', 'cth', 'rte', 'rbk', 'pbk', 'prs', 'rsd', 'tkl', 'mcv', 'zcv', 'bsk', 'kpw', 'kac', 'awr']);
+export const SKILL_ATTRS = new Set(['thp', 'tha', 'dec', 'car', 'elu', 'cth', 'rte', 'rbk', 'pbk', 'prs', 'rsd', 'tkl', 'mcv', 'zcv', 'bsk', 'kpw', 'kac', 'awr']);
 
-const HEIGHT = { QB: [75, 1.5], RB: [70.5, 1.5], WR: [73, 2], TE: [77, 1], OL: [77, 1], DL: [76, 1.5], LB: [74, 1], CB: [71.5, 1.2], S: [72.5, 1.2], K: [72, 2], P: [74, 2] };
-const WEIGHT = { QB: [222, 10], RB: [214, 12], WR: [200, 12], TE: [252, 8], OL: [314, 10], DL: [295, 25], LB: [238, 9], CB: [192, 7], S: [205, 7], K: [195, 15], P: [210, 15] };
+export const HEIGHT = { QB: [75, 1.5], RB: [70.5, 1.5], WR: [73, 2], TE: [77, 1], OL: [77, 1], DL: [76, 1.5], LB: [74, 1], CB: [71.5, 1.2], S: [72.5, 1.2], K: [72, 2], P: [74, 2] };
+export const WEIGHT = { QB: [222, 10], RB: [214, 12], WR: [200, 12], TE: [252, 8], OL: [314, 10], DL: [295, 25], LB: [238, 9], CB: [192, 7], S: [205, 7], K: [195, 15], P: [210, 15] };
 
-const NUMBER_RANGES = {
+export const NUMBER_RANGES = {
   QB: [[1, 19]], RB: [[20, 39], [0, 9]], WR: [[10, 19], [80, 89], [0, 9]], TE: [[80, 89], [40, 49]],
   OL: [[60, 79], [50, 59]], DL: [[90, 99], [50, 59]], LB: [[40, 59], [0, 9]], CB: [[20, 39], [0, 9]],
   S: [[20, 49]], K: [[1, 9]], P: [[1, 19]],

@@ -295,6 +295,7 @@ export function flexFinale(s, teams = TEAMS) {
   put(ranked[0], 'Su8', 'nbc');
   put(ranked[1], 'Sa8', 'espn');
   put(ranked[2], 'Sa4', 'abc');
+  put(ranked[3], 'Sa1', 'netflix');
 }
 
 export function seasonStandings(s, teams = TEAMS) {
@@ -332,8 +333,9 @@ function addRoundGames(s) {
     [['Sa4', 'nbc', -1, '4:30 PM'], ['Sa8', 'prime', -1, '8:00 PM'], ['Su1', 'cbs', 0, '1:00 PM'], ['Su4', 'fox', 0, '4:30 PM'], ['Su8', 'nbc', 0, '8:00 PM'], ['Mo8', 'espn', 1, '8:15 PM']],
     [['Sa4', 'espn', -1, '4:30 PM'], ['Sa8', 'cbs', -1, '8:15 PM'], ['Su4', 'fox', 0, '3:00 PM'], ['Su8', 'nbc', 0, '6:30 PM']],
     [['Su4', 'cbs', 0, '3:00 PM'], ['Su8', 'fox', 0, '6:30 PM']],
-    // the Super Bowl rotates CBS, FOX, NBC, ABC (LXI, the 2026 season's, is ABC's)
-    [['Su8', ['cbs', 'fox', 'nbc', 'abc'][(s.year - 2023) % 4], 0, '6:30 PM']],
+    // the Super Bowl rotates CBS, FOX, NBC, ESPN/ABC (LXI, the 2026 season's,
+    // is ESPN's)
+    [['Su8', ['cbs', 'fox', 'nbc', 'espn'][(s.year - 2023) % 4], 0, '6:30 PM']],
   ][r];
   b.rounds[r].forEach((bg, i) => {
     const [slot, net, off, time] = windows[i % windows.length];
@@ -357,8 +359,9 @@ function addRoundGames(s) {
 }
 
 // Announced Super Bowl hosts: LXI at SoFi (Feb 2027), LXII Atlanta, LXIII
-// New Orleans; after that the game moves around the league's big stadiums.
-const SB_SITES = { 2026: 'Inglewood', 2027: 'Atlanta', 2028: 'New Orleans' };
+// Las Vegas, LXIV Nashville; after that the game moves around the league's
+// big stadiums.
+const SB_SITES = { 2026: 'Inglewood', 2027: 'Atlanta', 2028: 'Las Vegas', 2029: 'Nashville' };
 const SB_ROTATION = ['Miami Gardens', 'Glendale', 'Las Vegas', 'Houston', 'Santa Clara', 'Inglewood', 'New Orleans', 'Atlanta', 'Minneapolis', 'Arlington'];
 export function superBowlSite(year) {
   return SB_SITES[year] || SB_ROTATION[(year - 2029) % SB_ROTATION.length];
