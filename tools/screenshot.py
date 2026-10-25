@@ -186,7 +186,7 @@ def main():
         page.wait_for_selector(".final-screen", timeout=60000)
         time.sleep(0.2)
         shot("season-final")
-        page.locator(".final-screen .go", has_text="Continue").click()
+        page.locator(".final-screen .go", has_text="Continue").first.click()
         page.wait_for_selector(".hub-screen")
         time.sleep(0.2)
         shot("hub-week3")
@@ -219,7 +219,7 @@ def main():
                 page.wait_for_selector(".final-screen", timeout=60000)
                 time.sleep(0.2)
                 shot("season-final")
-                page.locator(".final-screen .go", has_text="Continue").click()
+                page.locator(".final-screen .go", has_text="Continue").first.click()
                 page.wait_for_selector(".hub-screen")
             elif page.locator(".hub-next .go", has_text="Sim").count():
                 page.locator(".hub-next .go", has_text="Sim").first.click()
